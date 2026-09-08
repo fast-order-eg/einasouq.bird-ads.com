@@ -1,0 +1,290 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  ANALYST
+  VIEWER
+}
+
+enum EntityType {
+  PAGE
+  COMPETITOR
+  KEYWORD
+  BRAND
+}
+
+enum AdStatus {
+  ACTIVE
+  INACTIVE
+  UNKNOWN
+}
+
+enum AnalysisStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id           String            @id @default(cuid())
+  email        String            @unique
+  name         String
+  passwordHash String?
+  role         Role              @default(ANALYST)
+  workspaces   WorkspaceMember[]
+  auditLogs    AuditLog[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+model Workspace {
+  id           String            @id @default(cuid())
+  name         String
+  slug         String            @unique
+  members      WorkspaceMember[]
+  trackedItems TrackedEntity[]
+  searchRuns   AdSearchRun[]
+  reports      SavedReport[]
+  connections  MetaConnection[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+model WorkspaceMember {
+  id          String    @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        Role      @default(ANALYST)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@unique([userId, workspaceId])
+}
+
+model MetaConnection {
+  id              String     @id @default(cuid())
+  workspaceId     String
+  businessId      String?
+  accessToken     String     @db.Text
+  tokenType       String     @default("USER_TOKEN")
+  scopes          String?    @db.Text
+  expiresAt       DateTime?
+  status          String     @default("ACTIVE")
+  authorizedUser  String?
+  workspace       Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assets          MetaAsset[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model MetaAsset {
+  id             String          @id @default(cuid())
+  connectionId   String?
+  assetType      String          @default("PAGE") // PAGE, INSTAGRAM, AD_ACCOUNT
+  externalId     String          @unique
+  name           String
+  category       String?
+  accessToken    String?         @db.Text
+  fanCount       Int             @default(0)
+  isAuthorized   Boolean         @default(true)
+  auditReport    String?         @db.LongText
+  auditReportDate DateTime?
+  metadataJson   String?         @db.LongText
+  posts          PagePost[]
+  connection     MetaConnection? @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model TrackedEntity {
+  id           String        @id @default(cuid())
+  workspaceId  String
+  name         String
+  entityType   EntityType    @default(COMPETITOR)
+  externalId   String?       // Facebook Page ID or Username
+  pageUrl      String?
+  category     String?
+  country      String        @default("EG")
+  notes        String?       @db.Text
+  isActive     Boolean       @default(true)
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  ads          Ad[]
+  reports      SavedReport[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model AdSearchRun {
+  id             String        @id @default(cuid())
+  workspaceId    String
+  searchTerms    String
+  pageIds        String?       @db.Text
+  countries      String        @default("EG")
+  platforms      String?
+  status         String        @default("COMPLETED")
+  resultCount    Int           @default(0)
+  executionMs    Int           @default(0)
+  errorMessage   String?       @db.Text
+  workspace      Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  snapshots      AdSnapshot[]
+  createdAt      DateTime      @default(now())
+}
+
+model Ad {
+  id               String        @id @default(cuid())
+  adLibraryId      String        @unique
+  trackedEntityId  String?
+  pageId           String
+  pageName         String
+  firstSeen        DateTime      @default(now())
+  lastSeen         DateTime      @default(now())
+  status           AdStatus      @default(ACTIVE)
+  publisherPlatforms String?
+  country          String        @default("EG")
+  trackedEntity    TrackedEntity? @relation(fields: [trackedEntityId], references: [id], onDelete: SetNull)
+  snapshots        AdSnapshot[]
+  analysisResults  AnalysisResult[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([pageId])
+  @@index([pageName])
+}
+
+model AdSnapshot {
+  id               String       @id @default(cuid())
+  adId             String
+  searchRunId      String?
+  observedAt       DateTime     @default(now())
+  primaryText      String?      @db.LongText
+  linkTitle        String?      @db.Text
+  linkCaption      String?      @db.Text
+  linkDescription  String?      @db.Text
+  ctaText          String?
+  snapshotUrl      String?      @db.Text
+  mediaType        String?      // IMAGE, VIDEO, CAROUSEL, TEXT
+  mediaUrls        String?      @db.Text
+  impressionsRange String?
+  spendRange       String?
+  rawJson          String?      @db.LongText
+  ad               Ad           @relation(fields: [adId], references: [id], onDelete: Cascade)
+  searchRun        AdSearchRun? @relation(fields: [searchRunId], references: [id], onDelete: SetNull)
+  createdAt        DateTime     @default(now())
+}
+
+model PagePost {
+  id             String     @id @default(cuid())
+  assetId        String
+  externalPostId String     @unique
+  message        String?    @db.LongText
+  createdTime    DateTime
+  postType       String?
+  likesCount     Int        @default(0)
+  commentsCount  Int        @default(0)
+  sharesCount    Int        @default(0)
+  reactionsCount Int        @default(0)
+  viewsCount     Int        @default(0)
+  permalinkUrl   String?    @db.Text
+  attachmentsJson String?   @db.LongText
+  analysisJson   String?    @db.LongText
+  asset          MetaAsset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@index([assetId])
+}
+
+model AnalysisResult {
+  id                String         @id @default(cuid())
+  adId              String?
+  entityId          String?
+  modelId           String         @default("gemini-2.5-pro")
+  promptVersion     String         @default("v1.0")
+  status            AnalysisStatus @default(COMPLETED)
+  confidenceScore   Float          @default(0.9)
+  hookType          String?
+  hookText          String?        @db.Text
+  offerType         String?
+  offerDetails      String?        @db.Text
+  problemAddressed  String?        @db.Text
+  benefitPromised   String?        @db.Text
+  audienceHypothesis String?       @db.Text
+  cta               String?
+  funnelStage       String?
+  creativeFormat    String?
+  visualAnalysis    String?        @db.LongText
+  copyAnalysis      String?        @db.LongText
+  strengths         String?        @db.LongText
+  recommendations   String?        @db.LongText
+  limitations       String?        @db.Text
+  rawJson           String?        @db.LongText
+  ad                Ad?            @relation(fields: [adId], references: [id], onDelete: Cascade)
+  createdAt         DateTime       @default(now())
+}
+
+model SavedReport {
+  id              String        @id @default(cuid())
+  workspaceId     String
+  entityId        String?
+  title           String
+  reportType      String        @default("COMPETITOR_STRATEGY")
+  contentMarkdown String        @db.LongText
+  structuredData  String?       @db.LongText
+  workspace       Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  trackedEntity   TrackedEntity? @relation(fields: [entityId], references: [id], onDelete: SetNull)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String?
+  details     String?  @db.Text
+  ipAddress   String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+}
+
+model FavoriteAd {
+  id                 String    @id @default(cuid())
+  adLibraryId        String
+  customTitle        String
+  category           String    @default("عام")
+  pageName           String
+  pageProfileUrl     String?   @db.Text
+  primaryText        String    @db.LongText
+  startDate          String?
+  formattedStartDate String?
+  daysActiveLabel    String?
+  status             String    @default("ACTIVE")
+  mediaType          String    @default("IMAGE")
+  imageUrl           String?   @db.Text
+  imagesJson         String?   @db.LongText
+  videoUrl           String?   @db.Text
+  ctaType            String?
+  ctaLabel           String?
+  snapshotUrl        String    @db.Text
+  publisherPlatforms String?
+  country            String    @default("EG")
+  analysisJson       String?   @db.LongText
+  notes              String?   @db.Text
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([adLibraryId])
+  @@index([category])
+  @@index([pageName])
+}

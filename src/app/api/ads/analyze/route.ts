@@ -1,0 +1,45 @@
+import { NextResponse } from 'next/server';
+import vertexAI from '@/lib/vertex';
+import prisma from '@/lib/db';
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const { adText, pageName, platform, snapshotUrl, imageBase64, imageUrl, postId } = body;
+
+    if (!adText && !imageBase64 && !imageUrl) {
+      return NextResponse.json({ success: false, error: 'نص الإعلان أو الصورة مطلوب للتحليل' }, { status: 400 });
+    }
+
+    const analysis = await vertexAI.analyzeAdCreative(adText || 'تحليل الصورة المرفقة', {
+      pageName,
+      platform,
+      snapshotUrl,
+      imageBase64,
+      imageUrl,
+    });
+
+    // If postId is provided, persist analysis into MySQL database!
+    if (postId) {
+      try {
+        await prisma.pagePost.updateMany({
+          where: { externalPostId: postId },
+          data: {
+            analysisJson: JSON.stringify(analysis),
+          },
+        });
+      } catch (dbErr) {
+        console.error('Failed to save analysis to DB:', dbErr);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      modelUsed: 'gemini-2.5-pro',
+      analysis,
+    });
+  } catch (error: any) {
+    console.error('Ad Analysis API Error:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
