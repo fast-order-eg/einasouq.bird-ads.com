@@ -126,12 +126,12 @@
 - [x] إعادة بناء المشروع للإنتاج (npm run build) بنجاح 100% وإعادة تشغيل السيرفر بالنسخة المحدثة
 - [x] فحص سيرفر CyberPanel رقم 1 واستكشاف معمارية وسكريبت نشر bot.bird-ads.com بنظام Zero-Downtime
 - [x] أخذ نسخة احتياطية كاملة من قاعدة بيانات adscope_db المحلية بحجم ~4.8MB
-- [ ] تهيئة Git ورفع كود عين السوق على مستودع GitHub (einasouq.bird-ads.com) باستخدام Access Token
-- [ ] إنشاء قاعدة بيانات bird_einasouq على سيرفر السايبر بانال واستيراد النسخة الاحتياطية
-- [ ] سحب كود المشروع على السيرفر وتثبيت الحزم وضبط متغيرات البيئة .env
-- [ ] ربط التطبيق بـ OpenLiteSpeed كـ Reverse Proxy وتفعيل شهادة SSL
-- [ ] إعداد خدمة PM2 (einasouq-app) وضبط سكريبت deploy_einasouq.sh بنظام Zero-Downtime
-- [ ] التحقق واختبار تشغيل الموقع كاملاً على https://einasouq.bird-ads.com
+- [x] تهيئة Git ورفع كود عين السوق على مستودع GitHub (einasouq.bird-ads.com) باستخدام Access Token
+- [x] إنشاء قاعدة بيانات bird_einasouq على سيرفر السايبر بانال واستيراد النسخة الاحتياطية بنجاح
+- [x] سحب كود المشروع على السيرفر وتثبيت الحزم وضبط متغيرات البيئة .env وملف اعتماد جوجل
+- [x] ربط التطبيق بـ OpenLiteSpeed كـ Reverse Proxy وتفعيل شهادة SSL
+- [x] إعداد خدمة PM2 (einasouq-app) وضبط سكريبت deploy_einasouq.sh بنظام Zero-Downtime
+- [x] التحقق واختبار تشغيل الموقع كاملاً على https://einasouq.bird-ads.com واختبار تسجيل الدخول بنجاح
 
 
 
