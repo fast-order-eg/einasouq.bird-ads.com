@@ -134,6 +134,34 @@ export async function POST(req: NextRequest) {
           ],
         },
       });
+
+      // If not directly found in DB by name/externalId, resolve vanity username/slug via Graph API (e.g. "birdads1" -> ID: 234951263043347)
+      if (!pageAsset && userToken) {
+        try {
+          const slugRes = await fetch(`${BASE_GRAPH_URL}/${encodeURIComponent(parsed.pageIdOrSlug)}?fields=id,name,username&access_token=${userToken}`);
+          const slugData = await slugRes.json();
+          if (slugData.id) {
+            pageAsset = await prisma.metaAsset.findFirst({
+              where: {
+                OR: [
+                  { externalId: slugData.id },
+                  { name: slugData.name },
+                ],
+              },
+            });
+            if (!pageAsset) {
+              pageAsset = {
+                externalId: slugData.id,
+                name: slugData.name || parsed.pageIdOrSlug,
+                accessToken: null,
+              };
+            }
+          }
+        } catch (slugErr) {
+          console.warn('[Post Inspect] Slug resolution error:', slugErr);
+        }
+      }
+
       if (pageAsset?.accessToken) {
         effectiveToken = pageAsset.accessToken;
       }
@@ -282,13 +310,37 @@ export async function POST(req: NextRequest) {
         candidateId = `${pageAsset.externalId}_${candidateId}`;
       }
 
-      const postFields = 'id,message,created_time,permalink_url,shares,reactions.summary(true),comments.summary(true).filter(stream),attachments{media_type,type,title,description,url,unshimmed_url,target,media,subattachments},from{id,name,picture{url}}';
-      let postData = await fetchGraph(candidateId, postFields);
+      const postFields = 'id,message,created_time,permalink_url,shares,reactions.summary(true),comments.summary(true),attachments{media_type,type,title,description,url,unshimmed_url,target,media,subattachments},from{id,name,picture{url}}';
+      let postData = await fetchGraph(candidateId, postFields, effectiveToken);
 
       // If failed with combined ID, try candidate without prefix
       if (postData.error && candidateId.includes('_')) {
         const rawOnly = candidateId.split('_')[1];
-        postData = await fetchGraph(rawOnly, postFields);
+        postData = await fetchGraph(rawOnly, postFields, effectiveToken);
+      }
+
+      // If still error, and postId starts with 'pfbid', search our managed pages that have accessTokens
+      if (postData.error && parsed.postId.startsWith('pfbid')) {
+        try {
+          const managedWithTokens = await prisma.metaAsset.findMany({
+            where: { accessToken: { not: null } },
+            select: { externalId: true, name: true, accessToken: true },
+            take: 30,
+          });
+          for (const mg of managedWithTokens) {
+            if (!mg.accessToken) continue;
+            const testId = `${mg.externalId}_${parsed.postId}`;
+            const testRes = await fetchGraph(testId, postFields, mg.accessToken);
+            if (testRes && testRes.id && !testRes.error) {
+              postData = testRes;
+              pageAsset = mg;
+              effectiveToken = mg.accessToken;
+              break;
+            }
+          }
+        } catch (pfbidErr) {
+          console.warn('[Post Inspect] Error testing managed tokens for pfbid:', pfbidErr);
+        }
       }
 
       // If still error, and we have pageAsset, search published_posts for permalink/id
