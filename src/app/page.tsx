@@ -528,12 +528,12 @@ export default function DashboardPage() {
                   {analyzingPaid ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      جاري استشارة خبير الميديا باينج والتحليل بالـ AI Pro...
+                      جاري التحليل بالـ AI...
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4 text-amber-300" />
-                      فحص جاهزية البوست للإعلان الممول (AI Pro - Gemini 2.5 Pro)
+                      تحليل بالـ AI
                     </>
                   )}
                 </button>
@@ -548,7 +548,7 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-2">
                         <Award className="w-5 h-5 text-amber-400" />
                         <h3 className="text-sm font-extrabold text-white">
-                          تقرير فحص وجاهزية البوست للإعلانات الممولة
+                          تقرير التحليل بالـ AI
                         </h3>
                       </div>
                       <p className="text-[11px] text-slate-400 mt-0.5">

@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
       const videoId = parsed.videoId || parsed.postId;
       if (videoId) {
         // Note: Graph API does NOT have 'shares' on Video nodes!
-        const vFields = 'id,title,description,source,picture,views,length,likes.summary(true),comments.summary(true),from{id,name,picture{url}},created_time,permalink_url';
+        const vFields = 'id,title,description,source,picture,views,length,likes.summary(true),comments.summary(true).filter(stream),from{id,name,picture{url}},created_time,permalink_url';
         let vData = await fetchGraph(videoId, vFields, effectiveToken);
 
         // If video returned error with current token, check if we can find its page in DB or try user token
@@ -310,7 +310,7 @@ export async function POST(req: NextRequest) {
         candidateId = `${pageAsset.externalId}_${candidateId}`;
       }
 
-      const postFields = 'id,message,created_time,permalink_url,shares,reactions.summary(true),comments.summary(true),attachments{media_type,type,title,description,url,unshimmed_url,target,media,subattachments},from{id,name,picture{url}}';
+      const postFields = 'id,message,created_time,permalink_url,shares,reactions.summary(true),comments.summary(true).filter(stream),attachments{media_type,type,title,description,url,unshimmed_url,target,media,subattachments},from{id,name,picture{url}}';
       let postData = await fetchGraph(candidateId, postFields, effectiveToken);
 
       // If failed with combined ID, try candidate without prefix
