@@ -422,6 +422,7 @@ export default function PagesHistoryPage() {
         <ReportViewer
           reportMarkdown={selectedReport.report}
           pageName={selectedReport.pageName}
+          initialFullscreen={true}
           onClose={() => setSelectedReport(null)}
         />
       )}

@@ -49,40 +49,120 @@ body {
 
 /* Print / PDF Export Styling */
 @media print {
-  body {
+  @page {
+    size: A4 portrait;
+    margin: 15mm 12mm 15mm 12mm;
+  }
+
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html, body {
     background: #ffffff !important;
     color: #0f172a !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    position: static !important;
   }
 
   /* Hide navigation, sidebar, and non-printable elements */
-  header, nav, aside, .no-print, button:not(.printable-only) {
+  header, nav, aside, footer, .no-print, button:not(.printable-only) {
     display: none !important;
+  }
+
+  /* Neutralize all fixed modal wrappers and scroll clipping */
+  .fixed, [class*="fixed"], [class*="backdrop-blur"], [class*="max-h-"], [class*="overflow-y-auto"], [class*="overflow-hidden"], [class*="overflow-x-auto"] {
+    position: static !important;
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+    width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    transform: none !important;
   }
 
   .print-area {
     display: block !important;
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
+    position: static !important;
     width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
     background: #ffffff !important;
     color: #0f172a !important;
-    padding: 20px !important;
+    padding: 10px 0 !important;
+    margin: 0 !important;
+  }
+
+  .print-area * {
+    color: #1e293b !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+    background-color: transparent !important;
+  }
+
+  .print-area h1, .print-area h2, .print-area h3, .print-area h4 {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  .print-area h1 {
+    color: #312e81 !important;
+    border-bottom: 2px solid #e2e8f0 !important;
+    margin-top: 20px !important;
+    padding-bottom: 8px !important;
+  }
+
+  .print-area h2 {
+    color: #b45309 !important;
+    border-bottom: 1.5px solid #e2e8f0 !important;
+    margin-top: 18px !important;
+    padding-bottom: 6px !important;
+  }
+
+  .print-area h3 {
+    color: #047857 !important;
+    margin-top: 14px !important;
   }
 
   .print-area table {
     border-collapse: collapse !important;
     width: 100% !important;
     margin: 15px 0 !important;
+    background: #ffffff !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  .print-area tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   .print-area th, .print-area td {
     border: 1px solid #cbd5e1 !important;
     padding: 8px 12px !important;
     color: #0f172a !important;
+    background-color: transparent !important;
+    text-align: right !important;
   }
 
   .print-area th {
     background-color: #f1f5f9 !important;
+    font-weight: bold !important;
+  }
+
+  .print-area hr {
+    border-top: 1px solid #e2e8f0 !important;
+    margin: 16px 0 !important;
   }
 }
