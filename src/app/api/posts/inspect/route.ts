@@ -334,6 +334,77 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── CASE D: FALLBACK CHECK IN LOCAL DATABASE (PagePost & MetaAsset) ──
+    if (!postResult) {
+      try {
+        const queryTerms = [parsed.postId, parsed.videoId, parsed.photoId, rawUrl].filter(Boolean) as string[];
+        const orConditions: any[] = [];
+        for (const term of queryTerms) {
+          orConditions.push({ externalPostId: term });
+          orConditions.push({ externalPostId: { contains: term } });
+          orConditions.push({ permalinkUrl: { contains: term } });
+        }
+
+        const dbPost = await prisma.pagePost.findFirst({
+          where: { OR: orConditions },
+          include: { asset: true },
+        });
+
+        if (dbPost) {
+          let attachments: any = {};
+          try {
+            if (dbPost.attachmentsJson) attachments = JSON.parse(dbPost.attachmentsJson);
+          } catch (e) {}
+
+          const att = attachments.data?.[0];
+          const subAtts = att?.subattachments?.data || [];
+          let images: string[] = [];
+          if (subAtts.length > 0) {
+            images = subAtts.map((s: any) => s.media?.image?.src || s.url).filter(Boolean);
+          } else if (att?.media?.image?.src) {
+            images = [att.media.image.src];
+          } else if (att?.imageUrl) {
+            images = [att.imageUrl];
+          }
+
+          let pageMeta: any = {};
+          try {
+            if (dbPost.asset?.metadataJson) pageMeta = JSON.parse(dbPost.asset.metadataJson);
+          } catch (e) {}
+
+          const isVideo = att?.media_type === 'video' || dbPost.permalinkUrl?.includes('/reel/') || dbPost.permalinkUrl?.includes('/videos/');
+          const mediaType = isVideo ? 'VIDEO' : (images.length > 1 ? 'CAROUSEL' : (images.length === 1 ? 'IMAGE' : 'TEXT'));
+
+          postResult = {
+            id: dbPost.externalPostId,
+            postId: dbPost.externalPostId,
+            pageId: dbPost.asset?.externalId || '',
+            pageName: dbPost.asset?.name || 'صفحة معتمدة',
+            pagePicture: pageMeta.pictureUrl || null,
+            message: dbPost.message || '',
+            createdTime: dbPost.createdTime.toISOString(),
+            permalinkUrl: dbPost.permalinkUrl || rawUrl,
+            mediaType,
+            media: {
+              videoUrl: isVideo && att?.target?.id ? `https://www.facebook.com/video.php?v=${att.target.id}` : null,
+              thumbnailUrl: images[0] || null,
+              images,
+              primaryImageUrl: images[0] || null,
+            },
+            metrics: {
+              reactions: dbPost.reactionsCount || dbPost.likesCount || 0,
+              comments: dbPost.commentsCount || 0,
+              shares: dbPost.sharesCount || 0,
+              views: dbPost.viewsCount || 0,
+            },
+            isOwned: true,
+          };
+        }
+      } catch (dbFallbackErr) {
+        console.warn('[Post Inspect] DB fallback error:', dbFallbackErr);
+      }
+    }
+
     // If still not found, check if it's because of missing permissions or page matching
     if (!postResult) {
       return NextResponse.json({
