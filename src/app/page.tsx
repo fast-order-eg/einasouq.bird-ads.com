@@ -48,6 +48,7 @@ export default function DashboardPage() {
   // Paid Post Strategic Analysis States
   const [analyzingPaid, setAnalyzingPaid] = useState(false);
   const [paidAnalysis, setPaidAnalysis] = useState<any>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
   const [videoPlayerTab, setVideoPlayerTab] = useState<'embed' | 'direct'>('embed');
 
@@ -63,6 +64,7 @@ export default function DashboardPage() {
     setInspectError(null);
     setInspectedPost(null);
     setPaidAnalysis(null);
+    setAnalysisError(null);
 
     try {
       const res = await fetch('/api/posts/inspect', {
@@ -87,6 +89,7 @@ export default function DashboardPage() {
   const handleAnalyzePaidCampaign = async () => {
     if (!inspectedPost) return;
     setAnalyzingPaid(true);
+    setAnalysisError(null);
 
     try {
       const res = await fetch('/api/ads/analyze', {
@@ -106,11 +109,12 @@ export default function DashboardPage() {
       const data = await res.json();
       if (data.success && data.analysis) {
         setPaidAnalysis(data.analysis);
+        setAnalysisError(null);
       } else {
-        alert(data.error || 'حدث خطأ أثناء تحليل البوست');
+        setAnalysisError(data.error || 'حدث خطأ أثناء تحليل البوست، يرجى المحاولة مرة أخرى');
       }
     } catch (err: any) {
-      alert('خطأ في الاتصال أثناء التحليل: ' + err.message);
+      setAnalysisError('خطأ في الاتصال أثناء التحليل: ' + err.message);
     } finally {
       setAnalyzingPaid(false);
     }
@@ -568,7 +572,7 @@ export default function DashboardPage() {
               )}
 
               {/* Big Action Button: AI Paid Ad Analysis */}
-              <div className="pt-2 flex justify-center">
+              <div className="pt-2 flex flex-col items-center gap-3">
                 <button
                   onClick={handleAnalyzePaidCampaign}
                   disabled={analyzingPaid}
@@ -586,6 +590,22 @@ export default function DashboardPage() {
                     </>
                   )}
                 </button>
+
+                {/* Error Banner if any */}
+                {analysisError && (
+                  <div className="w-full max-w-xl p-3.5 rounded-xl bg-red-950/40 border border-red-500/50 text-red-200 text-xs flex items-center justify-between gap-3 animate-fadeIn">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                      <span>{analysisError}</span>
+                    </div>
+                    <button
+                      onClick={handleAnalyzePaidCampaign}
+                      className="px-3 py-1 rounded-lg bg-red-600/60 hover:bg-red-500 text-white font-bold text-[11px] shrink-0 transition-all"
+                    >
+                      إعادة المحاولة 🔄
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* ── DETAILED STRATEGIC AI PAID CAMPAIGN ANALYSIS ── */}

@@ -90,9 +90,9 @@ export class VertexGeminiProvider {
   constructor() {
     this.projectId = process.env.GOOGLE_CLOUD_PROJECT || 'project-c1442437-41e2-480c-86d';
     this.location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
-    // Strictly use the flagship Gemini 2.5 Pro model for all strategic analyses
+    // Strictly use the flagship Gemini 2.5 Pro model for all strategic analyses, with 2.5 Flash as fast fallback
     this.qualityModel = process.env.VERTEX_QUALITY_MODEL || 'gemini-2.5-pro';
-    this.fastModel = process.env.VERTEX_FAST_MODEL || 'gemini-2.5-pro';
+    this.fastModel = process.env.VERTEX_FAST_MODEL || 'gemini-2.5-flash';
 
     // Flexible credential path resolution for local dev, Docker, and production servers
     const projectCredPath = path.join(process.cwd(), 'credentials', 'google-service-account.json');
@@ -175,39 +175,58 @@ export class VertexGeminiProvider {
 
   async generate(prompt: string, options: { model?: 'quality' | 'fast'; imageBase64?: string; mimeType?: string; config?: GenerationConfig } = {}) {
     const accessToken = await this.getAccessToken();
-    const modelName = this.qualityModel;
-    const url = `https://${this.location}-aiplatform.googleapis.com/v1/projects/${this.projectId}/locations/${this.location}/publishers/google/models/${modelName}:generateContent`;
+    const primaryModel = options.model === 'quality' ? this.qualityModel : this.fastModel;
+    const fallbackModel = this.fastModel;
 
-    const parts: any[] = [{ text: prompt }];
+    const executeCall = async (modelToUse: string, includeImage: boolean = true) => {
+      const url = `https://${this.location}-aiplatform.googleapis.com/v1/projects/${this.projectId}/locations/${this.location}/publishers/google/models/${modelToUse}:generateContent`;
 
-    if (options.imageBase64) {
-      parts.push({
-        inlineData: {
-          mimeType: options.mimeType || 'image/jpeg',
-          data: options.imageBase64,
+      const parts: any[] = [{ text: prompt }];
+
+      if (includeImage && options.imageBase64) {
+        parts.push({
+          inlineData: {
+            mimeType: options.mimeType || 'image/jpeg',
+            data: options.imageBase64,
+          },
+        });
+      }
+
+      const payload: any = {
+        contents: [{ role: 'user', parts }],
+        generationConfig: {
+          temperature: options.config?.temperature ?? 0.1,
+          maxOutputTokens: options.config?.maxOutputTokens ?? 16384,
+          topP: options.config?.topP ?? 0.95,
+          topK: options.config?.topK ?? 40,
+          ...(options.config?.responseMimeType ? { responseMimeType: options.config.responseMimeType } : {}),
         },
-      });
-    }
+      };
 
-    const payload: any = {
-      contents: [{ role: 'user', parts }],
-      generationConfig: {
-        temperature: options.config?.temperature ?? 0.1,
-        maxOutputTokens: options.config?.maxOutputTokens ?? 16384,
-        topP: options.config?.topP ?? 0.95,
-        topK: options.config?.topK ?? 40,
-        ...(options.config?.responseMimeType ? { responseMimeType: options.config.responseMimeType } : {}),
-      },
+      return await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
     };
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify(payload),
-    });
+    // 1. Attempt primary call
+    let res = await executeCall(primaryModel, true);
+
+    // 2. Fallback on 429 (Resource Exhausted / Quota Limit) or 503 (Overloaded)
+    if ((res.status === 429 || res.status === 503) && primaryModel !== fallbackModel) {
+      console.warn(`[Vertex AI] ${primaryModel} returned status ${res.status}. Seamlessly falling back to ${fallbackModel}...`);
+      res = await executeCall(fallbackModel, true);
+    }
+
+    // 3. If still rate-limited, attempt text-only call on fallbackModel (large images often trigger 429)
+    if ((res.status === 429 || res.status === 503) && options.imageBase64) {
+      console.warn(`[Vertex AI] Rate limit on multimodal request, retrying text-only on ${fallbackModel}...`);
+      res = await executeCall(fallbackModel, false);
+    }
 
     if (!res.ok) {
       const errText = await res.text();
@@ -453,7 +472,7 @@ ${hasImage ? '⚠️ تم إرفاق صورة/غلاف التصميم المرف
 `;
 
     const rawResponse = await this.generate(prompt, {
-      model: 'quality',
+      model: 'fast',
       imageBase64,
       mimeType: 'image/jpeg',
       config: {

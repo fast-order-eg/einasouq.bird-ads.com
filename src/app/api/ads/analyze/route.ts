@@ -61,11 +61,15 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      modelUsed: 'gemini-2.5-pro',
+      modelUsed: 'gemini-2.5',
       analysis,
     });
   } catch (error: any) {
     console.error('Ad Analysis API Error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    let userFriendlyMessage = error.message || 'حدث خطأ غير متوقع أثناء تحليل الإعلان';
+    if (error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED') || error.message?.includes('Resource exhausted')) {
+      userFriendlyMessage = 'سيرفرات الذكاء الاصطناعي عليها ضغط لحظي، برجاء الضغط مرة أخرى لإعادة المحاولة فوراً.';
+    }
+    return NextResponse.json({ success: false, error: userFriendlyMessage }, { status: 500 });
   }
 }
