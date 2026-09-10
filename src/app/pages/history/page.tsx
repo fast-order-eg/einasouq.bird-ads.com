@@ -345,9 +345,16 @@ export default function PagesHistoryPage() {
                         <span className="font-bold text-xs text-white truncate">{post.pageName}</span>
                       </div>
 
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        {post.createdTime ? formatDateArabic(post.createdTime) : ''}
-                      </span>
+                      <div className="text-left space-y-0.5 shrink-0">
+                        <span className="text-[11px] font-bold text-indigo-300 block font-mono" title="تاريخ إجراء التحليل بالذكاء الاصطناعي">
+                          {post.analyzedAt || post.updatedAt ? formatDateArabic(post.analyzedAt || post.updatedAt) : (post.createdTime ? formatDateArabic(post.createdTime) : '')}
+                        </span>
+                        {post.createdTime && (post.analyzedAt || post.updatedAt) && (
+                          <span className="text-[9.5px] text-slate-500 block" title="تاريخ نشر المنشور على فيسبوك">
+                            نُشر: {formatDateArabic(post.createdTime)}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Post Text snippet */}

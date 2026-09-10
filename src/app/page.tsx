@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Sparkles,
@@ -38,6 +38,7 @@ import {
   Sparkle,
   Printer,
   FileDown,
+  X,
 } from 'lucide-react';
 import { exportPostAnalysisPdf } from '@/lib/export-pdf';
 
@@ -59,6 +60,58 @@ export default function DashboardPage() {
   const [quickAdText, setQuickAdText] = useState('');
   const [analyzingQuick, setAnalyzingQuick] = useState(false);
   const [quickAnalysisResult, setQuickAnalysisResult] = useState<any>(null);
+
+  // Load persisted post & analysis from localStorage on initial load
+  useEffect(() => {
+    try {
+      const savedUrl = localStorage.getItem('einasouq_current_post_url');
+      const savedPost = localStorage.getItem('einasouq_current_inspected_post');
+      const savedAnalysis = localStorage.getItem('einasouq_current_paid_analysis');
+
+      if (savedUrl) setPostUrl(savedUrl);
+      if (savedPost) setInspectedPost(JSON.parse(savedPost));
+      if (savedAnalysis) setPaidAnalysis(JSON.parse(savedAnalysis));
+    } catch (e) {
+      console.warn('Failed to restore dashboard state from localStorage:', e);
+    }
+  }, []);
+
+  // Save to localStorage when state changes
+  useEffect(() => {
+    try {
+      if (inspectedPost) {
+        localStorage.setItem('einasouq_current_inspected_post', JSON.stringify(inspectedPost));
+      } else {
+        localStorage.removeItem('einasouq_current_inspected_post');
+      }
+
+      if (paidAnalysis) {
+        localStorage.setItem('einasouq_current_paid_analysis', JSON.stringify(paidAnalysis));
+      } else {
+        localStorage.removeItem('einasouq_current_paid_analysis');
+      }
+
+      if (postUrl) {
+        localStorage.setItem('einasouq_current_post_url', postUrl);
+      } else {
+        localStorage.removeItem('einasouq_current_post_url');
+      }
+    } catch (e) {}
+  }, [inspectedPost, paidAnalysis, postUrl]);
+
+  // Clear all data manually when user clicks "X"
+  const handleClear = () => {
+    setPostUrl('');
+    setInspectedPost(null);
+    setPaidAnalysis(null);
+    setInspectError(null);
+    setAnalysisError(null);
+    try {
+      localStorage.removeItem('einasouq_current_post_url');
+      localStorage.removeItem('einasouq_current_inspected_post');
+      localStorage.removeItem('einasouq_current_paid_analysis');
+    } catch (e) {}
+  };
 
   // Handle Inspect Post by URL
   const handleInspectPost = async () => {
@@ -244,17 +297,10 @@ export default function DashboardPage() {
         </div>
 
         <div className="p-5 space-y-5">
-          {/* Important Explanatory Banner (User Requirement) */}
-          <div className="p-4 rounded-xl bg-indigo-950/40 border border-indigo-700/50 flex items-start gap-3">
-            <ShieldCheck className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
-            <div className="text-xs space-y-1">
-              <div className="font-bold text-indigo-200 flex items-center gap-1.5">
-                تنبيه هام وملاحظة قبل الفحص:
-              </div>
-              <p className="text-slate-300 leading-relaxed">
-                برجاء وضع رابط أي منشور منشور حالياً (Post / Reel / Video / Photo) من إحدى <strong className="text-white">صفحاتك المدارة أو المصرّح بها</strong> في حسابك. يقوم النظام بالاتصال الآمن بـ Facebook Graph API لسحب التفاعلات الحقيقية الحية (لايكات، تعليقات، مشاركات، مشاهدات) واستخراج الوسائط (صور عالية الدقة أو فيديو MP4) مع إمكانية تحميلها مباشرة لجهازك بدون أي حظر.
-              </p>
-            </div>
+          {/* Permission Notice Banner */}
+          <div className="p-3 rounded-xl bg-indigo-950/30 border border-indigo-800/40 flex items-center gap-2.5 text-xs text-indigo-200">
+            <ShieldCheck className="w-4 h-4 text-indigo-400 shrink-0" />
+            <span><strong>ملاحظة:</strong> لازم البوست هنا يكون لينا صلاحية على الصفحة بتاعته في النظام.</span>
           </div>
 
           {/* Search Box Input */}
@@ -276,15 +322,11 @@ export default function DashboardPage() {
                 />
                 {postUrl && (
                   <button
-                    onClick={() => {
-                      setPostUrl('');
-                      setInspectedPost(null);
-                      setPaidAnalysis(null);
-                      setInspectError(null);
-                    }}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs px-1.5 py-0.5 rounded"
+                    onClick={handleClear}
+                    title="مسح البيانات والبدء من جديد"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-all flex items-center justify-center cursor-pointer"
                   >
-                    مسح
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>

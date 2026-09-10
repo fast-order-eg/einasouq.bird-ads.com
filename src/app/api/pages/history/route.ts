@@ -33,7 +33,7 @@ export async function GET() {
         },
       },
       orderBy: {
-        createdTime: 'desc',
+        updatedAt: 'desc',
       },
       take: 100,
     });
@@ -74,6 +74,8 @@ export async function GET() {
         externalPostId: post.externalPostId,
         message: post.message || '',
         createdTime: post.createdTime,
+        analyzedAt: post.updatedAt || post.createdAt,
+        updatedAt: post.updatedAt,
         postType: post.postType || 'POST',
         permalinkUrl: post.permalinkUrl,
         reactionsCount: post.reactionsCount,
