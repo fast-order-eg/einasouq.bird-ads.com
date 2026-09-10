@@ -83,28 +83,40 @@ function parseFacebookPostUrl(input: string): ParsedFacebookUrl {
     const pathname = urlObj.pathname;
     const searchParams = urlObj.searchParams;
 
-    // 1. Reel: /reel/{reel_id} or /share/r/{reel_id}
-    const reelMatch = pathname.match(/\/(?:reel|share\/r)\/([a-zA-Z0-9_-]+)/);
+    // 1. Reel with page: /{page_slug}/reel/{reel_id}
+    const pageReelMatch = pathname.match(/\/([^/]+)\/reel\/([a-zA-Z0-9_-]+)/i);
+    if (pageReelMatch && !['reel', 'reels', 'share'].includes(pageReelMatch[1].toLowerCase())) {
+      return { type: 'REEL', pageIdOrSlug: pageReelMatch[1], videoId: pageReelMatch[2], rawInput: clean };
+    }
+
+    // 2. Reel direct: /reel/{reel_id} or /reels/{reel_id} or /share/r/{reel_id}
+    const reelMatch = pathname.match(/\/(?:reels?|share\/r)\/([a-zA-Z0-9_-]+)/i);
     if (reelMatch) {
       return { type: 'REEL', videoId: reelMatch[1], rawInput: clean };
     }
 
-    // 2. Video: /watch/?v={video_id} or /videos/{video_id} or /share/v/{id}
+    // 3. Video with page: /{page_slug}/videos/{video_id}
+    const pageVideoMatch = pathname.match(/\/([^/]+)\/videos\/([a-zA-Z0-9_-]+)/i);
+    if (pageVideoMatch && !['watch', 'share', 'videos'].includes(pageVideoMatch[1].toLowerCase())) {
+      return { type: 'VIDEO', pageIdOrSlug: pageVideoMatch[1], videoId: pageVideoMatch[2], rawInput: clean };
+    }
+
+    // 4. Video: /watch/?v={video_id} or /videos/{video_id} or /share/v/{id}
     const watchV = searchParams.get('v');
     if (watchV && /^\d+$/.test(watchV)) {
       return { type: 'VIDEO', videoId: watchV, rawInput: clean };
     }
-    const videoMatch = pathname.match(/\/(?:videos|share\/v)\/([a-zA-Z0-9_-]+)/);
+    const videoMatch = pathname.match(/\/(?:videos|share\/v)\/([a-zA-Z0-9_-]+)/i);
     if (videoMatch) {
       return { type: 'VIDEO', videoId: videoMatch[1], rawInput: clean };
     }
 
-    // 3. Photo: /photos/{id} or /photo/?fbid={photo_id}
+    // 5. Photo: /photos/{id} or /photo/?fbid={photo_id}
     const fbid = searchParams.get('fbid');
     if (fbid && /^\d+$/.test(fbid)) {
       return { type: 'PHOTO', photoId: fbid, rawInput: clean };
     }
-    const photoMatch = pathname.match(/\/photos\/(?:[a-zA-Z0-9._-]+\/)?(\d+)/);
+    const photoMatch = pathname.match(/\/photos\/(?:[a-zA-Z0-9._-]+\/)?(\d+)/i);
     if (photoMatch) {
       return { type: 'PHOTO', photoId: photoMatch[1], rawInput: clean };
     }
@@ -246,9 +258,8 @@ export async function POST(req: NextRequest) {
         const vFields = 'id,title,description,source,picture,views,length,likes.summary(true),comments.summary(true).filter(stream),from{id,name,picture{url}},created_time,permalink_url';
         let vData = await fetchGraph(videoId, vFields, effectiveToken);
 
-        // If video returned error with current token, check if we can find its page in DB or try user token
-        if (vData.error) {
-          // Check DB PagePost to see which page owns it
+        // If video returned error with current token, check if we can find its page in DB
+        if (vData.error || !vData.id) {
           try {
             const dbMatch = await prisma.pagePost.findFirst({
               where: {
@@ -260,32 +271,68 @@ export async function POST(req: NextRequest) {
               include: { asset: true },
             });
             if (dbMatch?.asset?.accessToken) {
-              vData = await fetchGraph(videoId, vFields, dbMatch.asset.accessToken);
-              if (vData.id) {
+              const dbRes = await fetchGraph(videoId, vFields, dbMatch.asset.accessToken);
+              if (dbRes && dbRes.id && !dbRes.error) {
+                vData = dbRes;
                 pageAsset = dbMatch.asset;
+                effectiveToken = dbMatch.asset.accessToken;
               }
             }
           } catch (e) {}
         }
 
-        if (vData.id) {
+        // If still error or no ID (common for reels where URL has no page slug and user token lacks video permission),
+        // try querying with page tokens from our managed assets in MetaAsset!
+        if (vData.error || !vData.id) {
+          try {
+            const managedWithTokens = await prisma.metaAsset.findMany({
+              where: { accessToken: { not: null } },
+              take: 50,
+            });
+            for (const mg of managedWithTokens) {
+              if (!mg.accessToken) continue;
+              const testRes = await fetchGraph(videoId, vFields, mg.accessToken);
+              if (testRes && testRes.id && !testRes.error) {
+                vData = testRes;
+                pageAsset = mg;
+                effectiveToken = mg.accessToken;
+                break;
+              }
+            }
+          } catch (mgErr) {
+            console.warn('[Post Inspect] Error testing managed tokens for video:', mgErr);
+          }
+        }
+
+        if (vData && vData.id) {
           const pageInfo = vData.from || {};
           const detectedPageId = pageInfo.id || pageAsset?.externalId;
 
-          // If we didn't have pageAsset, look up by detectedPageId
-          if (detectedPageId && !pageAsset) {
+          // If we didn't have pageAsset or detectedPageId doesn't match current pageAsset, look up true owner in DB
+          if (detectedPageId && pageAsset?.externalId !== detectedPageId) {
             try {
-              pageAsset = await prisma.metaAsset.findFirst({
-                where: { externalId: detectedPageId },
+              const ownerAsset = await prisma.metaAsset.findFirst({
+                where: {
+                  OR: [
+                    { externalId: detectedPageId },
+                    { name: pageInfo.name || '' },
+                  ],
+                },
               });
+              if (ownerAsset) {
+                pageAsset = ownerAsset;
+                if (ownerAsset.accessToken) {
+                  effectiveToken = ownerAsset.accessToken;
+                }
+              }
             } catch (e) {}
           }
 
-          // If we found the page and it has a page accessToken, and source (MP4) is missing, fetch with page token to get MP4 download link!
+          // If page has accessToken and video source (direct MP4) is missing, fetch with its accessToken
           if (pageAsset?.accessToken && !vData.source) {
             try {
               const enriched = await fetchGraph(videoId, vFields, pageAsset.accessToken);
-              if (enriched.source) {
+              if (enriched && enriched.source) {
                 vData.source = enriched.source;
               }
             } catch (e) {}
@@ -320,7 +367,7 @@ export async function POST(req: NextRequest) {
               primaryImageUrl: vData.picture || null,
             },
             metrics: {
-              reactions: vData.likes?.summary?.total_count || 0,
+              reactions: vData.likes?.summary?.total_count || vData.reactions?.summary?.total_count || 0,
               comments: vData.comments?.summary?.total_count || 0,
               shares: 0,
               views: vData.views || 0,
@@ -336,17 +383,52 @@ export async function POST(req: NextRequest) {
       const photoId = parsed.photoId || parsed.postId;
       if (photoId) {
         const pFields = 'id,name,images,likes.summary(true),comments.summary(true).filter(stream),shares,from{id,name,picture{url}},created_time,link';
-        const pData = await fetchGraph(photoId, pFields);
+        let pData = await fetchGraph(photoId, pFields, effectiveToken);
 
-        if (pData.id) {
+        if (pData.error || !pData.id) {
+          try {
+            const managedWithTokens = await prisma.metaAsset.findMany({
+              where: { accessToken: { not: null } },
+              take: 50,
+            });
+            for (const mg of managedWithTokens) {
+              if (!mg.accessToken) continue;
+              const testRes = await fetchGraph(photoId, pFields, mg.accessToken);
+              if (testRes && testRes.id && !testRes.error) {
+                pData = testRes;
+                pageAsset = mg;
+                effectiveToken = mg.accessToken;
+                break;
+              }
+            }
+          } catch (e) {}
+        }
+
+        if (pData && pData.id && !pData.error) {
           const pageInfo = pData.from || {};
+          const detectedPageId = pageInfo.id || pageAsset?.externalId;
+          if (detectedPageId && pageAsset?.externalId !== detectedPageId) {
+            try {
+              const ownerAsset = await prisma.metaAsset.findFirst({
+                where: {
+                  OR: [
+                    { externalId: detectedPageId },
+                    { name: pageInfo.name || '' },
+                  ],
+                },
+              });
+              if (ownerAsset) {
+                pageAsset = ownerAsset;
+              }
+            } catch (e) {}
+          }
           const highResImage = pData.images?.[0]?.source || null;
           postResult = {
             id: pData.id,
             postId: pData.id,
             pageId: pageInfo.id || pageAsset?.externalId || '',
             pageName: pageInfo.name || pageAsset?.name || 'صفحة فيسبوك',
-            pagePicture: pageInfo.picture?.data?.url || null,
+            pagePicture: pageInfo.picture?.data?.url || (pageAsset?.metadataJson ? JSON.parse(pageAsset?.metadataJson || '{}').pictureUrl : null),
             message: pData.name || '',
             createdTime: pData.created_time,
             permalinkUrl: pData.link || rawUrl,
@@ -386,32 +468,38 @@ export async function POST(req: NextRequest) {
         postData = await fetchGraph(rawOnly, postFields, effectiveToken);
       }
 
-      // If still error, and postId starts with 'pfbid', search our managed pages that have accessTokens
-      if (postData.error && parsed.postId.startsWith('pfbid')) {
+      // If still error, search all managed pages that have accessTokens
+      if (postData.error || !postData.id) {
         try {
           const managedWithTokens = await prisma.metaAsset.findMany({
             where: { accessToken: { not: null } },
             select: { externalId: true, name: true, accessToken: true },
-            take: 30,
+            take: 50,
           });
           for (const mg of managedWithTokens) {
             if (!mg.accessToken) continue;
-            const testId = `${mg.externalId}_${parsed.postId}`;
-            const testRes = await fetchGraph(testId, postFields, mg.accessToken);
-            if (testRes && testRes.id && !testRes.error) {
-              postData = testRes;
-              pageAsset = mg;
-              effectiveToken = mg.accessToken;
-              break;
+            const idsToTry = parsed.postId.includes('_')
+              ? [parsed.postId]
+              : [`${mg.externalId}_${parsed.postId}`, parsed.postId];
+
+            for (const testId of idsToTry) {
+              const testRes = await fetchGraph(testId, postFields, mg.accessToken);
+              if (testRes && testRes.id && !testRes.error) {
+                postData = testRes;
+                pageAsset = mg;
+                effectiveToken = mg.accessToken;
+                break;
+              }
             }
+            if (postData && postData.id && !postData.error) break;
           }
-        } catch (pfbidErr) {
-          console.warn('[Post Inspect] Error testing managed tokens for pfbid:', pfbidErr);
+        } catch (postErr) {
+          console.warn('[Post Inspect] Error testing managed tokens for post:', postErr);
         }
       }
 
       // If still error, and we have pageAsset, search published_posts for permalink/id
-      if (postData.error && pageAsset) {
+      if ((postData.error || !postData.id) && pageAsset) {
         try {
           const pageToken = pageAsset.accessToken || userToken;
           const pageFeed = await metaClient.getPagePosts(pageAsset.externalId, pageToken);
@@ -435,6 +523,23 @@ export async function POST(req: NextRequest) {
 
       if (postData && postData.id && !postData.error) {
         const pageInfo = postData.from || {};
+        const detectedPageId = pageInfo.id || pageAsset?.externalId;
+        if (detectedPageId && pageAsset?.externalId !== detectedPageId) {
+          try {
+            const ownerAsset = await prisma.metaAsset.findFirst({
+              where: {
+                OR: [
+                  { externalId: detectedPageId },
+                  { name: pageInfo.name || '' },
+                ],
+              },
+            });
+            if (ownerAsset) {
+              pageAsset = ownerAsset;
+            }
+          } catch (e) {}
+        }
+
         const att = postData.attachments?.data?.[0];
         const subAtts = att?.subattachments?.data || [];
 
@@ -487,7 +592,7 @@ export async function POST(req: NextRequest) {
           postId: postData.id,
           pageId: pageInfo.id || pageAsset?.externalId || '',
           pageName: pageInfo.name || pageAsset?.name || 'صفحة فيسبوك',
-          pagePicture: pageInfo.picture?.data?.url || null,
+          pagePicture: pageInfo.picture?.data?.url || (pageAsset?.metadataJson ? JSON.parse(pageAsset?.metadataJson || '{}').pictureUrl : null),
           message: postData.message || att?.title || '',
           createdTime: postData.created_time,
           permalinkUrl: fullFbUrl,
