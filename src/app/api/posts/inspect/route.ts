@@ -159,20 +159,64 @@ export async function POST(req: NextRequest) {
     if (parsed.videoId || parsed.type === 'VIDEO' || parsed.type === 'REEL') {
       const videoId = parsed.videoId || parsed.postId;
       if (videoId) {
-        const vFields = 'id,title,description,source,picture,views,length,likes.summary(true),comments.summary(true).filter(stream),shares,from{id,name,picture{url}},created_time,permalink_url';
-        const vData = await fetchGraph(videoId, vFields);
+        // Note: Graph API does NOT have 'shares' on Video nodes!
+        const vFields = 'id,title,description,source,picture,views,length,likes.summary(true),comments.summary(true),from{id,name,picture{url}},created_time,permalink_url';
+        let vData = await fetchGraph(videoId, vFields, effectiveToken);
+
+        // If video returned error with current token, check if we can find its page in DB or try user token
+        if (vData.error) {
+          // Check DB PagePost to see which page owns it
+          try {
+            const dbMatch = await prisma.pagePost.findFirst({
+              where: {
+                OR: [
+                  { externalPostId: { contains: videoId } },
+                  { permalinkUrl: { contains: videoId } },
+                ],
+              },
+              include: { asset: true },
+            });
+            if (dbMatch?.asset?.accessToken) {
+              vData = await fetchGraph(videoId, vFields, dbMatch.asset.accessToken);
+              if (vData.id) {
+                pageAsset = dbMatch.asset;
+              }
+            }
+          } catch (e) {}
+        }
 
         if (vData.id) {
           const pageInfo = vData.from || {};
+          const detectedPageId = pageInfo.id || pageAsset?.externalId;
+
+          // If we didn't have pageAsset, look up by detectedPageId
+          if (detectedPageId && !pageAsset) {
+            try {
+              pageAsset = await prisma.metaAsset.findFirst({
+                where: { externalId: detectedPageId },
+              });
+            } catch (e) {}
+          }
+
+          // If we found the page and it has a page accessToken, and source (MP4) is missing, fetch with page token to get MP4 download link!
+          if (pageAsset?.accessToken && !vData.source) {
+            try {
+              const enriched = await fetchGraph(videoId, vFields, pageAsset.accessToken);
+              if (enriched.source) {
+                vData.source = enriched.source;
+              }
+            } catch (e) {}
+          }
+
           postResult = {
             id: vData.id,
             postId: vData.id,
             pageId: pageInfo.id || pageAsset?.externalId || '',
             pageName: pageInfo.name || pageAsset?.name || 'صفحة فيسبوك',
-            pagePicture: pageInfo.picture?.data?.url || pageAsset?.metadataJson ? JSON.parse(pageAsset?.metadataJson || '{}').pictureUrl : null,
+            pagePicture: pageInfo.picture?.data?.url || (pageAsset?.metadataJson ? JSON.parse(pageAsset?.metadataJson || '{}').pictureUrl : null),
             message: vData.description || vData.title || '',
             createdTime: vData.created_time,
-            permalinkUrl: vData.permalink_url ? `https://www.facebook.com${vData.permalink_url.startsWith('/') ? '' : '/'}${vData.permalink_url}` : rawUrl,
+            permalinkUrl: vData.permalink_url ? (vData.permalink_url.startsWith('http') ? vData.permalink_url : `https://www.facebook.com${vData.permalink_url}`) : rawUrl,
             mediaType: 'VIDEO',
             media: {
               videoUrl: vData.source || null,
@@ -183,7 +227,7 @@ export async function POST(req: NextRequest) {
             metrics: {
               reactions: vData.likes?.summary?.total_count || 0,
               comments: vData.comments?.summary?.total_count || 0,
-              shares: vData.shares?.count || 0,
+              shares: 0,
               views: vData.views || 0,
             },
             isOwned: Boolean(pageAsset),
