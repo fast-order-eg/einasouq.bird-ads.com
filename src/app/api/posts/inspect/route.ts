@@ -13,6 +13,61 @@ interface ParsedFacebookUrl {
   rawInput: string;
 }
 
+// Helper to extract audio stream for Facebook Reels/Videos using DASH representations in the embed plugin
+async function extractReelAudioUrl(fullFbUrl: string): Promise<string | null> {
+  try {
+    const pluginUrl = `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(fullFbUrl)}&width=480`;
+    const res = await fetch(pluginUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+
+    const normalized = html.replace(/\\u003C/gi, '<')
+                           .replace(/\\u003E/gi, '>')
+                           .replace(/\\u0022/gi, '"')
+                           .replace(/\\u0026/gi, '&')
+                           .replace(/\\\//g, '/')
+                           .replace(/\\"/g, '"')
+                           .replace(/&amp;/g, '&');
+
+    const repRegex = /<Representation([^>]+)>([\s\S]*?)<\/Representation>/gi;
+    let match;
+    const audios: { bandwidth: number; url: string }[] = [];
+
+    while ((match = repRegex.exec(normalized)) !== null) {
+      const attrs = match[1];
+      const body = match[2];
+      const baseMatch = body.match(/<BaseURL>([^<]+)<\/BaseURL>/i);
+      if (!baseMatch) continue;
+
+      const url = baseMatch[1].trim();
+      const mimeMatch = attrs.match(/mimeType="([^"]+)"/i);
+      const tagMatch = attrs.match(/FBEncodingTag="([^"]+)"/i);
+      const bandwidthMatch = attrs.match(/bandwidth="([^"]+)"/i);
+
+      const mimeType = mimeMatch ? mimeMatch[1] : '';
+      const encodingTag = tagMatch ? tagMatch[1] : '';
+      const bandwidth = bandwidthMatch ? parseInt(bandwidthMatch[1]) : 0;
+
+      if (mimeType.includes('audio') || encodingTag.includes('audio')) {
+        audios.push({ bandwidth, url });
+      }
+    }
+
+    if (audios.length > 0) {
+      audios.sort((a, b) => b.bandwidth - a.bandwidth);
+      return audios[0].url;
+    }
+  } catch (e) {
+    console.warn('[Post Inspect] Could not extract audio track:', e);
+  }
+  return null;
+}
+
 function parseFacebookPostUrl(input: string): ParsedFacebookUrl {
   const clean = (input || '').trim();
   if (!clean) return { type: 'UNKNOWN', rawInput: clean };
@@ -236,6 +291,16 @@ export async function POST(req: NextRequest) {
             } catch (e) {}
           }
 
+          let fullFbUrl = vData.permalink_url ? (vData.permalink_url.startsWith('http') ? vData.permalink_url : `https://www.facebook.com${vData.permalink_url}`) : rawUrl;
+          if (!fullFbUrl.startsWith('http')) {
+            fullFbUrl = `https://www.facebook.com/reel/${videoId}/`;
+          }
+
+          let audioUrl: string | null = null;
+          try {
+            audioUrl = await extractReelAudioUrl(fullFbUrl);
+          } catch (e) {}
+
           postResult = {
             id: vData.id,
             postId: vData.id,
@@ -244,12 +309,14 @@ export async function POST(req: NextRequest) {
             pagePicture: pageInfo.picture?.data?.url || (pageAsset?.metadataJson ? JSON.parse(pageAsset?.metadataJson || '{}').pictureUrl : null),
             message: vData.description || vData.title || '',
             createdTime: vData.created_time,
-            permalinkUrl: vData.permalink_url ? (vData.permalink_url.startsWith('http') ? vData.permalink_url : `https://www.facebook.com${vData.permalink_url}`) : rawUrl,
+            permalinkUrl: fullFbUrl,
             mediaType: 'VIDEO',
             media: {
               videoUrl: vData.source || null,
+              audioUrl: audioUrl || null,
+              fbEmbedUrl: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(fullFbUrl)}&show_text=false&width=480`,
               thumbnailUrl: vData.picture || null,
-              images: vData.picture ? [vData.picture] : [],
+              images: [], // Ensure no images for video posts so duplicate image is never shown!
               primaryImageUrl: vData.picture || null,
             },
             metrics: {
@@ -401,6 +468,18 @@ export async function POST(req: NextRequest) {
           } catch (e) {}
         }
 
+        let audioUrl: string | null = null;
+        let fullFbUrl = postData.permalink_url || rawUrl;
+        if (!fullFbUrl.startsWith('http')) {
+          fullFbUrl = `https://www.facebook.com${fullFbUrl}`;
+        }
+
+        if (isVideo) {
+          try {
+            audioUrl = await extractReelAudioUrl(fullFbUrl);
+          } catch (e) {}
+        }
+
         const mediaType = isVideo ? 'VIDEO' : (images.length > 1 ? 'CAROUSEL' : (images.length === 1 ? 'IMAGE' : 'TEXT'));
 
         postResult = {
@@ -411,12 +490,14 @@ export async function POST(req: NextRequest) {
           pagePicture: pageInfo.picture?.data?.url || null,
           message: postData.message || att?.title || '',
           createdTime: postData.created_time,
-          permalinkUrl: postData.permalink_url || rawUrl,
+          permalinkUrl: fullFbUrl,
           mediaType,
           media: {
             videoUrl,
+            audioUrl: audioUrl || null,
+            fbEmbedUrl: isVideo ? `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(fullFbUrl)}&show_text=false&width=480` : null,
             thumbnailUrl: images[0] || null,
-            images,
+            images: isVideo ? [] : images, // Do not show duplicate images for video posts!
             primaryImageUrl: images[0] || null,
           },
           metrics: {

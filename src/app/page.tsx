@@ -49,6 +49,7 @@ export default function DashboardPage() {
   const [analyzingPaid, setAnalyzingPaid] = useState(false);
   const [paidAnalysis, setPaidAnalysis] = useState<any>(null);
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
+  const [videoPlayerTab, setVideoPlayerTab] = useState<'embed' | 'direct'>('embed');
 
   // Quick Manual Ad Text Scanner States
   const [quickAdText, setQuickAdText] = useState('');
@@ -116,9 +117,9 @@ export default function DashboardPage() {
   };
 
   // Helper to trigger media download
-  const handleDownload = (mediaUrl: string, filename: string) => {
+  const handleDownload = (mediaUrl: string, filename: string, audioUrl?: string) => {
     if (!mediaUrl) return;
-    const downloadEndpoint = `/api/download?url=${encodeURIComponent(mediaUrl)}&filename=${encodeURIComponent(filename)}`;
+    const downloadEndpoint = `/api/download?url=${encodeURIComponent(mediaUrl)}&filename=${encodeURIComponent(filename)}${audioUrl ? `&audioUrl=${encodeURIComponent(audioUrl)}` : ''}`;
     const a = document.createElement('a');
     a.href = downloadEndpoint;
     a.download = filename;
@@ -432,32 +433,80 @@ export default function DashboardPage() {
                 {/* Case 1: Video */}
                 {inspectedPost.mediaType === 'VIDEO' && inspectedPost.media?.videoUrl ? (
                   <div className="rounded-xl border border-slate-800 overflow-hidden bg-black p-3 space-y-3">
-                    <video
-                      controls
-                      poster={inspectedPost.media?.thumbnailUrl}
-                      className="max-h-96 w-full rounded-lg object-contain bg-black"
-                    >
-                      <source src={inspectedPost.media.videoUrl} type="video/mp4" />
-                      متصفحك لا يدعم تشغيل الفيديو
-                    </video>
+                    {/* Player Mode Switcher */}
+                    <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
+                      <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                        🎥 مشغل الفيديو:
+                      </span>
+                      <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => setVideoPlayerTab('embed')}
+                          className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all ${
+                            videoPlayerTab === 'embed'
+                              ? 'bg-indigo-600 text-white shadow-sm'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          🔊 مشغل فيسبوك (بالصوت الأصلي)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setVideoPlayerTab('direct')}
+                          className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all ${
+                            videoPlayerTab === 'direct'
+                              ? 'bg-indigo-600 text-white shadow-sm'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          🎬 مشغل مباشر
+                        </button>
+                      </div>
+                    </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                      <span className="text-[11px] text-slate-400">
-                        فيديو بصيغة MP4 جاهز للتنزيل المباشر بأعلى دقة
+                    {/* Active Player */}
+                    {videoPlayerTab === 'embed' ? (
+                      <div className="w-full flex justify-center bg-black rounded-lg overflow-hidden py-1">
+                        <iframe
+                          src={`https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(inspectedPost.permalinkUrl)}&show_text=false&width=480`}
+                          className="w-full max-w-[480px] h-[520px] sm:h-[620px] rounded-lg border-0 shadow-2xl"
+                          style={{ border: 'none', overflow: 'hidden' }}
+                          scrolling="no"
+                          frameBorder="0"
+                          allowFullScreen={true}
+                          allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                        />
+                      </div>
+                    ) : (
+                      <video
+                        controls
+                        poster={inspectedPost.media?.thumbnailUrl}
+                        className="max-h-96 w-full rounded-lg object-contain bg-black"
+                      >
+                        <source src={inspectedPost.media.videoUrl} type="video/mp4" />
+                        متصفحك لا يدعم تشغيل الفيديو
+                      </video>
+                    )}
+
+                    {/* Download Controls */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
+                      <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        فيديو MP4 متكامل مدمج به مسار الصوت بالكامل بأعلى دقة
                       </span>
                       <button
-                        onClick={() => handleDownload(inspectedPost.media.videoUrl, `${inspectedPost.pageName}_video`)}
+                        onClick={() => handleDownload(inspectedPost.media.videoUrl, `${inspectedPost.pageName}_video`, inspectedPost.media.audioUrl)}
                         className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md flex items-center gap-2 transition-all"
                       >
                         <Download className="w-4 h-4" />
-                        تحميل الفيديو (MP4) 📥
+                        تحميل الفيديو كامل بالصوت (MP4) 📥
                       </button>
                     </div>
                   </div>
                 ) : null}
 
-                {/* Case 2: Images (Single or Multi Album) */}
-                {inspectedPost.media?.images && inspectedPost.media.images.length > 0 && (
+                {/* Case 2: Images (Single or Multi Album) - ONLY for Non-Video Posts */}
+                {inspectedPost.mediaType !== 'VIDEO' && inspectedPost.media?.images && inspectedPost.media.images.length > 0 && (
                   <div className="space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                       {inspectedPost.media.images.map((imgUrl: string, idx: number) => (
