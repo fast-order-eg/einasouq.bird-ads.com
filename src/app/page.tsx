@@ -902,9 +902,15 @@ export default function DashboardPage() {
                       {/* Detailed Interests Badges */}
                       {paidAnalysis.targeting_suggestions?.detailed_interests?.length > 0 && (
                         <div className="space-y-2 pt-1">
-                          <span className="text-xs sm:text-[13px] font-bold text-slate-300 block">
-                            الاهتمامات التفصيلية للبحث عنها في مدير الإعلانات (Detailed Interests):
-                          </span>
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <span className="text-xs sm:text-[13px] font-bold text-slate-300 block">
+                              الاهتمامات التفصيلية للبحث عنها في مدير الإعلانات (Detailed Interests):
+                            </span>
+                            <span className="text-[11px] font-semibold text-blue-400 px-2 py-0.5 rounded-md bg-blue-950/60 border border-blue-800/40">
+                              {paidAnalysis.targeting_suggestions.detailed_interests.length} اهتمام مقترح
+                            </span>
+                          </div>
+
                           <div className="flex flex-wrap gap-2">
                             {paidAnalysis.targeting_suggestions.detailed_interests.map((interest: string, idx: number) => (
                               <span
@@ -914,6 +920,15 @@ export default function DashboardPage() {
                                 🎯 {interest}
                               </span>
                             ))}
+                          </div>
+
+                          {/* Media Buyer Tactical Tip on Interests */}
+                          <div className="p-3 sm:p-3.5 rounded-xl bg-blue-950/30 border border-blue-800/40 flex items-start gap-2.5 mt-2.5">
+                            <span className="text-base shrink-0">💡</span>
+                            <div className="text-xs sm:text-[13.5px] text-blue-200/90 leading-relaxed">
+                              <strong className="text-blue-300 font-bold block sm:inline">نصيحة الميديا باير للاختبار: </strong>
+                              لا تضع كل الاهتمامات ({paidAnalysis.targeting_suggestions.detailed_interests.length} اهتمام) معاً في مجموعة إعلانية واحدة حتى لا تتشتت الميزانية وخوارزمية فيسبوك. الأفضل تقسيمها على مجموعتين أو 3 مجموعات إعلانية (من 2 إلى 4 اهتمامات متجانسة في كل Ad Set)، أو اختبار مجموعة مفتوحة (Broad) بدون اهتمامات لمقارنة تكلفة النتائج ومعرفة الجمهور الأكثر تحقيقاً للمبيعات بأقل تكلفة.
+                            </div>
                           </div>
                         </div>
                       )}
@@ -925,6 +940,18 @@ export default function DashboardPage() {
                         <Sliders className="w-5 h-5 text-amber-400" />
                         <span>استراتيجية الحملة والمجموعات الإعلانية (Campaign Strategy):</span>
                       </div>
+
+                      {/* Recommended Objective - Dedicated Prominent Card */}
+                      {paidAnalysis.campaign_strategy?.recommended_objective && (
+                        <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-800/50 space-y-1.5">
+                          <span className="text-xs sm:text-sm font-bold text-emerald-400 flex items-center gap-1.5">
+                            🎯 الهدف الإعلاني المقترح للحملة (Campaign Objective):
+                          </span>
+                          <p className="text-sm sm:text-[14.5px] text-emerald-200 leading-relaxed font-semibold">
+                            {paidAnalysis.campaign_strategy.recommended_objective}
+                          </p>
+                        </div>
+                      )}
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm sm:text-[14.5px]">
                         {/* Structure recommendation */}
@@ -954,37 +981,75 @@ export default function DashboardPage() {
                         </div>
                       </div>
 
-                      {/* Golden Tip & Objective */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900 border border-amber-800/50">
-                        <div className="space-y-1">
-                          <span className="text-xs sm:text-sm font-bold text-amber-400 flex items-center gap-1.5">
-                            <Lightbulb className="w-4 h-4" />
-                            نصيحة الميديا باير الذهبية لتوفير التكلفة:
-                          </span>
-                          <p className="text-sm sm:text-[14.5px] text-slate-200 leading-relaxed">
-                            {paidAnalysis.campaign_strategy?.media_buyer_golden_tip || 'ركز على اختبار الرسائل أولاً بالميزانية الصغرى قبل التوسع.'}
-                          </p>
-                        </div>
-
-                        {paidAnalysis.campaign_strategy?.recommended_objective && (
-                          <div className="shrink-0">
-                            <span className="px-3.5 py-2 rounded-xl bg-emerald-500/20 text-emerald-300 text-xs sm:text-sm font-extrabold border border-emerald-500/40 block text-center">
-                              الهدف المقترح: {paidAnalysis.campaign_strategy.recommended_objective}
-                            </span>
-                          </div>
-                        )}
+                      {/* Golden Tip - Dedicated Full Width Card */}
+                      <div className="p-4 sm:p-5 rounded-xl bg-gradient-to-r from-amber-950/30 via-slate-900 to-slate-900 border border-amber-800/50 space-y-1.5">
+                        <span className="text-xs sm:text-sm font-bold text-amber-400 flex items-center gap-1.5">
+                          <Lightbulb className="w-4 h-4 text-amber-400" />
+                          نصيحة الميديا باير الذهبية لتوفير التكلفة:
+                        </span>
+                        <p className="text-sm sm:text-[14.5px] text-slate-200 leading-relaxed">
+                          {paidAnalysis.campaign_strategy?.media_buyer_golden_tip || 'ركز على اختبار الرسائل أولاً بالميزانية الصغرى قبل التوسع.'}
+                        </p>
                       </div>
 
-                      {/* Scaling & Testing Plan (User Enrichment Recommendation #5) */}
+                      {/* Scaling & Testing Plan (Clean Step-by-Step Lines) */}
                       {paidAnalysis.campaign_strategy?.scaling_and_testing_plan && (
-                        <div className="p-4 rounded-xl bg-indigo-950/30 border border-indigo-800/40 text-sm sm:text-[14px] text-slate-200 space-y-1">
+                        <div className="p-4 sm:p-5 rounded-xl bg-indigo-950/30 border border-indigo-800/40 space-y-3">
                           <span className="text-xs sm:text-sm font-bold text-indigo-300 flex items-center gap-1.5">
                             <TrendingUp className="w-4 h-4 text-indigo-400" />
-                            خطة التكبير وزيادة الميزانية بأمان:
+                            خطة التكبير وزيادة الميزانية بأمان (Scaling & Budget Plan):
                           </span>
-                          <p className="leading-relaxed">
-                            {paidAnalysis.campaign_strategy.scaling_and_testing_plan}
-                          </p>
+
+                          {(() => {
+                            const rawPlan = paidAnalysis.campaign_strategy.scaling_and_testing_plan;
+                            // Split by step markers like "1. ", "2. ", "3- ", or newlines
+                            const steps = rawPlan
+                              .split(/(?=(?:^|\s)\d+[\.\-\)]\s*)/g)
+                              .map((s: string) => s.trim())
+                              .filter((s: string) => s.length > 0);
+
+                            if (steps.length > 1) {
+                              return (
+                                <div className="space-y-2.5">
+                                  {steps.map((step: string, sIdx: number) => {
+                                    const stepNumberMatch = step.match(/^(\d+)[\.\-\)]\s*/);
+                                    const stepNumber = stepNumberMatch ? stepNumberMatch[1] : sIdx + 1;
+                                    const cleanedText = step.replace(/^\d+[\.\-\)]\s*/, '').trim();
+                                    return (
+                                      <div
+                                        key={sIdx}
+                                        className="p-3 sm:p-3.5 rounded-xl bg-slate-900/90 border border-indigo-900/40 flex items-start gap-3 shadow-sm"
+                                      >
+                                        <span className="w-6 h-6 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
+                                          {stepNumber}
+                                        </span>
+                                        <p className="text-slate-200 text-sm sm:text-[14.5px] leading-relaxed">
+                                          {cleanedText}
+                                        </p>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            }
+
+                            // Fallback if not numbers: split by newlines or sentences
+                            const lines = rawPlan.split(/\n+/).filter(Boolean);
+                            return (
+                              <div className="space-y-2">
+                                {lines.map((l: string, lIdx: number) => (
+                                  <div key={lIdx} className="p-3 sm:p-3.5 rounded-xl bg-slate-900/90 border border-indigo-900/40 flex items-start gap-2.5">
+                                    <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                                      {lIdx + 1}
+                                    </span>
+                                    <p className="text-slate-200 text-sm sm:text-[14.5px] leading-relaxed">
+                                      {l}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>

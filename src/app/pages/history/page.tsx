@@ -32,6 +32,7 @@ import {
   Target,
   Sliders,
   Sparkle,
+  Lightbulb,
 } from 'lucide-react';
 import { formatDateArabic } from '@/lib/utils';
 import ReportViewer from '@/components/ReportViewer';
@@ -611,7 +612,56 @@ export default function PagesHistoryPage() {
                         )}
                       </div>
                     )}
-                  </div>
+
+                    {/* Campaign & Ad Sets Strategy */}
+                    {selectedPostAnalysis.analysis.campaign_strategy && (
+                      <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-xs sm:text-sm space-y-3">
+                        <span className="font-bold text-amber-400 flex items-center gap-1.5">
+                          <Sliders className="w-4 h-4" />
+                          استراتيجية الحملة وخطة التكبير:
+                        </span>
+
+                          {selectedPostAnalysis.analysis.campaign_strategy.recommended_objective && (
+                            <div className="p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-800/40 text-emerald-200">
+                              🎯 <strong>الهدف المقترح:</strong> {selectedPostAnalysis.analysis.campaign_strategy.recommended_objective}
+                            </div>
+                          )}
+
+                          {selectedPostAnalysis.analysis.campaign_strategy.ad_set_structure && (
+                            <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-200">
+                              <strong>هيكل المجموعات الإعلانية:</strong> {selectedPostAnalysis.analysis.campaign_strategy.ad_set_structure}
+                            </div>
+                          )}
+
+                          {selectedPostAnalysis.analysis.campaign_strategy.media_buyer_golden_tip && (
+                            <div className="p-2.5 rounded-xl bg-amber-950/20 border border-amber-800/30 text-slate-200">
+                              <span className="text-amber-400 font-bold block mb-1">💡 نصيحة الميديا باير:</span>
+                              {selectedPostAnalysis.analysis.campaign_strategy.media_buyer_golden_tip}
+                            </div>
+                          )}
+
+                          {selectedPostAnalysis.analysis.campaign_strategy.scaling_and_testing_plan && (
+                            <div className="p-3 rounded-xl bg-indigo-950/30 border border-indigo-800/40 text-slate-200 space-y-2">
+                              <span className="text-indigo-300 font-bold flex items-center gap-1.5">
+                                <TrendingUp className="w-3.5 h-3.5" />
+                                خطة التكبير وزيادة الميزانية:
+                              </span>
+                              <div className="space-y-1.5">
+                                {selectedPostAnalysis.analysis.campaign_strategy.scaling_and_testing_plan
+                                  .split(new RegExp('(?=(?:^|\\s)\\d+[\\.\\-\\)]\\s*)', 'g'))
+                                  .map((s: string) => s.trim())
+                                  .filter((s: string) => s.length > 0)
+                                  .map((step: string, sIdx: number) => (
+                                    <div key={sIdx} className="p-2 rounded-lg bg-slate-900/90 border border-indigo-900/30 text-xs sm:text-sm">
+                                      {step}
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                 ) : (
                   /* Fallback to Older Audit Schema */
                   <div className="space-y-3">

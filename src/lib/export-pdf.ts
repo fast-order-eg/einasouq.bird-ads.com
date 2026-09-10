@@ -302,8 +302,11 @@ export function exportPostAnalysisPdf(post: any, analysis: any) {
     </div>
     ${interestsBadges ? `
       <div style="margin-top: 6px;">
-        <strong style="font-size: 11.5px; color: #475569; display: block; margin-bottom: 4px;">الاهتمامات للبحث عنها في فيسبوك:</strong>
+        <strong style="font-size: 11.5px; color: #475569; display: block; margin-bottom: 4px;">الاهتمامات للبحث عنها في فيسبوك (${analysis.targeting_suggestions?.detailed_interests?.length || 0} اهتمام):</strong>
         ${interestsBadges}
+        <div style="margin-top: 6px; padding: 6px 10px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 11px; color: #1e40af; line-height: 1.5;">
+          💡 <strong>نصيحة الميديا باير:</strong> لا تضع كل الاهتمامات معاً في Ad Set واحدة لتفادي تشتيت الميزانية. الأفضل تقسيمها (2 إلى 4 اهتمامات لكل Ad Set) أو اختبار جمهور Broad بدون اهتمامات.
+        </div>
       </div>
     ` : ''}
   </div>
@@ -311,6 +314,11 @@ export function exportPostAnalysisPdf(post: any, analysis: any) {
   <!-- Strategy & Scaling -->
   <div class="card">
     <div class="section-title" style="margin-top: 0; color: #d97706;">⚙️ استراتيجية الحملة واختبارات الـ A/B Testing</div>
+    ${analysis.campaign_strategy?.recommended_objective ? `
+      <div style="margin-bottom: 10px; padding: 8px 12px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; font-size: 12px; color: #065f46;">
+        🎯 <strong>الهدف الإعلاني المقترح للحملة:</strong> ${analysis.campaign_strategy.recommended_objective}
+      </div>
+    ` : ''}
     <div style="font-size: 12px; margin-bottom: 8px;">
       <strong>1. هيكل المجموعات الإعلانية:</strong>
       <p style="margin: 2px 0; color: #334155;">${analysis.campaign_strategy?.ad_set_structure || '-'}</p>
@@ -324,10 +332,23 @@ export function exportPostAnalysisPdf(post: any, analysis: any) {
         </div>
       ` : ''}
     </div>
-    <div style="font-size: 12px;">
-      <strong>3. نصيحة الميديا باير الذهبية:</strong>
+    <div style="font-size: 12px; margin-bottom: 8px;">
+      <strong>3. نصيحة الميديا باير الذهبية لتوفير التكلفة:</strong>
       <p style="margin: 2px 0; color: #334155;">${analysis.campaign_strategy?.media_buyer_golden_tip || 'اختبر بأقل ميزانية أولاً وتأكد من ثبات سعر النتيجة.'}</p>
     </div>
+    ${analysis.campaign_strategy?.scaling_and_testing_plan ? `
+      <div style="font-size: 12px; margin-top: 10px; padding: 8px 12px; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 6px;">
+        <strong style="color: #3730a3; display: block; margin-bottom: 4px;">📈 خطة التكبير وزيادة الميزانية بأمان (Scaling Plan):</strong>
+        <div style="color: #334155; line-height: 1.6;">
+          ${analysis.campaign_strategy.scaling_and_testing_plan
+            .split(/(?=(?:^|\s)\d+[\.\-\)]\s*)/g)
+            .map((s: string) => s.trim())
+            .filter((s: string) => s.length > 0)
+            .map((step: string) => `<div style="margin-bottom: 4px;">&bull; ${step}</div>`)
+            .join('') || analysis.campaign_strategy.scaling_and_testing_plan}
+        </div>
+      </div>
+    ` : ''}
   </div>
 
   <div class="footer">
