@@ -89,8 +89,9 @@ export class VertexGeminiProvider {
 
   constructor() {
     this.projectId = process.env.GOOGLE_CLOUD_PROJECT || 'project-c1442437-41e2-480c-86d';
-    this.location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
-    // Strictly use the flagship Gemini 2.5 Pro model for all strategic analyses, with 2.5 Flash as fast fallback
+    // europe-west4 provides abundant Gemini 2.5 Pro TPU capacity with dedicated quota
+    this.location = process.env.GOOGLE_CLOUD_LOCATION || 'europe-west4';
+    // Strictly use the flagship Gemini 2.5 Pro model for all strategic analyses
     this.qualityModel = process.env.VERTEX_QUALITY_MODEL || 'gemini-2.5-pro';
     this.fastModel = process.env.VERTEX_FAST_MODEL || 'gemini-2.5-flash';
 
@@ -175,11 +176,20 @@ export class VertexGeminiProvider {
 
   async generate(prompt: string, options: { model?: 'quality' | 'fast'; imageBase64?: string; mimeType?: string; config?: GenerationConfig } = {}) {
     const accessToken = await this.getAccessToken();
-    const primaryModel = options.model === 'quality' ? this.qualityModel : this.fastModel;
+    const primaryModel = options.model === 'fast' ? this.fastModel : this.qualityModel;
     const fallbackModel = this.fastModel;
 
-    const executeCall = async (modelToUse: string, includeImage: boolean = true) => {
-      const url = `https://${this.location}-aiplatform.googleapis.com/v1/projects/${this.projectId}/locations/${this.location}/publishers/google/models/${modelToUse}:generateContent`;
+    // Multi-region priority list: europe-west4 has highest TPU capacity, followed by us-east4, europe-west1, us-central1
+    const candidateLocations = [
+      this.location,
+      'europe-west4',
+      'us-east4',
+      'europe-west1',
+      'us-central1',
+    ].filter((v, i, a) => a.indexOf(v) === i);
+
+    const executeCall = async (modelToUse: string, locationToUse: string, includeImage: boolean = true) => {
+      const url = `https://${locationToUse}-aiplatform.googleapis.com/v1/projects/${this.projectId}/locations/${locationToUse}/publishers/google/models/${modelToUse}:generateContent`;
 
       const parts: any[] = [{ text: prompt }];
 
@@ -196,7 +206,7 @@ export class VertexGeminiProvider {
         contents: [{ role: 'user', parts }],
         generationConfig: {
           temperature: options.config?.temperature ?? 0.1,
-          maxOutputTokens: options.config?.maxOutputTokens ?? 16384,
+          maxOutputTokens: options.config?.maxOutputTokens ?? 8192,
           topP: options.config?.topP ?? 0.95,
           topK: options.config?.topK ?? 40,
           ...(options.config?.responseMimeType ? { responseMimeType: options.config.responseMimeType } : {}),
@@ -213,24 +223,43 @@ export class VertexGeminiProvider {
       });
     };
 
-    // 1. Attempt primary call
-    let res = await executeCall(primaryModel, true);
+    let lastErrorText = '';
+    let res: Response | null = null;
 
-    // 2. Fallback on 429 (Resource Exhausted / Quota Limit) or 503 (Overloaded)
-    if ((res.status === 429 || res.status === 503) && primaryModel !== fallbackModel) {
-      console.warn(`[Vertex AI] ${primaryModel} returned status ${res.status}. Seamlessly falling back to ${fallbackModel}...`);
-      res = await executeCall(fallbackModel, true);
+    // 1. Try primaryModel (Gemini 2.5 Pro) across candidate regions
+    for (const loc of candidateLocations) {
+      try {
+        res = await executeCall(primaryModel, loc, true);
+        if (res.ok) break;
+
+        lastErrorText = await res.text();
+        // If rate limited (429) or overloaded (503), try next region
+        if (res.status === 429 || res.status === 503) {
+          console.warn(`[Vertex AI] ${primaryModel} in ${loc} returned ${res.status}. Trying next region...`);
+          continue;
+        } else {
+          break;
+        }
+      } catch (callErr: any) {
+        lastErrorText = callErr.message;
+      }
     }
 
-    // 3. If still rate-limited, attempt text-only call on fallbackModel (large images often trigger 429)
-    if ((res.status === 429 || res.status === 503) && options.imageBase64) {
-      console.warn(`[Vertex AI] Rate limit on multimodal request, retrying text-only on ${fallbackModel}...`);
-      res = await executeCall(fallbackModel, false);
+    // 2. If all regions rate-limited with image, try primaryModel (Gemini 2.5 Pro) text-only
+    if ((!res || !res.ok) && options.imageBase64) {
+      console.warn(`[Vertex AI] Retrying text-only on ${primaryModel} in europe-west4...`);
+      res = await executeCall(primaryModel, 'europe-west4', false);
     }
 
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Vertex AI Error (${res.status}): ${errText}`);
+    // 3. Ultimate safeguard: if still failing, use fallbackModel (Gemini 2.5 Flash)
+    if ((!res || !res.ok) && primaryModel !== fallbackModel) {
+      console.warn(`[Vertex AI] All Pro regions exhausted, falling back to ${fallbackModel}...`);
+      res = await executeCall(fallbackModel, 'europe-west4', true);
+    }
+
+    if (!res || !res.ok) {
+      const errText = res ? await res.text() : lastErrorText;
+      throw new Error(`Vertex AI Error (${res?.status || 500}): ${errText}`);
     }
 
     const data = await res.json();
@@ -472,7 +501,7 @@ ${hasImage ? '⚠️ تم إرفاق صورة/غلاف التصميم المرف
 `;
 
     const rawResponse = await this.generate(prompt, {
-      model: 'fast',
+      model: 'quality',
       imageBase64,
       mimeType: 'image/jpeg',
       config: {

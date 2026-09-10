@@ -580,13 +580,13 @@ export default function DashboardPage() {
                 >
                   {analyzingPaid ? (
                     <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      جاري التحليل بالـ AI...
+                      <RefreshCw className="w-4 h-4 animate-spin text-amber-300" />
+                      جاري التحليل الاستراتيجي عبر Gemini 2.5 Pro... (15-30 ثانية)
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4 text-amber-300" />
-                      تحليل بالـ AI
+                      تحليل بالـ AI (Gemini 2.5 Pro)
                     </>
                   )}
                 </button>
