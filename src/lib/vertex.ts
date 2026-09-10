@@ -39,6 +39,45 @@ export interface CreativeAnalysisSchema {
   strategic_recommendations: string[];
 }
 
+export interface PaidCampaignPostAnalysis {
+  observed_score: number; // 1 to 10
+  verdict: {
+    is_suitable: boolean;
+    rating: 'ممتاز' | 'جيد جداً' | 'جيد' | 'ضعيف' | 'سيء جداً';
+    status_label: string;
+    summary: string;
+  };
+  creative_analysis: {
+    format_detected: string;
+    visual_hooks: string;
+    strengths: string[];
+    weaknesses: string[];
+    actionable_recommendations: string[];
+  };
+  copy_analysis: {
+    hook_evaluation: string;
+    offer_evaluation: string;
+    cta_evaluation: string;
+    ready_to_use_variations: string[];
+  };
+  targeting_suggestions: {
+    age_range: string;
+    gender: 'الجميع (رجال ونساء)' | 'رجال فقط' | 'نساء فقط';
+    detailed_interests: string[];
+    behaviors_and_placements: string[];
+  };
+  campaign_strategy: {
+    ad_set_structure: string;
+    pair_another_post_recommendation: {
+      should_pair: boolean;
+      recommendation_reason: string;
+      paired_concept_idea: string;
+    };
+    recommended_objective: string;
+    media_buyer_golden_tip: string;
+  };
+}
+
 export class VertexGeminiProvider {
   private projectId: string;
   private location: string;
@@ -296,6 +335,147 @@ ${adText}
       return JSON.parse(cleanJson);
     } catch (err) {
       console.error('Failed to parse Gemini 2.5 Pro JSON:', rawResponse);
+      throw new Error('فشل معالجة استجابة الذكاء الاصطناعي، يرجى إعادة المحاولة.');
+    }
+  }
+
+  async analyzePostForPaidCampaign(options: {
+    postText: string;
+    pageName?: string;
+    mediaType?: string;
+    imageUrl?: string;
+    imageBase64?: string;
+    metrics?: { reactions?: number; comments?: number; shares?: number; views?: number };
+    permalinkUrl?: string;
+  }): Promise<PaidCampaignPostAnalysis> {
+    let imageBase64 = options.imageBase64;
+
+    if (!imageBase64 && options.imageUrl) {
+      try {
+        const imgRes = await fetch(options.imageUrl);
+        if (imgRes.ok) {
+          const buf = await imgRes.arrayBuffer();
+          imageBase64 = Buffer.from(buf).toString('base64');
+        }
+      } catch (e) {
+        console.error('Failed to download image for paid post analysis:', e);
+      }
+    }
+
+    const hasImage = Boolean(imageBase64);
+    const metricsSummary = options.metrics
+      ? `التفاعلات الحالية للمنشور: ${options.metrics.reactions || 0} إعجاب، ${options.metrics.comments || 0} تعليق، ${options.metrics.shares || 0} مشاركة، ${options.metrics.views || 0} مشاهدة.`
+      : '';
+
+    const prompt = `
+أنت خبير واستشاري تسويق رقمي ومدير حملات ميديا باينج (Senior Performance Marketing Director & Media Buyer) ذو خبرة تفوق 10 سنوات في إعلانات فيسبوك وإنستغرام الممولة بالسوق المصري والعربي.
+المهمة: فحص وتحليل هذا المنشور المباشر من صفحة العميل، وتقييم مدى جاهزيته وصلاحيته لإطلاق حملة إعلانية ممولة (Paid Ad Campaign) تحقق أعلى مبيعات وأقل تكلفة للعميل وتتفادى حرق الميزانية.
+
+بيانات المنشور:
+- اسم الصفحة: ${options.pageName || 'صفحة تابعة للعميل'}
+- نوع الوسائط: ${options.mediaType || (hasImage ? 'تصميم/فيديو مرفق' : 'نص فقط')}
+${metricsSummary}
+- نص المنشور (Copy):
+"""
+${options.postText || 'لا يوجد نص مكتوب'}
+"""
+${hasImage ? '⚠️ تم إرفاق صورة/غلاف التصميم المرفق بالمنشور: افحص الصورة بدقة شديدة: الألوان، تناسق الخطوط، وضوح المنتج، الهوك البصري، وقوة الجذب.' : ''}
+
+المطلوب:
+1. تقييم صريح وحاسم بالعامية المصرية حول جدوى تمويل البوست.
+2. فحص تفصيلي للتصميم أو الفيديو ونقاط قوته ونواقصه مع خطوات تحسين بالملي.
+3. فحص المحتوى الكتابي (الهوك، العرض، الدعوة للإجراء) مع كتابة 2 إلى 3 صيغ إعلانية بديلة كاملة بالعامية المصرية جاهزة للنسخ فوراً بين تنصيص "...".
+4. الاستهدافات المقترحة في مدير الإعلانات (Facebook Ads Manager): السن، النوع، الاهتمامات التفصيلية الدقيقة، والسلوكيات ومواضع الظهور.
+5. استراتيجية الحملة والمجموعات الإعلانية (Campaign & Ad Set Strategy):
+   - هل الأفضل إعلان فردي أم توزيعه على مجموعات إعلانية متعددة (Multiple Ad Sets)؟
+   - هل يفضل تشغيل هذا البوست منفرداً، أم إضافة بوست ثاني إبداعي معه في نفس الـ Ad Set (A/B Test / منع الـ Creative Fatigue)؟ مع اقتراح فكرة البوست الثاني وزاويته بدقة.
+   - هدف الحملة المقترح، ونصيحة ميديا باير ذهبية لتوفير التكلفة.
+
+يجب أن يكون الرد JSON فقط مطابقاً للهيكل التالي 100%:
+{
+  "observed_score": 8.5,
+  "verdict": {
+    "is_suitable": true,
+    "rating": "ممتاز",
+    "status_label": "جاهز للحملة فوراً 🚀",
+    "summary": "تقييم صريح ومباشر بالعامية المصرية يوضح هل يصرف عليه إعلان ممول ولا لأ وليه بالضبط"
+  },
+  "creative_analysis": {
+    "format_detected": "صورة عالية الدقة / فيديو ريلز / إلخ",
+    "visual_hooks": "فحص قوة أول انطباع بصري وهل يوقف العميل عن التمرير",
+    "strengths": [
+      "نقطة قوة بصرية 1",
+      "نقطة قوة بصرية 2"
+    ],
+    "weaknesses": [
+      "نقطة ضعف أو نقص بصري 1",
+      "نقطة ضعف أو نقص بصري 2"
+    ],
+    "actionable_recommendations": [
+      "تعديل بصري محدد 1 بالملي",
+      "تعديل بصري محدد 2 بالملي"
+    ]
+  },
+  "copy_analysis": {
+    "hook_evaluation": "تقييم السطر الأول ومدى جذبه لانتباه الجمهور",
+    "offer_evaluation": "تقييم وضوح العرض والقيمة المقدمة للعميل",
+    "cta_evaluation": "تقييم الدعوة لاتخاذ إجراء ومدى وضوح طريقة التواصل",
+    "ready_to_use_variations": [
+      "صيغة إعلانية بديلة 1 كاملة بالعامية المصرية جاهزة للنسخ...",
+      "صيغة إعلانية بديلة 2 كاملة بالعامية المصرية جاهزة للنسخ..."
+    ]
+  },
+  "targeting_suggestions": {
+    "age_range": "24 - 45 سنة",
+    "gender": "الجميع (رجال ونساء)",
+    "detailed_interests": [
+      "اهتمام فيسبوك دقيق 1",
+      "اهتمام فيسبوك دقيق 2",
+      "اهتمام فيسبوك دقيق 3",
+      "اهتمام فيسبوك دقيق 4"
+    ],
+    "behaviors_and_placements": [
+      "سلوك أو موضع إعلاني مقترح 1",
+      "سلوك أو موضع إعلاني مقترح 2"
+    ]
+  },
+  "campaign_strategy": {
+    "ad_set_structure": "توصية هيكل الحملة وعدد المجموعات الإعلانية مع التبرير",
+    "pair_another_post_recommendation": {
+      "should_pair": true,
+      "recommendation_reason": "هل يفضل تشغيل البوست لوحده أم إضافة بوست بديل معه في نفس الـ Ad Set ولماذا",
+      "paired_concept_idea": "فكرة وزاوية البوست الثاني المقترح إضافته للاختبار A/B Test"
+    },
+    "recommended_objective": "رسائل واتساب / مبيعات / تفاعل",
+    "media_buyer_golden_tip": "نصيحة الميديا باير الذهبية لتحقيق أعلى مبيعات وتفادي حرق الميزانية"
+  }
+}
+`;
+
+    const rawResponse = await this.generate(prompt, {
+      model: 'quality',
+      imageBase64,
+      mimeType: 'image/jpeg',
+      config: {
+        temperature: 0.1,
+        maxOutputTokens: 8192,
+        responseMimeType: 'application/json',
+      },
+    });
+
+    try {
+      let cleanJson = rawResponse.trim();
+      if (cleanJson.startsWith('```')) {
+        cleanJson = cleanJson.replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/i, '');
+      }
+      const firstBrace = cleanJson.indexOf('{');
+      const lastBrace = cleanJson.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1) {
+        cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
+      }
+      return JSON.parse(cleanJson);
+    } catch (err) {
+      console.error('Failed to parse Paid Post Analysis Gemini JSON:', rawResponse);
       throw new Error('فشل معالجة استجابة الذكاء الاصطناعي، يرجى إعادة المحاولة.');
     }
   }

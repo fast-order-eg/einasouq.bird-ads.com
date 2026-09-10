@@ -5,19 +5,45 @@ import prisma from '@/lib/db';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { adText, pageName, platform, snapshotUrl, imageBase64, imageUrl, postId } = body;
-
-    if (!adText && !imageBase64 && !imageUrl) {
-      return NextResponse.json({ success: false, error: 'نص الإعلان أو الصورة مطلوب للتحليل' }, { status: 400 });
-    }
-
-    const analysis = await vertexAI.analyzeAdCreative(adText || 'تحليل الصورة المرفقة', {
+    const {
+      adText,
       pageName,
       platform,
       snapshotUrl,
       imageBase64,
       imageUrl,
-    });
+      postId,
+      mode,
+      mediaType,
+      metrics,
+      permalinkUrl,
+    } = body;
+
+    if (!adText && !imageBase64 && !imageUrl) {
+      return NextResponse.json({ success: false, error: 'نص المنشور أو الصورة مطلوب للتحليل' }, { status: 400 });
+    }
+
+    let analysis: any;
+
+    if (mode === 'paid_campaign' || mode === 'paid_post') {
+      analysis = await vertexAI.analyzePostForPaidCampaign({
+        postText: adText || '',
+        pageName,
+        mediaType,
+        imageUrl,
+        imageBase64,
+        metrics,
+        permalinkUrl,
+      });
+    } else {
+      analysis = await vertexAI.analyzeAdCreative(adText || 'تحليل الصورة المرفقة', {
+        pageName,
+        platform,
+        snapshotUrl,
+        imageBase64,
+        imageUrl,
+      });
+    }
 
     // If postId is provided, persist analysis into MySQL database!
     if (postId) {
