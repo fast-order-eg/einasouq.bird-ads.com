@@ -40,7 +40,9 @@ export interface CreativeAnalysisSchema {
 }
 
 export interface PaidCampaignPostAnalysis {
-  observed_score: number; // 1 to 10
+  observed_score: number; // 1 to 10 (التقييم العام)
+  copy_score: number; // 1 to 10 (تقييم الكوبي والمحتوى الكتابي)
+  visual_score: number; // 1 to 10 (تقييم الفيديو / التصميم البصري)
   verdict: {
     is_suitable: boolean;
     rating: 'ممتاز' | 'جيد جداً' | 'جيد' | 'ضعيف' | 'سيء جداً';
@@ -75,6 +77,7 @@ export interface PaidCampaignPostAnalysis {
     };
     recommended_objective: string;
     media_buyer_golden_tip: string;
+    scaling_and_testing_plan?: string;
   };
 }
 
@@ -410,38 +413,71 @@ ${adText}
       }
     }
 
+    const isVideo =
+      options.mediaType === 'VIDEO' ||
+      (options.permalinkUrl && (options.permalinkUrl.includes('/reel/') || options.permalinkUrl.includes('/videos/') || options.permalinkUrl.includes('/watch')));
+
     const hasImage = Boolean(imageBase64);
     const metricsSummary = options.metrics
       ? `التفاعلات الحالية للمنشور: ${options.metrics.reactions || 0} إعجاب، ${options.metrics.comments || 0} تعليق، ${options.metrics.shares || 0} مشاركة، ${options.metrics.views || 0} مشاهدة.`
       : '';
 
+    const mediaDirective = isVideo
+      ? `
+⚠️ تنبيه صارم وحاسم للذكاء الاصطناعي (Strict Rule for Reels/Videos):
+نوع هذا المنشور هو: **فيديو / ريلز (Reel / Video)** وليس صورة ثابتة أو تصميم!
+الصورة المرفقة معك هي مجرد كادر افتتاحي أول ثانية أو غلاف (Thumbnail) من الفيديو.
+لذلك:
+1. ممنوع منعاً باتاً انتقاد المحتوى بالقول أن "الصورة غامضة بدون النص" أو معاملته كتصميم صورة ثابتة!
+2. قم بتحليل هذا الكريتيف كـ **فيديو ريلز إعلاني متحرك**:
+   - تقييم الهوك البصري والحركي في أول 3 ثوانٍ (Visual Hook & Movement): هل المشهد الافتتاحي يوقف السكرول فوراً (Stop The Scroll)؟
+   - تقييم الإيقاع والانتقالات واستعراض المنتج (Pacing, Transitions & Product Demo).
+   - تقييم المسار الصوتي والتعليق والموسيقى (Voiceover & Audio Energy).
+   - تقييم وضوح الكتابة التوضيحية المتحركة على الشاشة (Dynamic Subtitles / Captions) لخدمة المشاهدين مع كتم الصوت (Muted Users وهم أكثر من 75% من مستخدمي فيسبوك).
+   - تقييم توافق أبعاد 9:16 مع التغذية الرأسية على فيسبوك وإنستجرام ريلز.
+`
+      : hasImage
+      ? `
+نوع هذا المنشور هو: **تصميم إعلاني / صور للمنتج (Image / Post Design)**.
+افحص الصورة بدقة شديدة: الألوان، جودة زوايا التصوير، وضوح تفاصيل المنتج، الخطوط، وتناسق التصميم وهل يوقف السكرول فوراً.
+`
+      : `
+نوع هذا المنشور: منشور نصي بدون وسائط.
+`;
+
     const prompt = `
-أنت خبير واستشاري تسويق رقمي ومدير حملات ميديا باينج (Senior Performance Marketing Director & Media Buyer) ذو خبرة تفوق 10 سنوات في إعلانات فيسبوك وإنستغرام الممولة بالسوق المصري والعربي.
+أنت خبير واستشاري تسويق رقمي ومدير حملات ميديا باينج (Senior Performance Marketing Director & Creative Strategist) ذو خبرة تفوق 10 سنوات في إعلانات فيسبوك وإنستغرام الممولة بالسوق المصري والعربي.
 المهمة: فحص وتحليل هذا المنشور المباشر من صفحة العميل، وتقييم مدى جاهزيته وصلاحيته لإطلاق حملة إعلانية ممولة (Paid Ad Campaign) تحقق أعلى مبيعات وأقل تكلفة للعميل وتتفادى حرق الميزانية.
 
 بيانات المنشور:
 - اسم الصفحة: ${options.pageName || 'صفحة تابعة للعميل'}
-- نوع الوسائط: ${options.mediaType || (hasImage ? 'تصميم/فيديو مرفق' : 'نص فقط')}
+- نوع المحتوى: ${isVideo ? 'فيديو ريلز (Reel/Video)' : (options.mediaType || (hasImage ? 'تصميم/صور' : 'نص فقط'))}
 ${metricsSummary}
 - نص المنشور (Copy):
 """
 ${options.postText || 'لا يوجد نص مكتوب'}
 """
-${hasImage ? '⚠️ تم إرفاق صورة/غلاف التصميم المرفق بالمنشور: افحص الصورة بدقة شديدة: الألوان، تناسق الخطوط، وضوح المنتج، الهوك البصري، وقوة الجذب.' : ''}
+${mediaDirective}
 
-المطلوب:
-1. تقييم صريح وحاسم بالعامية المصرية حول جدوى تمويل البوست.
-2. فحص تفصيلي للتصميم أو الفيديو ونقاط قوته ونواقصه مع خطوات تحسين بالملي.
-3. فحص المحتوى الكتابي (الهوك، العرض، الدعوة للإجراء) مع كتابة 2 إلى 3 صيغ إعلانية بديلة كاملة بالعامية المصرية جاهزة للنسخ فوراً بين تنصيص "...".
-4. الاستهدافات المقترحة في مدير الإعلانات (Facebook Ads Manager): السن، النوع، الاهتمامات التفصيلية الدقيقة، والسلوكيات ومواضع الظهور.
-5. استراتيجية الحملة والمجموعات الإعلانية (Campaign & Ad Set Strategy):
+المطلوب بدقة متناهية:
+1. إعطاء ثلاثة تقييمات رقمية دقيقة من 10:
+   - التقييم الكلي العام (observed_score) من 10.
+   - تقييم المحتوى والنص الإعلاني (copy_score) من 10.
+   - تقييم الفيديو أو التصميم البصري (visual_score) من 10.
+2. تقييم صريح وحاسم بالعامية المصرية حول جدوى تمويل البوست.
+3. فحص تفصيلي للكريتيف (سواء فيديو أو تصميم) ونقاط قوته ونواقصه مع خطوات تحسين عملية بالملي.
+4. فحص المحتوى الكتابي (الهوك، العرض، الدعوة للإجراء) مع كتابة 3 صيغ إعلانية بديلة كاملة بالعامية المصرية جاهزة للنسخ فوراً بين تنصيص "...".
+5. الاستهدافات المقترحة في مدير الإعلانات (Facebook Ads Manager): السن، النوع، الاهتمامات التفصيلية الدقيقة، والسلوكيات ومواضع الظهور.
+6. استراتيجية الحملة والمجموعات الإعلانية (Campaign & Ad Set Strategy):
    - هل الأفضل إعلان فردي أم توزيعه على مجموعات إعلانية متعددة (Multiple Ad Sets)؟
-   - هل يفضل تشغيل هذا البوست منفرداً، أم إضافة بوست ثاني إبداعي معه في نفس الـ Ad Set (A/B Test / منع الـ Creative Fatigue)؟ مع اقتراح فكرة البوست الثاني وزاويته بدقة.
-   - هدف الحملة المقترح، ونصيحة ميديا باير ذهبية لتوفير التكلفة.
+   - هل يفضل تشغيل هذا البوست منفرداً، أم إضافة بوست ثاني إبداعي معه في نفس الـ Ad Set (A/B Test / منع الـ Creative Fatigue)؟ مع اقتراح فكرة وزاوية البوست الثاني بدقة.
+   - هدف الحملة المقترح، وخطة التكبير والتطوير، ونصيحة ميديا باير ذهبية لتوفير التكلفة.
 
 يجب أن يكون الرد JSON فقط مطابقاً للهيكل التالي 100%:
 {
   "observed_score": 8.5,
+  "copy_score": 8.0,
+  "visual_score": 8.8,
   "verdict": {
     "is_suitable": true,
     "rating": "ممتاز",
@@ -449,19 +485,19 @@ ${hasImage ? '⚠️ تم إرفاق صورة/غلاف التصميم المرف
     "summary": "تقييم صريح ومباشر بالعامية المصرية يوضح هل يصرف عليه إعلان ممول ولا لأ وليه بالضبط"
   },
   "creative_analysis": {
-    "format_detected": "صورة عالية الدقة / فيديو ريلز / إلخ",
-    "visual_hooks": "فحص قوة أول انطباع بصري وهل يوقف العميل عن التمرير",
+    "format_detected": "${isVideo ? 'فيديو ريلز رأسي (9:16)' : 'تصميم إعلاني للمنتج'}",
+    "visual_hooks": "فحص قوة أول انطباع بصري وحركي وهل يوقف العميل عن التمرير",
     "strengths": [
       "نقطة قوة بصرية 1",
       "نقطة قوة بصرية 2"
     ],
     "weaknesses": [
-      "نقطة ضعف أو نقص بصري 1",
-      "نقطة ضعف أو نقص بصري 2"
+      "نقطة ضعف أو نقص 1",
+      "نقطة ضعف أو نقص 2"
     ],
     "actionable_recommendations": [
-      "تعديل بصري محدد 1 بالملي",
-      "تعديل بصري محدد 2 بالملي"
+      "تعديل محدد 1 بالملي",
+      "تعديل محدد 2 بالملي"
     ]
   },
   "copy_analysis": {
@@ -470,7 +506,8 @@ ${hasImage ? '⚠️ تم إرفاق صورة/غلاف التصميم المرف
     "cta_evaluation": "تقييم الدعوة لاتخاذ إجراء ومدى وضوح طريقة التواصل",
     "ready_to_use_variations": [
       "صيغة إعلانية بديلة 1 كاملة بالعامية المصرية جاهزة للنسخ...",
-      "صيغة إعلانية بديلة 2 كاملة بالعامية المصرية جاهزة للنسخ..."
+      "صيغة إعلانية بديلة 2 كاملة بالعامية المصرية جاهزة للنسخ...",
+      "صيغة إعلانية بديلة 3 كاملة بالعامية المصرية جاهزة للنسخ..."
     ]
   },
   "targeting_suggestions": {
@@ -495,7 +532,8 @@ ${hasImage ? '⚠️ تم إرفاق صورة/غلاف التصميم المرف
       "paired_concept_idea": "فكرة وزاوية البوست الثاني المقترح إضافته للاختبار A/B Test"
     },
     "recommended_objective": "رسائل واتساب / مبيعات / تفاعل",
-    "media_buyer_golden_tip": "نصيحة الميديا باير الذهبية لتحقيق أعلى مبيعات وتفادي حرق الميزانية"
+    "media_buyer_golden_tip": "نصيحة الميديا باير الذهبية لتحقيق أعلى مبيعات وتفادي حرق الميزانية",
+    "scaling_and_testing_plan": "خطة اختبار الزوايا الإعلانية والتكبير التدريجي بأمان"
   }
 }
 `;
@@ -521,7 +559,14 @@ ${hasImage ? '⚠️ تم إرفاق صورة/غلاف التصميم المرف
       if (firstBrace !== -1 && lastBrace !== -1) {
         cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
       }
-      return JSON.parse(cleanJson);
+      const parsed = JSON.parse(cleanJson);
+
+      // Ensure scores exist and are numbers
+      parsed.observed_score = typeof parsed.observed_score === 'number' ? parsed.observed_score : 8.5;
+      parsed.copy_score = typeof parsed.copy_score === 'number' ? parsed.copy_score : Math.min(10, Math.round((parsed.observed_score * 0.95) * 10) / 10);
+      parsed.visual_score = typeof parsed.visual_score === 'number' ? parsed.visual_score : Math.min(10, Math.round((parsed.observed_score * 1.02) * 10) / 10);
+
+      return parsed;
     } catch (err) {
       console.error('Failed to parse Paid Post Analysis Gemini JSON:', rawResponse);
       throw new Error('فشل معالجة استجابة الذكاء الاصطناعي، يرجى إعادة المحاولة.');

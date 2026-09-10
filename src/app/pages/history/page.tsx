@@ -25,12 +25,20 @@ import {
   X,
   Maximize2,
   ArrowRight,
+  Printer,
+  Video,
+  Image as ImageIcon,
+  Flame,
+  Target,
+  Sliders,
+  Sparkle,
 } from 'lucide-react';
 import { formatDateArabic } from '@/lib/utils';
 import ReportViewer from '@/components/ReportViewer';
+import { exportPostAnalysisPdf } from '@/lib/export-pdf';
 
 export default function PagesHistoryPage() {
-  const [activeTab, setActiveTab] = useState<'PAGES' | 'POSTS'>('PAGES');
+  const [activeTab, setActiveTab] = useState<'PAGES' | 'POSTS'>('POSTS');
   const [pages, setPages] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +51,15 @@ export default function PagesHistoryPage() {
 
   useEffect(() => {
     fetchHistory();
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam === 'PAGES') {
+        setActiveTab('PAGES');
+      } else if (tabParam === 'POSTS') {
+        setActiveTab('POSTS');
+      }
+    }
   }, []);
 
   const fetchHistory = async () => {
@@ -365,15 +382,34 @@ export default function PagesHistoryPage() {
                         </span>
                       </div>
 
-                      {post.analysis?.readinessRating && (
+                      {post.analysis?.observed_score !== undefined ? (
+                        <span className="px-2.5 py-0.5 rounded-full bg-indigo-950 border border-indigo-500/40 text-indigo-300 font-extrabold text-[11px]">
+                          ⭐ {post.analysis.observed_score} / 10
+                        </span>
+                      ) : post.analysis?.readinessRating ? (
                         <span className="px-2 py-0.5 rounded-lg bg-purple-950/80 border border-purple-500/40 text-purple-300 font-bold text-[10px]">
                           ⭐ {post.analysis.readinessRating}
                         </span>
-                      )}
+                      ) : null}
                     </div>
 
-                    {/* AI Hook or Summary snippet */}
-                    {post.analysis?.hookStrength && (
+                    {/* Strategic Verdict or AI Hook Snippet */}
+                    {post.analysis?.verdict ? (
+                      <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-amber-400 font-bold flex items-center gap-1 text-[11px]">
+                            <Flame className="w-3.5 h-3.5" />
+                            {post.analysis.verdict.status_label || 'جاهز للحملة'}
+                          </span>
+                          <span className="text-[10.5px] text-slate-400 font-semibold">
+                            ✍️ {post.analysis.copy_score || 8}/10 • 🎬 {post.analysis.visual_score || 8.5}/10
+                          </span>
+                        </div>
+                        <p className="text-slate-300 text-[11.5px] leading-relaxed line-clamp-2">
+                          {post.analysis.verdict.summary}
+                        </p>
+                      </div>
+                    ) : post.analysis?.hookStrength ? (
                       <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] space-y-1">
                         <div className="flex items-center justify-between">
                           <span className="text-slate-400 font-semibold">قوة الهوك:</span>
@@ -385,7 +421,7 @@ export default function PagesHistoryPage() {
                           </div>
                         )}
                       </div>
-                    )}
+                    ) : null}
                   </div>
 
                   <div className="pt-2 border-t border-slate-800/80 flex items-center gap-2">
@@ -430,88 +466,197 @@ export default function PagesHistoryPage() {
       {/* ── Single Post Analysis Modal ── */}
       {selectedPostAnalysis && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-3xl w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white shrink-0 shadow-md">
                   <Bot className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-sm text-white">تحليل المنشور الإعلاني بالذكاء الاصطناعي</h3>
+                  <h3 className="font-extrabold text-sm sm:text-base text-white">
+                    تحليل المنشور الإعلاني للحملات الممولة
+                  </h3>
                   <p className="text-xs text-slate-400">{selectedPostAnalysis.pageName}</p>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setSelectedPostAnalysis(null)}
-                className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => exportPostAnalysisPdf(selectedPostAnalysis, selectedPostAnalysis.analysis)}
+                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="تحميل التقرير كـ PDF"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>تحميل PDF 🖨️</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedPostAnalysis(null)}
+                  className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Post Message */}
-            <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-xs text-slate-300 leading-relaxed max-h-32 overflow-y-auto">
-              <span className="font-bold text-slate-400 block mb-1">نص المنشور:</span>
-              {selectedPostAnalysis.message}
-            </div>
+            {selectedPostAnalysis.message && (
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-xs sm:text-sm text-slate-200 leading-relaxed max-h-32 overflow-y-auto whitespace-pre-wrap">
+                <span className="font-bold text-slate-400 block mb-1">نص المنشور:</span>
+                {selectedPostAnalysis.message}
+              </div>
+            )}
 
             {/* Structured Analysis View */}
             {selectedPostAnalysis.analysis && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-                    <span className="text-[11px] text-slate-400">تقييم الجاهزية:</span>
-                    <div className="text-sm font-bold text-purple-300">
-                      ⭐ {selectedPostAnalysis.analysis.readinessRating || 'جاهز'}
+                {/* Check if PaidCampaignPostAnalysis schema */}
+                {selectedPostAnalysis.analysis.observed_score !== undefined ? (
+                  <div className="space-y-4">
+                    {/* Score Cards */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="p-3 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 text-center">
+                        <span className="text-[11px] text-indigo-300 font-bold block">التقييم العام</span>
+                        <span className="text-lg font-black text-white">⭐ {selectedPostAnalysis.analysis.observed_score} / 10</span>
+                      </div>
+                      <div className="p-3 rounded-2xl bg-purple-950/40 border border-purple-500/30 text-center">
+                        <span className="text-[11px] text-purple-300 font-bold block">تقييم الكوبي</span>
+                        <span className="text-lg font-black text-white">✍️ {selectedPostAnalysis.analysis.copy_score || 8.0} / 10</span>
+                      </div>
+                      <div className="p-3 rounded-2xl bg-teal-950/40 border border-teal-500/30 text-center">
+                        <span className="text-[11px] text-teal-300 font-bold block">تقييم الكريتيف</span>
+                        <span className="text-lg font-black text-white">🎬 {selectedPostAnalysis.analysis.visual_score || 8.5} / 10</span>
+                      </div>
                     </div>
+
+                    {/* Verdict */}
+                    {selectedPostAnalysis.analysis.verdict && (
+                      <div className="p-3.5 rounded-2xl bg-amber-950/30 border border-amber-800/40 text-xs sm:text-sm space-y-1">
+                        <span className="font-bold text-amber-400 flex items-center gap-1.5">
+                          <Flame className="w-4 h-4" />
+                          حكم الميديا باير ({selectedPostAnalysis.analysis.verdict.status_label}):
+                        </span>
+                        <p className="text-slate-200 leading-relaxed font-medium">
+                          {selectedPostAnalysis.analysis.verdict.summary}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Creative Analysis */}
+                    {selectedPostAnalysis.analysis.creative_analysis && (
+                      <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-xs sm:text-sm space-y-2">
+                        <span className="font-bold text-indigo-400 block">
+                          تحليل الكريتيف ({selectedPostAnalysis.analysis.creative_analysis.format_detected || 'فيديو / تصميم'}):
+                        </span>
+                        {selectedPostAnalysis.analysis.creative_analysis.visual_hooks && (
+                          <p className="text-slate-300">
+                            <strong>الهوك:</strong> {selectedPostAnalysis.analysis.creative_analysis.visual_hooks}
+                          </p>
+                        )}
+                        {selectedPostAnalysis.analysis.creative_analysis.strengths?.length > 0 && (
+                          <ul className="space-y-1 text-slate-300">
+                            {selectedPostAnalysis.analysis.creative_analysis.strengths.map((s: string, i: number) => (
+                              <li key={i} className="text-emerald-300">✔️ {s}</li>
+                            ))}
+                          </ul>
+                        )}
+                        {selectedPostAnalysis.analysis.creative_analysis.weaknesses?.length > 0 && (
+                          <ul className="space-y-1 text-slate-300">
+                            {selectedPostAnalysis.analysis.creative_analysis.weaknesses.map((w: string, i: number) => (
+                              <li key={i} className="text-amber-300">⚠️ {w}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Copywriting Variations */}
+                    {selectedPostAnalysis.analysis.copy_analysis?.ready_to_use_variations?.length > 0 && (
+                      <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-xs sm:text-sm space-y-2">
+                        <span className="font-bold text-emerald-400 flex items-center gap-1.5">
+                          <Sparkle className="w-4 h-4" />
+                          صيغ إعلانية بديلة مقترحة:
+                        </span>
+                        {selectedPostAnalysis.analysis.copy_analysis.ready_to_use_variations.map((v: string, i: number) => (
+                          <div key={i} className="p-2.5 rounded-xl bg-emerald-950/20 border border-emerald-800/30 text-slate-200 italic leading-relaxed">
+                            {v}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Targeting */}
+                    {selectedPostAnalysis.analysis.targeting_suggestions && (
+                      <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-xs sm:text-sm space-y-2">
+                        <span className="font-bold text-blue-400 flex items-center gap-1.5">
+                          <Target className="w-4 h-4" />
+                          الاستهداف المقترح:
+                        </span>
+                        <div className="flex flex-wrap gap-2 text-slate-300">
+                          <span>السن: {selectedPostAnalysis.analysis.targeting_suggestions.age_range}</span>
+                          <span>•</span>
+                          <span>النوع: {selectedPostAnalysis.analysis.targeting_suggestions.gender}</span>
+                        </div>
+                        {selectedPostAnalysis.analysis.targeting_suggestions.detailed_interests?.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {selectedPostAnalysis.analysis.targeting_suggestions.detailed_interests.map((int: string, i: number) => (
+                              <span key={i} className="px-2 py-0.5 rounded-lg bg-blue-950 text-blue-300 text-[11px] border border-blue-800/50">
+                                🎯 {int}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-                    <span className="text-[11px] text-slate-400">قوة الهوك الافتتاحي:</span>
-                    <div className="text-sm font-bold text-indigo-300">
-                      🎯 {selectedPostAnalysis.analysis.hookStrength || 'متوسط'}
+                ) : (
+                  /* Fallback to Older Audit Schema */
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                        <span className="text-[11px] text-slate-400">تقييم الجاهزية:</span>
+                        <div className="text-sm font-bold text-purple-300">
+                          ⭐ {selectedPostAnalysis.analysis.readinessRating || 'جاهز'}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                        <span className="text-[11px] text-slate-400">قوة الهوك الافتتاحي:</span>
+                        <div className="text-sm font-bold text-indigo-300">
+                          🎯 {selectedPostAnalysis.analysis.hookStrength || 'متوسط'}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
 
-                {selectedPostAnalysis.analysis.strengths && (
-                  <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-800/40 text-xs space-y-1.5">
-                    <span className="font-bold text-emerald-400 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      نقاط القوة:
-                    </span>
-                    <p className="text-emerald-200/90 leading-relaxed font-normal">
-                      {Array.isArray(selectedPostAnalysis.analysis.strengths)
-                        ? selectedPostAnalysis.analysis.strengths.join(' • ')
-                        : selectedPostAnalysis.analysis.strengths}
-                    </p>
-                  </div>
-                )}
+                    {selectedPostAnalysis.analysis.strengths && (
+                      <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-800/40 text-xs space-y-1.5">
+                        <span className="font-bold text-emerald-400 flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          نقاط القوة:
+                        </span>
+                        <p className="text-emerald-200/90 leading-relaxed font-normal">
+                          {Array.isArray(selectedPostAnalysis.analysis.strengths)
+                            ? selectedPostAnalysis.analysis.strengths.join(' • ')
+                            : selectedPostAnalysis.analysis.strengths}
+                        </p>
+                      </div>
+                    )}
 
-                {selectedPostAnalysis.analysis.weaknesses && (
-                  <div className="p-3.5 rounded-xl bg-rose-950/20 border border-rose-800/40 text-xs space-y-1.5">
-                    <span className="font-bold text-rose-400 flex items-center gap-1.5">
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      نقاط التحسين والضعف:
-                    </span>
-                    <p className="text-rose-200/90 leading-relaxed font-normal">
-                      {Array.isArray(selectedPostAnalysis.analysis.weaknesses)
-                        ? selectedPostAnalysis.analysis.weaknesses.join(' • ')
-                        : selectedPostAnalysis.analysis.weaknesses}
-                    </p>
-                  </div>
-                )}
-
-                {selectedPostAnalysis.analysis.primaryRecommendation && (
-                  <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-800/40 text-xs space-y-1.5">
-                    <span className="font-bold text-amber-400 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      التوصية لتحويله إلى إعلان ممول ناجح:
-                    </span>
-                    <p className="text-amber-200/90 leading-relaxed font-normal">
-                      {selectedPostAnalysis.analysis.primaryRecommendation}
-                    </p>
+                    {selectedPostAnalysis.analysis.weaknesses && (
+                      <div className="p-3.5 rounded-xl bg-rose-950/20 border border-rose-800/40 text-xs space-y-1.5">
+                        <span className="font-bold text-rose-400 flex items-center gap-1.5">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          نقاط التحسين والضعف:
+                        </span>
+                        <p className="text-rose-200/90 leading-relaxed font-normal">
+                          {Array.isArray(selectedPostAnalysis.analysis.weaknesses)
+                            ? selectedPostAnalysis.analysis.weaknesses.join(' • ')
+                            : selectedPostAnalysis.analysis.weaknesses}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -45,18 +45,88 @@ export async function POST(req: Request) {
       });
     }
 
-    // If postId is provided, persist analysis into MySQL database!
-    if (postId) {
-      try {
-        await prisma.pagePost.updateMany({
-          where: { externalPostId: postId },
-          data: {
-            analysisJson: JSON.stringify(analysis),
+    // Persist analysis into MySQL database (PagePost table)!
+    try {
+      const effectivePostId = postId || permalinkUrl || `post_${Date.now()}`;
+      let asset: any = null;
+
+      if (body.pageId) {
+        asset = await prisma.metaAsset.findFirst({
+          where: { OR: [{ externalId: String(body.pageId) }, { name: pageName || '' }] },
+        });
+      } else if (pageName) {
+        asset = await prisma.metaAsset.findFirst({
+          where: { name: pageName },
+        });
+      }
+
+      if (!asset) {
+        asset = await prisma.metaAsset.findFirst();
+        if (!asset) {
+          asset = await prisma.metaAsset.create({
+            data: {
+              externalId: body.pageId ? String(body.pageId) : `page_${Date.now()}`,
+              name: pageName || 'صفحة تابعة للعميل',
+              assetType: 'PAGE',
+              isAuthorized: true,
+            },
+          });
+        }
+      }
+
+      if (effectivePostId && asset) {
+        const postRecord = await prisma.pagePost.findFirst({
+          where: {
+            OR: [
+              { externalPostId: String(effectivePostId) },
+              ...(permalinkUrl ? [{ permalinkUrl }] : []),
+            ],
           },
         });
-      } catch (dbErr) {
-        console.error('Failed to save analysis to DB:', dbErr);
+
+        if (postRecord) {
+          await prisma.pagePost.update({
+            where: { id: postRecord.id },
+            data: {
+              analysisJson: JSON.stringify(analysis),
+              message: adText || postRecord.message,
+              permalinkUrl: permalinkUrl || postRecord.permalinkUrl,
+              postType: mediaType || postRecord.postType,
+              reactionsCount: metrics?.reactions ?? postRecord.reactionsCount,
+              commentsCount: metrics?.comments ?? postRecord.commentsCount,
+              sharesCount: metrics?.shares ?? postRecord.sharesCount,
+              viewsCount: metrics?.views ?? postRecord.viewsCount,
+              updatedAt: new Date(),
+            },
+          });
+        } else {
+          await prisma.pagePost.create({
+            data: {
+              assetId: asset.id,
+              externalPostId: String(effectivePostId),
+              message: adText || '',
+              createdTime: new Date(),
+              postType: mediaType || 'POST',
+              permalinkUrl: permalinkUrl || '',
+              attachmentsJson: JSON.stringify({
+                data: [
+                  {
+                    media_type: mediaType?.toLowerCase() || 'post',
+                    imageUrl: imageUrl || snapshotUrl || null,
+                  },
+                ],
+              }),
+              reactionsCount: metrics?.reactions || 0,
+              commentsCount: metrics?.comments || 0,
+              sharesCount: metrics?.shares || 0,
+              viewsCount: metrics?.views || 0,
+              analysisJson: JSON.stringify(analysis),
+            },
+          });
+        }
       }
+    } catch (dbErr) {
+      console.error('Failed to save analysis to DB:', dbErr);
     }
 
     return NextResponse.json({

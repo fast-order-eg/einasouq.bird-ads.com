@@ -161,7 +161,7 @@ export default function Sidebar() {
               <span>ملفاتك الشخصية وصفحاتك</span>
             </Link>
 
-            {/* 2. سجلات صفحاتك */}
+            {/* 2. سجل التحليلات السابقة */}
             <Link
               href="/pages/history"
               onClick={closeMobileNav}
@@ -172,7 +172,7 @@ export default function Sidebar() {
               }`}
             >
               <History className={`w-4 h-4 ${pathname === '/pages/history' ? 'text-white' : 'text-emerald-400'}`} />
-              <span>سجلات صفحاتك</span>
+              <span>سجل التحليلات السابقة</span>
             </Link>
           </div>
         </div>
