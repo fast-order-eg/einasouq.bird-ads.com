@@ -90,9 +90,16 @@ export async function POST(req: Request) {
 
     if (token && campaign.id) {
       try {
-        const campUrl = `https://graph.facebook.com/v21.0/${campaign.id}?fields=id,name,objective,daily_budget,lifetime_budget,stop_time,adsets{id,name,status,effective_status,targeting,optimization_goal,billing_event,daily_budget},ads{id,name,status,effective_status,creative{id,name,title,body,image_url,thumbnail_url,video_id,object_story_spec,effective_object_story_id,object_story_id,link_url,instagram_permalink_url,call_to_action_type},insights.date_preset(maximum){spend,impressions,reach,clicks,cpc,cpm,ctr,frequency,cost_per_action_type,actions,action_values,video_p25_watched_actions,video_p50_watched_actions,video_p100_watched_actions,video_avg_time_watched_actions}}&access_token=${token}`;
+        const campUrl = `https://graph.facebook.com/v21.0/${campaign.id}?fields=id,name,objective,daily_budget,lifetime_budget,stop_time,insights.date_preset(maximum){spend,impressions,reach,clicks,cpc,cpm,ctr,frequency,cost_per_action_type,actions,action_values},adsets{id,name,status,effective_status,targeting,optimization_goal,billing_event,daily_budget},ads{id,name,status,effective_status,creative{id,name,title,body,image_url,thumbnail_url,video_id,object_story_spec,effective_object_story_id,object_story_id,link_url,instagram_permalink_url,call_to_action_type},insights.date_preset(maximum){spend,impressions,reach,clicks,cpc,cpm,ctr,frequency,cost_per_action_type,actions,action_values,video_p25_watched_actions,video_p50_watched_actions,video_p100_watched_actions,video_avg_time_watched_actions}}&access_token=${token}`;
         const res = await fetch(campUrl);
         const data = await res.json();
+        if (data.name) enrichedCampaign.name = data.name;
+        if (data.objective) enrichedCampaign.objective = data.objective;
+        if (data.daily_budget) enrichedCampaign.daily_budget = data.daily_budget;
+        if (data.lifetime_budget) enrichedCampaign.lifetime_budget = data.lifetime_budget;
+        if (data.insights?.data && data.insights.data.length > 0) {
+          enrichedCampaign.insights = data.insights;
+        }
         if (data.adsets?.data && data.adsets.data.length > 0) {
           enrichedCampaign.adsets = data.adsets;
         }

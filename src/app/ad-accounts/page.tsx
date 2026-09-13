@@ -845,18 +845,38 @@ export default function AdAccountsPage() {
 
     setAnalyzingCampId(camp.id);
     try {
+      // Find full campaign object from accountCampaigns if available
+      const fullCamp = accountCampaigns.find((c: any) => c.id === camp.id) || camp;
+
       const res = await fetch('/api/ads/analyze-campaign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          campaign: camp,
+          campaign: fullCamp,
           accountId: inspectingAccount?.account_id || inspectingAccount?.id,
           accountName: inspectingAccount?.name || '',
           currency: inspectingAccount?.currency || 'EGP',
         }),
       });
-      const data = await res.json();
-      if (data.success && data.analysis) {
+
+      const contentType = res.headers.get('content-type') || '';
+      let data: any = null;
+
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        if (res.status === 401) {
+          alert('انتهت صلاحية الجلسة، يرجى تسجيل الدخول مجدداً');
+          window.location.href = '/login';
+          return;
+        }
+        if (res.status === 504 || res.status === 502) {
+          throw new Error('استغرق الفحص وقتاً أطول من المعتاد نظراً لحجم البيانات، برجاء إعادة المحاولة');
+        }
+        throw new Error('حدث خطأ في استجابة السيرفر أثناء معالجة التحليل');
+      }
+
+      if (data && data.success && data.analysis) {
         setSavedAnalyses((prev) => ({
           ...prev,
           [camp.id]: {
@@ -866,12 +886,12 @@ export default function AdAccountsPage() {
             analysis: data.analysis,
           },
         }));
-        setActiveAnalysisModal({ campaign: camp, analysis: data.analysis });
+        setActiveAnalysisModal({ campaign: fullCamp, analysis: data.analysis });
       } else {
-        alert(data.error || 'تعذر تحليل أداء الحملة بالذكاء الاصطناعي');
+        alert(data?.error || 'تعذر تحليل أداء الحملة بالذكاء الاصطناعي');
       }
     } catch (err: any) {
-      alert(err.message || 'خطأ في الاتصال');
+      alert(err.message || 'خطأ في الاتصال بالسيرفر، يرجى المحاولة لاحقاً');
     } finally {
       setAnalyzingCampId(null);
     }

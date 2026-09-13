@@ -20,6 +20,12 @@ export function middleware(request: NextRequest) {
 
   // If user is not authenticated and trying to access protected routes
   if (!token && !isAuthPage) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { success: false, error: 'انتهت صلاحية الجلسة، برجاء تسجيل الدخول مجدداً' },
+        { status: 401 }
+      );
+    }
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('from', pathname);
     return NextResponse.redirect(loginUrl);

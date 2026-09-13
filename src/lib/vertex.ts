@@ -81,6 +81,66 @@ export interface PaidCampaignPostAnalysis {
   };
 }
 
+export function safeParseJson(rawText: string): any {
+  if (!rawText) return null;
+  // Strip code block markers if any
+  let clean = rawText.replace(/^```(?:json)?\s*/gim, '').replace(/```\s*$/gim, '').trim();
+
+  // Attempt 1: Direct JSON.parse
+  try {
+    return JSON.parse(clean);
+  } catch {}
+
+  // Attempt 2: Match outer { ... }
+  const match = clean.match(/\{[\s\S]*\}/);
+  if (match) {
+    try {
+      return JSON.parse(match[0]);
+    } catch {}
+  }
+
+  // Attempt 3: Fix trailing commas before closing braces/brackets
+  try {
+    let candidate = match ? match[0] : clean;
+    candidate = candidate.replace(/,\s*([}\]])/g, '$1');
+    return JSON.parse(candidate);
+  } catch {}
+
+  // Attempt 4: If JSON was cut off near the end, balance braces and brackets
+  try {
+    let candidate = match ? match[0] : clean;
+    const lastValidComma = candidate.lastIndexOf(',');
+    if (lastValidComma > candidate.length / 2) {
+      let cut = candidate.slice(0, lastValidComma);
+      const quoteCount = (cut.match(/"/g) || []).length;
+      if (quoteCount % 2 !== 0) {
+        const lastQuote = cut.lastIndexOf('"');
+        if (lastQuote > 0) {
+          cut = cut.slice(0, lastQuote);
+          const prevComma = cut.lastIndexOf(',');
+          if (prevComma > 0) cut = cut.slice(0, prevComma);
+        }
+      }
+      let openBraces = (cut.match(/\{/g) || []).length;
+      let closeBraces = (cut.match(/\}/g) || []).length;
+      let openBrackets = (cut.match(/\[/g) || []).length;
+      let closeBrackets = (cut.match(/\]/g) || []).length;
+
+      while (openBrackets > closeBrackets) {
+        cut += ']';
+        closeBrackets++;
+      }
+      while (openBraces > closeBraces) {
+        cut += '}';
+        closeBraces++;
+      }
+      return JSON.parse(cut);
+    }
+  } catch {}
+
+  throw new Error('فشل استخراج كائن JSON صالح من الاستجابة');
+}
+
 export class VertexGeminiProvider {
   private projectId: string;
   private location: string;
@@ -1145,12 +1205,11 @@ ${JSON.stringify(formattedAds, null, 2)}
         config: {
           temperature: 0.2,
           maxOutputTokens: 16384,
+          responseMimeType: 'application/json',
         },
       });
 
-      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      const jsonStr = jsonMatch ? jsonMatch[0] : rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      const parsed = JSON.parse(jsonStr);
+      const parsed = safeParseJson(rawText);
 
       // Backwards-compatibility mappings for bottleneck and scaling_advice
       if (Array.isArray(parsed.bottlenecks) && !parsed.bottleneck) {
