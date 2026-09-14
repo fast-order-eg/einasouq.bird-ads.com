@@ -134,6 +134,29 @@ export default function AdAccountsPage() {
   const [analysisModalTab, setAnalysisModalTab] = useState<'ALL' | 'METRICS' | 'CREATIVES' | 'COPYWRITING' | 'TARGETING'>('ALL');
   const [copiedCopyText, setCopiedCopyText] = useState<string | null>(null);
 
+  // Last Updated Timestamps
+  const [accountsLastUpdated, setAccountsLastUpdated] = useState<string | null>(null);
+  const [inspectingAccountCachedAt, setInspectingAccountCachedAt] = useState<string | null>(null);
+
+  const formatDateTimeArabic = (dateInput?: string | Date | null) => {
+    if (!dateInput) return '';
+    try {
+      const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+      if (isNaN(d.getTime())) return '';
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      let hours = d.getHours();
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'م' : 'ص';
+      hours = hours % 12 || 12;
+      const hoursStr = String(hours).padStart(2, '0');
+      return `${day}/${month}/${year} - ${hoursStr}:${minutes} ${ampm}`;
+    } catch {
+      return '';
+    }
+  };
+
   const copyAdCopySuggestion = (text: string, id: string) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
@@ -192,6 +215,9 @@ export default function AdAccountsPage() {
         setAdAccounts(data.adAccounts || []);
         setBusinesses(data.businesses || []);
         setSummary(data.summary || null);
+        if (data.lastUpdated) {
+          setAccountsLastUpdated(data.lastUpdated);
+        }
         try {
           localStorage.setItem('adscope_cached_ad_accounts', JSON.stringify(data));
         } catch (e) {}
@@ -209,6 +235,9 @@ export default function AdAccountsPage() {
       setAdAccounts(globalAdAccountsCache.adAccounts);
       setBusinesses(globalAdAccountsCache.businesses || []);
       setSummary(globalAdAccountsCache.summary || null);
+      if (globalAdAccountsCache.lastUpdated) {
+        setAccountsLastUpdated(globalAdAccountsCache.lastUpdated);
+      }
       setLoading(false);
       return;
     }
@@ -222,6 +251,9 @@ export default function AdAccountsPage() {
           setAdAccounts(parsed.adAccounts);
           setBusinesses(parsed.businesses || []);
           setSummary(parsed.summary || null);
+          if (parsed.lastUpdated) {
+            setAccountsLastUpdated(parsed.lastUpdated);
+          }
           setLoading(false);
           return;
         }
@@ -326,6 +358,11 @@ export default function AdAccountsPage() {
       });
       const data = await res.json();
       if (data.success) {
+        if (data.cachedAt) {
+          setInspectingAccountCachedAt(data.cachedAt);
+        } else {
+          setInspectingAccountCachedAt(new Date().toISOString());
+        }
         const camps = data.campaigns || [];
         const adsList = data.ads || [];
         setAccountCampaigns(camps);
@@ -1242,8 +1279,15 @@ export default function AdAccountsPage() {
           </div>
         </div>
 
-        {/* Single Refresh Action */}
-        <div className="flex items-center gap-2">
+        {/* Single Refresh Action & Last Updated */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {accountsLastUpdated && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs font-semibold text-slate-400 shadow-sm">
+              <Clock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>آخر تحديث:</span>
+              <span className="text-emerald-300 font-bold dir-ltr">{formatDateTimeArabic(accountsLastUpdated)}</span>
+            </div>
+          )}
           <button
             onClick={() => fetchAccounts(true)}
             disabled={syncing}
@@ -1665,7 +1709,15 @@ export default function AdAccountsPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {inspectingAccountCachedAt && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700/60 text-xs font-semibold text-slate-400 shadow-sm">
+                    <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span>آخر تحديث:</span>
+                    <span className="text-indigo-300 font-bold dir-ltr">{formatDateTimeArabic(inspectingAccountCachedAt)}</span>
+                  </div>
+                )}
+
                 {/* Single-Account Refresh Button */}
                 <button
                   onClick={() => handleInspectAccount(inspectingAccount, true)}
@@ -1678,7 +1730,10 @@ export default function AdAccountsPage() {
                 </button>
 
                 <button
-                  onClick={() => setInspectingAccount(null)}
+                  onClick={() => {
+                    setInspectingAccount(null);
+                    setInspectingAccountCachedAt(null);
+                  }}
                   className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-all cursor-pointer font-bold"
                 >
                   ✕

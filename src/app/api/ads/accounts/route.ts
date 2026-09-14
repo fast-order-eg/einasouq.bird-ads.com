@@ -86,9 +86,12 @@ export async function GET(req: Request) {
         const totalAvailableFunds = adAccounts.reduce((acc, a) => acc + parseFloat(a.available_funds || '0'), 0);
         const totalActiveCampaigns = adAccounts.reduce((acc, a) => acc + (a.active_campaigns_count || 0), 0);
 
+        const lastUpdated = savedAccounts[0]?.updatedAt ? new Date(savedAccounts[0].updatedAt).toISOString() : new Date().toISOString();
+
         return NextResponse.json({
           success: true,
           fromDb: true,
+          lastUpdated,
           adAccounts,
           businesses,
           summary: {
@@ -259,9 +262,12 @@ export async function GET(req: Request) {
 
     const totalActiveCampaigns = enrichedAccounts.reduce((acc, a) => acc + (a.active_campaigns_count || 0), 0);
 
+    const lastUpdated = new Date().toISOString();
+
     return NextResponse.json({
       success: true,
       fromDb: false,
+      lastUpdated,
       adAccounts: enrichedAccounts,
       businesses,
       summary: {

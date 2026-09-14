@@ -147,6 +147,7 @@ export async function POST(req: Request) {
       success: true,
       fromDb: false,
       accountId: cleanId,
+      cachedAt: new Date().toISOString(),
       datePreset: datePreset || 'maximum',
       timeRange: timeRange || null,
       campaigns: processedCampaigns,

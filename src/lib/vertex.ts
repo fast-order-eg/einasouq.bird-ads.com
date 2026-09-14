@@ -1036,9 +1036,21 @@ ${excludeSection}
       };
     });
 
+    // Sort ads: active with spend/purchases first
+    const sortedAds = [...formattedAds].sort((a: any, b: any) => {
+      const spendA = parseFloat(String(a.spend || '0').replace(/[^0-9.]/g, '')) || 0;
+      const spendB = parseFloat(String(b.spend || '0').replace(/[^0-9.]/g, '')) || 0;
+      return spendB - spendA;
+    });
+
+    // Pick top active ads for in-depth creative & copywriting review (up to 4 ads)
+    // to ensure fast generation (<30s) and avoid Cloudflare 100s proxy timeout
+    const topAdsForDeepReview = sortedAds.slice(0, 4);
+    const otherAds = sortedAds.slice(4);
+
     const prompt = `
 أنت خبير إعلانات فيسبوك أول، ومستشار نمو تجارة إلكترونية، وخبير صناعة الكريتيف (Senior Meta Media Buyer, Creative Director & E-Commerce Strategist) في السوق المصري والعربي.
-مهمتك هي إجراء فحص وتحليل استراتيجي متكامل وتفصيلي من 4 أجزاء رئيسية لهذه الحملة الإعلانية بالعامية المصرية.
+مهمتك هي إجراء فحص وتحليل استراتيجي متكامل وتفصيلي من 4 أجزاء رئيسية لهذه الحملة الإعلانية بالعامية المصرية بأسلوب مباشر وعملي.
 
 بيانات الحملة الإعلانية:
 - اسم الحملة: "${campaign.name}"
@@ -1049,7 +1061,7 @@ ${excludeSection}
 - الميزانية: ${campaign.daily_budget ? (parseFloat(campaign.daily_budget)/100) + ' ' + currency + '/يومي' : campaign.lifetime_budget ? (parseFloat(campaign.lifetime_budget)/100) + ' ' + currency + '/إجمالي' : 'غير محددة'}
 - إجمالي المصروف: ${insights.spend || 0} ${currency}
 - عدد المجموعات الإعلانية (AdSets): ${rawAdsets.length}
-- عدد الإعلانات والكريتيف (Creatives): ${rawAds.length}
+- إجمالي عدد الإعلانات: ${rawAds.length}
 
 المؤشرات والأرقام (Metrics):
 - الظهور (Impressions): ${insights.impressions || 0}
@@ -1067,23 +1079,24 @@ ${excludeSection}
 بيانات الاستهداف الحقيقية للمجموعات الإعلانية (${formattedAdsets.length} مجموعة):
 ${JSON.stringify(formattedAdsets, null, 2)}
 
-بيانات الكريتيف والإعلانات المستخدمة في الحملة (${formattedAds.length} إعلان):
-${JSON.stringify(formattedAds, null, 2)}
+أهم الإعلانات النشطة الأكثر صرفاً وتأثيراً في الحملة (${topAdsForDeepReview.length} إعلان):
+${JSON.stringify(topAdsForDeepReview, null, 2)}
+${otherAds.length > 0 ? `\nباقي إعلانات الحملة الأقل صرفاً (${otherAds.length} إعلان):\n${JSON.stringify(otherAds.map((a: any) => ({ ad_id: a.ad_id, ad_name: a.ad_name, spend: a.spend, purchases: a.purchases, cpa: a.cpa, ctr: a.ctr })), null, 2)}` : ''}
 
-المطلوب منك تحليله بدقة متناهية وإخراجه بصيغة JSON مهيكلة:
+المطلوب منك تحليله بدقة متناهية وإخراجه بصيغة JSON مهيكلة (كن دقيقاً ومباشراً بدون حشو إنشائي لضمان سرعة المعالجة):
 
 1. الجزء الأول: تحليل الأداء الرقمي والنتائج (Performance & Metrics):
    - الحكم النهائي (Verdict): هل هي SCALING_READY أو OPTIMIZATION_NEEDED أو STOP_CAMPAIGN.
    - verdict_badge: عبارة واضحة بالعامية المصرية (مثال: "ناجحة ومربحة جداً 🚀 (جاهزة للتكبير)").
    - score: تقييم رقمي دقيق من 10 (مثال: 8.7).
-   - summary_egyptian: فقرة صريحة من 3 أسطر بالعامية المصرية توضح الموقف المالي الحقيقي وهل الحملة بتكسب ولا بتخسر.
+   - summary_egyptian: فقرة صريحة من سطرين إلى 3 أسطر بالعامية المصرية توضح الموقف المالي الحقيقي وهل الحملة بتكسب ولا بتخسر.
    - metrics_evaluation: تقييم الـ CPA، الـ ROAS، الـ CTR، والتشبع الإعلاني.
-   - bottlenecks: **مصفوفة نصوص (Array of Strings) لنقاط عنق الزجاجة والتسريب** (كل نقطة واضحة ومحددة جداً ومفصلة - ممنوع كتابة دش كلام ورا بعضه!).
-   - scaling_advice_points: **مصفوفة نصوص (Array of Strings) لخطوات وتوصيات التكبير وزيادة الميزانية** (نقاط محددة لكل 48 ساعة وطرق التكبير بأمان - ممنوع كتابة دش كلام ورا بعضه!).
-   - action_steps: **مصفوفة نصوص (Array of Strings) لخطة العمل الفورية المرقمة (1، 2، 3...)** توضح للمعلن ماذا يفعل بالمللي الآن.
+   - bottlenecks: **مصفوفة نصوص (Array of Strings)** لنقاط عنق الزجاجة والتسريب (3 إلى 4 نقاط محددة ومفصلة بدون إطالة زائدة).
+   - scaling_advice_points: **مصفوفة نصوص (Array of Strings)** لخطوات وتوصيات التكبير وزيادة الميزانية (3 إلى 4 نقاط محددة لكل 48 ساعة).
+   - action_steps: **مصفوفة نصوص (Array of Strings)** لخطة العمل الفورية المرقمة (3 إلى 4 خطوات بالعامية المصرية).
 
 2. الجزء الثاني: تحليل الكريتيف والتصميمات/الفيديوهات (Creatives & Visuals Analysis):
-   - قم بتحليل كل إعلان من الإعلانات الـ ${formattedAds.length} الموجودة في الحملة تحليلاً استراتيجياً عميقاً ومبنياً 100% على الأرقام والبيانات الحقيقية:
+   - قم بتحليل أهم الإعلانات المرفقة أعلاه (${topAdsForDeepReview.map((a: any) => a.ad_id).join(', ')}):
      * ad_id: معرف الإعلان.
      * ad_name: اسم الإعلان.
      * is_video: هل هو فيديو أم صورة.
@@ -1096,23 +1109,23 @@ ${JSON.stringify(formattedAds, null, 2)}
      * cpa: سعر المبيعة الفعلي.
      * ctr: معدل النقر الفعلي.
      * visual_hook_analysis: 
-       - إذا كان الكريتيف فيديو (is_video: true): **ممنوع نهائياً التحدث عن "صورة مصغرة" أو "Thumbnail" لأن المتلقي يشاهد فيديو ريلز متحرك مدته 14 ثانية!** حلل حركة المشهد الافتتاحي في أول 3 ثوانٍ (Visual Hook) بناءً على نسبة احتفاظ المشاهدين (متوسط المشاهدة ومعدل P25) وطريقة جذب انتباه العميل.
+       - إذا كان الكريتيف فيديو (is_video: true): **ممنوع نهائياً التحدث عن "صورة مصغرة" أو "Thumbnail" لأن المتلقي يشاهد فيديو ريلز متحرك!** حلل حركة المشهد الافتتاحي في أول 3 ثوانٍ (Visual Hook) بناءً على نسبة احتفاظ المشاهدين (متوسط المشاهدة ومعدل P25) وطريقة جذب انتباه العميل.
        - إذا كان الكريتيف صور: حلل طريقة استعراض المنتج وزوايا التصوير والألوان في جذب الانتباه.
-     * product_offer_clarity: وضوح المنتج والعرض التسويقي (طرحة 3 في 1) وهل وصلت الفكرة للعميل سريعاً.
-     * conversion_reality_verdict: تقييم صريح بالعامية المصرية يفسر بالأرقام الحقيقية لماذا تفوق إعلان الصور وحقق 173 مبيعة بتكلفة 90 جنيه، بينما إعلان الفيديو حقق 12 مبيعة فقط بتكلفة 170 جنيه، وما هو التعديل المطلوب في الفيديوهات القادمة لتنافس الصور وتخفض تكلفة الشراء.
-     * strengths: مصفوفة نصوص بأبرز نقاط القوة في هذا الكريتيف.
-     * weaknesses: مصفوفة نصوص بأبرز نقاط الضعف التي تحتاج تحسين.
+     * product_offer_clarity: وضوح المنتج والعرض التسويقي وهل وصلت الفكرة للعميل سريعاً.
+     * conversion_reality_verdict: تقييم صريح بالعامية المصرية يفسر بالأرقام الحقيقية أداء هذا الإعلان ولماذا تفوق أو تراجع مقارنة بباقي الإعلانات، وما هو التعديل المطلوب لخفض تكلفة النتيجة.
+     * strengths: مصفوفة نصوص بأبرز نقطتي قوة في هذا الكريتيف.
+     * weaknesses: مصفوفة نصوص بأبرز نقطتي ضعف تحتاج تحسين.
      * creative_score: تقييم من 10 لهذا الكريتيف.
 
 3. الجزء الثالث: تحليل المحتوى الكتابي والنصوص (Copywriting Analysis):
-   - قم بتحليل نصوص وكوبي كل إعلان من الإعلانات الـ ${formattedAds.length}:
+   - قم بتحليل نصوص وكوبي أهم الإعلانات (${topAdsForDeepReview.map((a: any) => a.ad_id).join(', ')}):
      * ad_id: معرف الإعلان.
      * ad_name: اسم الإعلان.
      * hook_analysis: تحليل السطر الافتتاحي في النص وهل بيوقف السكرول أم تقليدي.
      * body_structure_analysis: تحليل طريقة سرد المميزات وحل مشكلة العميل.
-     * offer_and_cta_analysis: تحليل وضوح العرض، السعر، الشحن، والـ Call To Action.
+     * offer_and_cta_analysis: تحليل وضوح العرض، السعر، والدعوة للإجراء (CTA).
      * copy_score: تقييم الكوبي من 10.
-     * alternative_copy_suggestions: مصفوفة من نسختين أو ثلاث نصوص إعلانية كاملة وجاهزة للنشر فوراً بالعامية المصرية للـ A/B Testing، مكتوبة باحترافية تسويقية وتتضمن الـ Hook والـ Offer والـ CTA.
+     * alternative_copy_suggestions: مصفوفة تحتوي على نص إعلاني مقترح واحد أو اثنين مكتمل وجاهز للنشر فوراً بالعامية المصرية للـ A/B Testing، مكتوب باحترافية تسويقية وتتضمن الـ Hook والـ Offer والـ CTA.
 
 4. الجزء الرابع: تحليل الاستهداف والمجموعات الإعلانية (Targeting & Audience Audit):
    - اقرأ الاستهداف المطبق في المجموعات الإعلانية (المناطق، السن، النوع، الاهتمامات، Advantage+ vs Manual):
@@ -1144,8 +1157,7 @@ ${JSON.stringify(formattedAds, null, 2)}
   ],
   "action_steps": [
     "الخطوة 1: بالعامية المصرية بالتفصيل...",
-    "الخطوة 2: بالعامية المصرية بالتفصيل...",
-    "الخطوة 3: بالعامية المصرية بالتفصيل..."
+    "الخطوة 2: بالعامية المصرية بالتفصيل..."
   ],
   "creatives_analysis": [
     {
@@ -1162,7 +1174,7 @@ ${JSON.stringify(formattedAds, null, 2)}
       "ctr": "نسبة النقر",
       "visual_hook_analysis": "تحليل أول 3 ثوانٍ وحركة المشهد بالعامية المصرية (ممنوع كلمة ثامبنيل للفيديوهات)",
       "product_offer_clarity": "تحليل وضوح المنتج والعرض التسويقي",
-      "conversion_reality_verdict": "تفسير الفارق بين الصور والفيديو بالعامية المصرية وتوصية التعديل المطلوبة لتقليل سعر المبيعة",
+      "conversion_reality_verdict": "تفسير أداء الإعلان بالعامية المصرية وتوصية التعديل المطلوبة لتقليل سعر المبيعة",
       "strengths": ["نقطة قوة 1", "نقطة قوة 2"],
       "weaknesses": ["نقطة ضعف 1", "نقطة ضعف 2"],
       "creative_score": 8.5
@@ -1177,8 +1189,7 @@ ${JSON.stringify(formattedAds, null, 2)}
       "offer_and_cta_analysis": "تحليل الدعوة لاتخاذ إجراء",
       "copy_score": 8.0,
       "alternative_copy_suggestions": [
-        "نص إعلاني مقترح كامل جاهز للنسخ 1...",
-        "نص إعلاني مقترح كامل جاهز للنسخ 2..."
+        "نص إعلاني مقترح كامل جاهز للنسخ 1..."
       ]
     }
   ],
@@ -1204,7 +1215,7 @@ ${JSON.stringify(formattedAds, null, 2)}
         model: 'quality',
         config: {
           temperature: 0.2,
-          maxOutputTokens: 16384,
+          maxOutputTokens: 8192,
           responseMimeType: 'application/json',
         },
       });
@@ -1220,28 +1231,59 @@ ${JSON.stringify(formattedAds, null, 2)}
       }
 
       // Merge real ground truth performance metrics and video embed URLs from Meta API
-      if (Array.isArray(parsed.creatives_analysis)) {
-        parsed.creatives_analysis = parsed.creatives_analysis.map((item: any) => {
-          const rawAd = formattedAds.find((f: any) => f.ad_id === item.ad_id) || {};
-          return {
-            ...item,
-            ad_name: item.ad_name || rawAd.ad_name,
-            is_video: item.is_video !== undefined ? Boolean(item.is_video) : Boolean(rawAd.is_video),
-            video_id: item.video_id || rawAd.video_id || null,
-            video_source: rawAd.video_source || item.video_source || null,
-            video_embed_url: item.video_embed_url || rawAd.video_embed_url || '',
-            post_url: item.post_url || rawAd.post_url || '',
-            thumbnail_url: item.thumbnail_url || rawAd.thumbnail_url || '',
-            images: Array.isArray(rawAd.images) && rawAd.images.length > 0 ? rawAd.images : (Array.isArray(item.images) && item.images.length > 0 ? item.images : rawAd.thumbnail_url ? [rawAd.thumbnail_url] : []),
-            media_type_label: item.media_type_label || rawAd.media_type_label || (rawAd.is_video ? '🎬 فيديو ريلز إعلاني (14 ثانية)' : '🖼️ منشور صور للمنتج'),
-            spend: item.spend || rawAd.spend || '0',
-            purchases: item.purchases || rawAd.purchases || '0',
-            cpa: item.cpa || rawAd.cpa || 'غير مسجل',
-            ctr: item.ctr || rawAd.ctr || '0%',
-            video_watch_stats: rawAd.video_watch_stats || '',
-          };
-        });
-      }
+      const analyzedIds = new Set((parsed.creatives_analysis || []).map((c: any) => c.ad_id));
+
+      const finalCreatives: any[] = Array.isArray(parsed.creatives_analysis) ? parsed.creatives_analysis.map((item: any) => {
+        const rawAd = formattedAds.find((f: any) => f.ad_id === item.ad_id) || {};
+        return {
+          ...item,
+          ad_name: item.ad_name || rawAd.ad_name,
+          is_video: item.is_video !== undefined ? Boolean(item.is_video) : Boolean(rawAd.is_video),
+          video_id: item.video_id || rawAd.video_id || null,
+          video_source: rawAd.video_source || item.video_source || null,
+          video_embed_url: item.video_embed_url || rawAd.video_embed_url || '',
+          post_url: item.post_url || rawAd.post_url || '',
+          thumbnail_url: item.thumbnail_url || rawAd.thumbnail_url || '',
+          images: Array.isArray(rawAd.images) && rawAd.images.length > 0 ? rawAd.images : (Array.isArray(item.images) && item.images.length > 0 ? item.images : rawAd.thumbnail_url ? [rawAd.thumbnail_url] : []),
+          media_type_label: item.media_type_label || rawAd.media_type_label || (rawAd.is_video ? '🎬 فيديو ريلز إعلاني (14 ثانية)' : '🖼️ منشور صور للمنتج'),
+          spend: item.spend || rawAd.spend || '0',
+          purchases: item.purchases || rawAd.purchases || '0',
+          cpa: item.cpa || rawAd.cpa || 'غير مسجل',
+          ctr: item.ctr || rawAd.ctr || '0%',
+          video_watch_stats: rawAd.video_watch_stats || '',
+        };
+      }) : [];
+
+      // Ensure any extra ads from the campaign are also included in the report with accurate Meta data
+      otherAds.forEach((extraAd: any) => {
+        if (!analyzedIds.has(extraAd.ad_id)) {
+          finalCreatives.push({
+            ad_id: extraAd.ad_id,
+            ad_name: extraAd.ad_name,
+            is_video: Boolean(extraAd.is_video),
+            video_id: extraAd.video_id || null,
+            video_source: extraAd.video_source || null,
+            video_embed_url: extraAd.video_embed_url || '',
+            post_url: extraAd.post_url || '',
+            thumbnail_url: extraAd.thumbnail_url || '',
+            images: extraAd.images || [],
+            media_type_label: extraAd.media_type_label,
+            spend: extraAd.spend,
+            purchases: extraAd.purchases,
+            cpa: extraAd.cpa,
+            ctr: extraAd.ctr,
+            video_watch_stats: extraAd.video_watch_stats,
+            visual_hook_analysis: extraAd.is_video ? 'فيديو إضافي بالحملة بمعدل إنفاق منخفض، يُنصح بمقارنته مع الكريتيف المتصدر.' : 'تصميم إضافي بالحملة، لم يحصل على الجزء الأكبر من الميزانية.',
+            product_offer_clarity: 'عرض منتج تكميلي في الحملة.',
+            conversion_reality_verdict: `صرف ${extraAd.spend} وحقق ${extraAd.purchases} مبيعات. الأولوية للتركيز على الإعلان المتصدر أولاً.`,
+            strengths: ['يساعد في اختبار زوايا عرض إضافية'],
+            weaknesses: ['لم يحصل على ميزانية كافية للتحويل'],
+            creative_score: 7.0,
+          });
+        }
+      });
+
+      parsed.creatives_analysis = finalCreatives;
 
       return parsed;
     } catch (err: any) {
