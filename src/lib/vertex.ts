@@ -91,63 +91,96 @@ export function safeParseJson(rawText: string): any {
     return JSON.parse(clean);
   } catch {}
 
-  // Attempt 2: Match outer { ... }
-  const match = clean.match(/\{[\s\S]*\}/);
-  if (match) {
+  // Attempt 2: Extract outermost { ... }
+  const firstBrace = clean.indexOf('{');
+  const lastBrace = clean.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    const candidate = clean.slice(firstBrace, lastBrace + 1);
     try {
-      return JSON.parse(match[0]);
+      return JSON.parse(candidate);
+    } catch {}
+    try {
+      return JSON.parse(candidate.replace(/,\s*([}\]])/g, '$1'));
     } catch {}
   }
 
-  // Attempt 3: Fix trailing commas before closing braces/brackets
+  // Attempt 3: Robust truncation recovery (backtrack to last complete object/array element)
   try {
-    let candidate = match ? match[0] : clean;
-    candidate = candidate.replace(/,\s*([}\]])/g, '$1');
-    return JSON.parse(candidate);
-  } catch {}
+    let lastClose = clean.lastIndexOf('}');
+    while (lastClose > clean.length / 3) {
+      const sub = clean.slice(0, lastClose + 1);
+      let openBrackets = 0;
+      let closeBrackets = 0;
+      let openBraces = 0;
+      let closeBraces = 0;
+      let inString = false;
+      let escaped = false;
 
-  // Attempt 4: Clean unescaped control characters inside strings
-  try {
-    let candidate = match ? match[0] : clean;
-    candidate = candidate.replace(/[\u0000-\u001F\u007F-\u009F]/g, (c) => {
-      if (c === '\n') return '\\n';
-      if (c === '\r') return '\\r';
-      if (c === '\t') return '\\t';
-      return '';
-    });
-    return JSON.parse(candidate);
-  } catch {}
+      for (let i = 0; i < sub.length; i++) {
+        const c = sub[i];
+        if (escaped) { escaped = false; continue; }
+        if (c === '\\') { escaped = true; continue; }
+        if (c === '"') { inString = !inString; continue; }
+        if (inString) continue;
+        if (c === '{') openBraces++;
+        else if (c === '}') closeBraces++;
+        else if (c === '[') openBrackets++;
+        else if (c === ']') closeBrackets++;
+      }
 
-  // Attempt 5: If JSON was cut off near the end, balance braces and brackets
-  try {
-    let candidate = match ? match[0] : clean;
-    const lastValidComma = candidate.lastIndexOf(',');
-    if (lastValidComma > candidate.length / 2) {
-      let cut = candidate.slice(0, lastValidComma);
-      const quoteCount = (cut.match(/"/g) || []).length;
-      if (quoteCount % 2 !== 0) {
-        const lastQuote = cut.lastIndexOf('"');
-        if (lastQuote > 0) {
-          cut = cut.slice(0, lastQuote);
-          const prevComma = cut.lastIndexOf(',');
-          if (prevComma > 0) cut = cut.slice(0, prevComma);
+      if (!inString && openBraces >= closeBraces && openBrackets >= closeBrackets) {
+        let candidate = sub;
+        while (openBrackets > closeBrackets) {
+          candidate += ']';
+          closeBrackets++;
         }
+        while (openBraces > closeBraces) {
+          candidate += '}';
+          closeBraces++;
+        }
+        try {
+          return JSON.parse(candidate);
+        } catch {}
+        try {
+          return JSON.parse(candidate.replace(/,\s*([}\]])/g, '$1'));
+        } catch {}
       }
-      let openBraces = (cut.match(/\{/g) || []).length;
-      let closeBraces = (cut.match(/\}/g) || []).length;
-      let openBrackets = (cut.match(/\[/g) || []).length;
-      let closeBrackets = (cut.match(/\]/g) || []).length;
-
-      while (openBrackets > closeBrackets) {
-        cut += ']';
-        closeBrackets++;
-      }
-      while (openBraces > closeBraces) {
-        cut += '}';
-        closeBraces++;
-      }
-      return JSON.parse(cut);
+      lastClose = clean.lastIndexOf('}', lastClose - 1);
     }
+  } catch (repairErr: any) {
+    console.warn('[safeParseJson] Truncation recovery error:', repairErr.message);
+  }
+
+  // Attempt 4: Clean control characters inside strings only
+  try {
+    let inStr = false;
+    let esc = false;
+    let sanitized = '';
+    for (let i = 0; i < clean.length; i++) {
+      const char = clean[i];
+      if (esc) {
+        esc = false;
+        sanitized += char;
+        continue;
+      }
+      if (char === '\\') {
+        esc = true;
+        sanitized += char;
+        continue;
+      }
+      if (char === '"') {
+        inStr = !inStr;
+        sanitized += char;
+        continue;
+      }
+      if (inStr) {
+        if (char === '\n') { sanitized += '\\n'; continue; }
+        if (char === '\r') { sanitized += '\\r'; continue; }
+        if (char === '\t') { sanitized += '\\t'; continue; }
+      }
+      sanitized += char;
+    }
+    return JSON.parse(sanitized);
   } catch {}
 
   throw new Error('فشل استخراج كائن JSON صالح من الاستجابة');
@@ -1055,14 +1088,14 @@ ${excludeSection}
       return spendB - spendA;
     });
 
-    // Pick top active ads for in-depth creative & copywriting review (up to 4 ads)
-    // to ensure fast generation (<30s) and avoid Cloudflare 100s proxy timeout
-    const topAdsForDeepReview = sortedAds.slice(0, 4);
-    const otherAds = sortedAds.slice(4);
+    // Pick top active ads for in-depth creative & copywriting review (top 3 ads)
+    // to ensure fast generation (<20s) and prevent token buffer overflow
+    const topAdsForDeepReview = sortedAds.slice(0, 3);
+    const otherAds = sortedAds.slice(3);
 
     const prompt = `
 أنت خبير إعلانات فيسبوك أول، ومستشار نمو تجارة إلكترونية، وخبير صناعة الكريتيف (Senior Meta Media Buyer, Creative Director & E-Commerce Strategist) في السوق المصري والعربي.
-مهمتك هي إجراء فحص وتحليل استراتيجي متكامل وتفصيلي من 4 أجزاء رئيسية لهذه الحملة الإعلانية بالعامية المصرية بأسلوب مباشر وعملي.
+مهمتك هي إجراء فحص وتحليل استراتيجي متكامل وتفصيلي من 4 أجزاء رئيسية لهذه الحملة الإعلانية بالعامية المصرية بأسلوب مباشر وعملي بدون حشو إنشائي.
 
 بيانات الحملة الإعلانية:
 - اسم الحملة: "${campaign.name}"
@@ -1095,33 +1128,23 @@ ${JSON.stringify(formattedAdsets, null, 2)}
 ${JSON.stringify(topAdsForDeepReview, null, 2)}
 ${otherAds.length > 0 ? `\nباقي إعلانات الحملة الأقل صرفاً (${otherAds.length} إعلان):\n${JSON.stringify(otherAds.map((a: any) => ({ ad_id: a.ad_id, ad_name: a.ad_name, spend: a.spend, purchases: a.purchases, cpa: a.cpa, ctr: a.ctr })), null, 2)}` : ''}
 
-المطلوب منك تحليله بدقة متناهية وإخراجه بصيغة JSON مهيكلة (كن دقيقاً ومباشراً بدون حشو إنشائي لضمان سرعة المعالجة):
+المطلوب منك تحليله بدقة متناهية وإخراجه بصيغة JSON مهيكلة (كن دقيقاً ومباشراً وبليغاً لضمان السرعة والدقة):
 
 1. الجزء الأول: تحليل الأداء الرقمي والنتائج (Performance & Metrics):
    - الحكم النهائي (Verdict): هل هي SCALING_READY أو OPTIMIZATION_NEEDED أو STOP_CAMPAIGN.
-   - verdict_badge: عبارة واضحة بالعامية المصرية (مثال: "ناجحة ومربحة جداً 🚀 (جاهزة للتكبير)").
+   - verdict_badge: عبارة واضحة بالعامية المصرية (مثال: "ناجحة ومربحة جداً 🚀 (جاهزة للتكبير)" أو "محتاجة شغل كتير 🚧 (تحسينات ضرورية)").
    - score: تقييم رقمي دقيق من 10 (مثال: 8.7).
    - summary_egyptian: فقرة صريحة من سطرين إلى 3 أسطر بالعامية المصرية توضح الموقف المالي الحقيقي وهل الحملة بتكسب ولا بتخسر.
    - metrics_evaluation: تقييم الـ CPA، الـ ROAS، الـ CTR، والتشبع الإعلاني.
-   - bottlenecks: **مصفوفة نصوص (Array of Strings)** لنقاط عنق الزجاجة والتسريب (3 إلى 4 نقاط محددة ومفصلة بدون إطالة زائدة).
-   - scaling_advice_points: **مصفوفة نصوص (Array of Strings)** لخطوات وتوصيات التكبير وزيادة الميزانية (3 إلى 4 نقاط محددة لكل 48 ساعة).
-   - action_steps: **مصفوفة نصوص (Array of Strings)** لخطة العمل الفورية المرقمة (3 إلى 4 خطوات بالعامية المصرية).
+   - bottlenecks: **مصفوفة نصوص (Array of Strings)** لنقاط عنق الزجاجة والتسريب (2 إلى 3 نقاط محددة بالأرقام).
+   - scaling_advice_points: **مصفوفة نصوص (Array of Strings)** لخطوات وتوصيات التكبير وزيادة الميزانية (2 إلى 3 نقاط محددة).
+   - action_steps: **مصفوفة نصوص (Array of Strings)** لخطة العمل الفورية المرقمة (3 خطوات بالعامية المصرية).
 
 2. الجزء الثاني: تحليل الكريتيف والتصميمات/الفيديوهات (Creatives & Visuals Analysis):
-   - قم بتحليل أهم الإعلانات المرفقة أعلاه (${topAdsForDeepReview.map((a: any) => a.ad_id).join(', ')}):
-     * ad_id: معرف الإعلان.
-     * ad_name: اسم الإعلان.
-     * is_video: هل هو فيديو أم صورة.
-     * media_type_label: نوع الكريتيف.
-     * video_embed_url: رابط مشغل الفيديو المباشر.
-     * post_url: رابط المنشور/الفيديو.
-     * thumbnail_url: رابط الصورة أو غلاف الفيديو.
-     * spend: المصروف الفعلي.
-     * purchases: عدد المبيعات المحققة بهذا الإعلان.
-     * cpa: سعر المبيعة الفعلي.
-     * ctr: معدل النقر الفعلي.
-     * visual_hook_analysis: 
-       - إذا كان الكريتيف فيديو (is_video: true): **ممنوع نهائياً التحدث عن "صورة مصغرة" أو "Thumbnail" لأن المتلقي يشاهد فيديو ريلز متحرك!** حلل حركة المشهد الافتتاحي في أول 3 ثوانٍ (Visual Hook) بناءً على نسبة احتفاظ المشاهدين (متوسط المشاهدة ومعدل P25) وطريقة جذب انتباه العميل.
+   - قم بتحليل أهم الإعلانات (${topAdsForDeepReview.map((a: any) => a.ad_id).join(', ')}):
+     * ad_id: معرف الإعلان (مطابق للمرفق).
+     * visual_hook_analysis:
+       - إذا كان الكريتيف فيديو (is_video: true): **ممنوع نهائياً التحدث عن "صورة مصغرة" أو "Thumbnail" لأن المتلقي يشاهد فيديو ريلز متحرك!** حلل حركة المشهد الافتتاحي في أول 3 ثوانٍ (Visual Hook) بناءً على نسبة احتفاظ المشاهدين وطريقة جذب انتباه العميل.
        - إذا كان الكريتيف صور: حلل طريقة استعراض المنتج وزوايا التصوير والألوان في جذب الانتباه.
      * product_offer_clarity: وضوح المنتج والعرض التسويقي وهل وصلت الفكرة للعميل سريعاً.
      * conversion_reality_verdict: تقييم صريح بالعامية المصرية يفسر بالأرقام الحقيقية أداء هذا الإعلان ولماذا تفوق أو تراجع مقارنة بباقي الإعلانات، وما هو التعديل المطلوب لخفض تكلفة النتيجة.
@@ -1134,24 +1157,24 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة الأقل صر�
      * ad_id: معرف الإعلان.
      * ad_name: اسم الإعلان.
      * hook_analysis: تحليل السطر الافتتاحي في النص وهل بيوقف السكرول أم تقليدي.
-     * body_structure_analysis: تحليل طريقة سرد المميزات وحل مشكلة العميل.
+     * body_structure_analysis: تحليل متن النص والعرض.
      * offer_and_cta_analysis: تحليل وضوح العرض، السعر، والدعوة للإجراء (CTA).
      * copy_score: تقييم الكوبي من 10.
-     * alternative_copy_suggestions: مصفوفة تحتوي على نص إعلاني مقترح واحد أو اثنين مكتمل وجاهز للنشر فوراً بالعامية المصرية للـ A/B Testing، مكتوب باحترافية تسويقية وتتضمن الـ Hook والـ Offer والـ CTA.
+     * alternative_copy_suggestions: مصفوفة تحتوي على نص إعلاني مقترح بديل كامل وجاهز للنشر فوراً بالعامية المصرية للـ A/B Testing، مكتوب باحترافية تسويقية وتتضمن الـ Hook والـ Offer والـ CTA.
 
 4. الجزء الرابع: تحليل الاستهداف والمجموعات الإعلانية (Targeting & Audience Audit):
-   - اقرأ الاستهداف المطبق في المجموعات الإعلانية (المناطق، السن، النوع، الاهتمامات، Advantage+ vs Manual):
+   - اقرأ الاستهداف المطبق في المجموعات الإعلانية:
      * applied_targeting_summary: ملخص دقيق للاستهداف الفعلي المطبق.
      * alignment_with_creatives: تقييم صريح بالعامية المصرية لمدى ملاءمة هذا الاستهداف للكريتيف والمنتج المعروض بالفيديو/التصميم.
      * strengths: نقاط القوة في هذا الاستهداف.
      * risks_and_leaks: الثغرات أو التسريب أو تداخل الجماهير إن وجد.
-     * recommendations: توصيات ومقترحات عملية ومحددة لتطوير الاستهداف وتجربة جماهير أفضل مبنية على تحليل الكريتيف.
+     * recommendations: توصيات ومقترحات عملية ومحددة لتطوير الاستهداف مبنية على تحليل الكريتيف.
 
 الرد يجب أن يكون حصراً بصيغة JSON صحيحة بهذا الهيكل وبدون أي شروحات خارج الـ JSON:
 {
   "verdict": "SCALING_READY",
-  "verdict_badge": "ناجحة ومربحة جداً 🚀 (جاهزة للتكبير)",
-  "score": 8.7,
+  "verdict_badge": "شارة التقييم بالعامية المصرية",
+  "score": 8.5,
   "summary_egyptian": "ملخص عام بالعامية المصرية...",
   "metrics_evaluation": {
     "cpa_and_results": "تقييم سعر النتيجة والتحويلات",
@@ -1173,17 +1196,7 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة الأقل صر�
   ],
   "creatives_analysis": [
     {
-      "ad_id": "معرف الإعلان",
-      "ad_name": "اسم الإعلان",
-      "is_video": true,
-      "media_type_label": "🎬 فيديو ريلز إعلاني (14 ثانية)",
-      "video_embed_url": "رابط المشغل المباشر",
-      "post_url": "رابط المنشور/الريلز",
-      "thumbnail_url": "رابط الصورة أو الغلاف",
-      "spend": "المصروف الفعلي",
-      "purchases": "عدد المبيعات",
-      "cpa": "تكلفة الشراء الفعلي",
-      "ctr": "نسبة النقر",
+      "ad_id": "معرف الإعلان من القائمة المرفقة",
       "visual_hook_analysis": "تحليل أول 3 ثوانٍ وحركة المشهد بالعامية المصرية (ممنوع كلمة ثامبنيل للفيديوهات)",
       "product_offer_clarity": "تحليل وضوح المنتج والعرض التسويقي",
       "conversion_reality_verdict": "تفسير أداء الإعلان بالعامية المصرية وتوصية التعديل المطلوبة لتقليل سعر المبيعة",
@@ -1224,7 +1237,7 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة الأقل صر�
 
     try {
       const rawText = await this.generate(prompt, {
-        model: 'quality',
+        model: 'fast',
         config: {
           temperature: 0.2,
           maxOutputTokens: 8192,
@@ -1249,19 +1262,19 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة الأقل صر�
         const rawAd = formattedAds.find((f: any) => f.ad_id === item.ad_id) || {};
         return {
           ...item,
-          ad_name: item.ad_name || rawAd.ad_name,
-          is_video: item.is_video !== undefined ? Boolean(item.is_video) : Boolean(rawAd.is_video),
-          video_id: item.video_id || rawAd.video_id || null,
+          ad_name: rawAd.ad_name || item.ad_name,
+          is_video: rawAd.is_video !== undefined ? Boolean(rawAd.is_video) : Boolean(item.is_video),
+          video_id: rawAd.video_id || item.video_id || null,
           video_source: rawAd.video_source || item.video_source || null,
-          video_embed_url: item.video_embed_url || rawAd.video_embed_url || '',
-          post_url: item.post_url || rawAd.post_url || '',
-          thumbnail_url: item.thumbnail_url || rawAd.thumbnail_url || '',
+          video_embed_url: rawAd.video_embed_url || item.video_embed_url || '',
+          post_url: rawAd.post_url || item.post_url || '',
+          thumbnail_url: rawAd.thumbnail_url || item.thumbnail_url || '',
           images: Array.isArray(rawAd.images) && rawAd.images.length > 0 ? rawAd.images : (Array.isArray(item.images) && item.images.length > 0 ? item.images : rawAd.thumbnail_url ? [rawAd.thumbnail_url] : []),
-          media_type_label: item.media_type_label || rawAd.media_type_label || (rawAd.is_video ? '🎬 فيديو ريلز إعلاني (14 ثانية)' : '🖼️ منشور صور للمنتج'),
-          spend: item.spend || rawAd.spend || '0',
-          purchases: item.purchases || rawAd.purchases || '0',
-          cpa: item.cpa || rawAd.cpa || 'غير مسجل',
-          ctr: item.ctr || rawAd.ctr || '0%',
+          media_type_label: rawAd.media_type_label || item.media_type_label || (rawAd.is_video ? '🎬 فيديو ريلز إعلاني (14 ثانية)' : '🖼️ منشور صور للمنتج'),
+          spend: rawAd.spend || item.spend || '0',
+          purchases: rawAd.purchases || item.purchases || '0',
+          cpa: rawAd.cpa || item.cpa || 'غير مسجل',
+          ctr: rawAd.ctr || item.ctr || '0%',
           video_watch_stats: rawAd.video_watch_stats || '',
         };
       }) : [];

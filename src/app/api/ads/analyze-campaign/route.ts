@@ -6,21 +6,21 @@ async function enrichAdsWithMedia(ads: any[], userToken: string) {
 
   const pageTokens = new Map<string, string>();
   try {
-    let pageUrl: string | null = `https://graph.facebook.com/v21.0/me/accounts?fields=id,access_token&limit=100&access_token=${userToken}`;
-    while (pageUrl) {
-      const res: any = await fetch(pageUrl);
-      const data: any = await res.json();
-      (data.data || []).forEach((p: any) => {
-        if (p.id && p.access_token) pageTokens.set(p.id, p.access_token);
-      });
-      pageUrl = data.paging?.next || null;
-    }
+    const pageUrl = `https://graph.facebook.com/v21.0/me/accounts?fields=id,access_token&limit=100&access_token=${userToken}`;
+    const res: any = await fetch(pageUrl, { signal: AbortSignal.timeout(5000) });
+    const data: any = await res.json();
+    (data.data || []).forEach((p: any) => {
+      if (p.id && p.access_token) pageTokens.set(p.id, p.access_token);
+    });
   } catch (e) {
     console.error('[enrichAdsWithMedia] Error fetching page tokens:', e);
   }
 
+  // Only enrich top spending ads (up to 4 ads) to keep Meta API roundtrip under 3-4s
+  const topAds = ads.slice(0, 4);
+
   await Promise.all(
-    ads.map(async (ad: any) => {
+    topAds.map(async (ad: any) => {
       const cr = ad.creative || {};
       const videoId = cr.video_id || cr.object_story_spec?.video_data?.video_id;
       const storyId = cr.effective_object_story_id || cr.object_story_id || '';
@@ -31,7 +31,7 @@ async function enrichAdsWithMedia(ads: any[], userToken: string) {
       if (videoId && !cr.video_source) {
         try {
           const vUrl = `https://graph.facebook.com/v21.0/${videoId}?fields=id,source,picture,length&access_token=${pageToken}`;
-          const vRes: any = await fetch(vUrl);
+          const vRes: any = await fetch(vUrl, { signal: AbortSignal.timeout(4000) });
           const vData: any = await vRes.json();
           if (vData.source) {
             cr.video_source = vData.source;
@@ -45,7 +45,7 @@ async function enrichAdsWithMedia(ads: any[], userToken: string) {
       if (storyId) {
         try {
           const pUrl = `https://graph.facebook.com/v21.0/${storyId}?fields=id,attachments{media,subattachments{media}}&access_token=${pageToken}`;
-          const pRes: any = await fetch(pUrl);
+          const pRes: any = await fetch(pUrl, { signal: AbortSignal.timeout(4000) });
           const pData: any = await pRes.json();
           const att = pData.attachments?.data?.[0];
           const sub = att?.subattachments?.data || [];

@@ -907,7 +907,7 @@ export default function AdAccountsPage() {
           window.location.href = '/login';
           return;
         }
-        if (res.status === 504 || res.status === 502) {
+        if (res.status === 504 || res.status === 502 || res.status === 524) {
           throw new Error('استغرق الفحص وقتاً أطول من المعتاد نظراً لحجم البيانات، برجاء إعادة المحاولة');
         }
         throw new Error('حدث خطأ في استجابة السيرفر أثناء معالجة التحليل');
