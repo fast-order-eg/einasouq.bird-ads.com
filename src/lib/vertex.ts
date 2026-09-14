@@ -106,7 +106,19 @@ export function safeParseJson(rawText: string): any {
     return JSON.parse(candidate);
   } catch {}
 
-  // Attempt 4: If JSON was cut off near the end, balance braces and brackets
+  // Attempt 4: Clean unescaped control characters inside strings
+  try {
+    let candidate = match ? match[0] : clean;
+    candidate = candidate.replace(/[\u0000-\u001F\u007F-\u009F]/g, (c) => {
+      if (c === '\n') return '\\n';
+      if (c === '\r') return '\\r';
+      if (c === '\t') return '\\t';
+      return '';
+    });
+    return JSON.parse(candidate);
+  } catch {}
+
+  // Attempt 5: If JSON was cut off near the end, balance braces and brackets
   try {
     let candidate = match ? match[0] : clean;
     const lastValidComma = candidate.lastIndexOf(',');
@@ -1287,73 +1299,31 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة الأقل صر�
 
       return parsed;
     } catch (err: any) {
-      console.error('[VertexAI analyzeCampaignPerformance error]:', err);
-      return {
-        verdict: 'OPTIMIZATION_NEEDED',
-        verdict_badge: 'حملة جارية 📊 (تحتاج متابعة)',
-        score: 7.0,
-        summary_egyptian: 'الحملة جارية وقيد العرض، يُنصح بمتابعة النتائج وتحسين المحتوى الإعلاني والاستهداف دورياً.',
-        metrics_evaluation: {
-          cpa_and_results: 'جاري تسجيل النتائج من فيسبوك.',
-          roas_and_profit: 'تابع نقطة التعادل مع المبيعات الفعلية.',
-          ctr_and_interest: 'معدل النقر ضمن المعدل الطبيعي.',
-          frequency_and_fatigue: 'التكرار متوازن.'
-        },
-        bottlenecks: [
-          'الحاجة لمراقبة نسبة النقر للتحويل على صفحة الهبوط وتفادي تسريب العملاء المهتمين.',
-          'الـ CPM يتأثر بحجم المنافسة على شريحة الجمهور المحددة ويحتاج تجربة زوايا أوسع.'
-        ],
-        bottleneck: 'الحاجة لمراقبة نسبة النقر للتحويل على صفحة الهبوط وتفادي تسريب العملاء.',
-        scaling_advice_points: [
-          'زيادة الميزانية بنسبة 20% كل 48 ساعة فقط في حال ثبات الـ ROAS والـ CPA.',
-          'عمل Duplicate للحملة بميزانية مضاعفة لاختبار جمهور أوسع دون المساس بالحملة الحالية.'
-        ],
-        scaling_advice: 'زيادة الميزانية بنسبة 20% كل 48 ساعة فقط في حال ثبات الـ ROAS.',
-        action_steps: [
-          'راقب تكلفة النتيجة وتأكد من ثباتها على مدار 48 ساعة قبل أي تعديل.',
-          'اختبر كريتيف أو زاوية عرض جديدة لتفادي تشبع الجمهور الحالي.',
-          'تأكد من سرعة تجاوب فريق المبيعات والرد الفوري على العملاء.'
-        ],
-        creatives_analysis: (formattedAds || []).map((ad: any) => ({
-          ad_id: ad.ad_id,
-          ad_name: ad.ad_name,
-          post_url: ad.post_url,
-          thumbnail_url: ad.thumbnail_url,
-          visual_hook_analysis: 'الفيديو يعرض المنتج بشكل مباشر في أول 3 ثوانٍ مما يساعد على تثبيت الانتباه.',
-          product_offer_clarity: 'المنتج واستخداماته موضحة بشكل عملي وسلس داخل المحتوى.',
-          strengths: ['عرض عملي وسريع للمنتج', 'جودة إضاءة وزوايا تصوير واضحة'],
-          weaknesses: ['يمكن إضافة كتابة توضيحية بارزة على الشاشة للمشاهدين بدون صوت'],
-          creative_score: 8.0
-        })),
-        copywriting_analysis: (formattedAds || []).map((ad: any) => ({
-          ad_id: ad.ad_id,
-          ad_name: ad.ad_name,
-          hook_analysis: 'السطر الافتتاحي يخاطب مشكلة شائعة لدى الجمهور ويحفز على القراءة.',
-          body_structure_analysis: 'المميزات مرتبة بنقاط واضحة ومباشرة مع التركيز على راحة وسهولة الاستخدام.',
-          offer_and_cta_analysis: 'الدعوة للشراء صريحة مع إبراز ميزة المعاينة عند الاستلام والشحن.',
-          copy_score: 8.0,
-          alternative_copy_suggestions: [
-            `🚨 تعبتي من لف الطرحة والدبابيس كل يوم؟ 👀\n\nجربي طرحة 3 في 1 (طرحة + بندانة + طبقية) في قطعة واحدة شيك وعملية!\n✨ تلبسيها في ثانيتين بس بخامة شيفون خفيفة ودانتيل راقي.\n\n🛍️ اطلبيها دلوقتي مع ميزة المعاينة عند الاستلام قبل الدفع!`
-          ]
-        })),
-        targeting_audit: {
-          applied_targeting_summary: {
-            locations: formattedAdsets[0]?.locations || 'مصر (EG)',
-            age_range: formattedAdsets[0]?.age_range || '18 - 65 سنة',
-            gender: formattedAdsets[0]?.gender || 'الكل',
-            interests_and_behaviors: formattedAdsets[0]?.interests || 'اهتمامات عامة',
-            is_advantage_plus: formattedAdsets[0]?.is_advantage_plus || true,
-            targeting_type_label: formattedAdsets[0]?.targeting_type_label || 'Advantage+ Audience'
+      console.warn('[VertexAI analyzeCampaignPerformance] Primary model call failed, retrying with fastModel...', err.message);
+      try {
+        const fallbackText = await this.generate(prompt, {
+          model: 'fast',
+          config: {
+            temperature: 0.2,
+            maxOutputTokens: 8192,
+            responseMimeType: 'application/json',
           },
-          alignment_with_creatives: 'الجمهور المستهدف متناسق مع طبيعة المنتج، وينصح باختبار جمهور مفتوح (Broad) للاستفادة القصوى من خوارزميات ميتا.',
-          strengths: ['استهداف مناسب للشريحة الاستهلاكية المهتمة بالمنتج'],
-          risks_and_leaks: ['الفئة العمرية واسعة جداً (18-65) وقد تصرف جزءاً من الميزانية على فئات غير متفاعلة'],
-          recommendations: [
-            'تضييق الفئة العمرية إلى (21 - 45 سنة) لتركيز الصرف على الفئة الأكثر شراءً أونلاين.',
-            'تجربة AdSet موازية بنظام Broad (بدون أي اهتمامات) وترك خوارزمية الفيديو تحدد المشتري.'
-          ]
+        });
+        const parsed = safeParseJson(fallbackText);
+        if (parsed) {
+          if (Array.isArray(parsed.bottlenecks) && !parsed.bottleneck) {
+            parsed.bottleneck = parsed.bottlenecks.join('\n');
+          }
+          if (Array.isArray(parsed.scaling_advice_points) && !parsed.scaling_advice) {
+            parsed.scaling_advice = parsed.scaling_advice_points.join('\n');
+          }
+          return parsed;
         }
-      };
+      } catch (retryErr: any) {
+        console.error('[VertexAI analyzeCampaignPerformance retry error]:', retryErr.message);
+      }
+
+      throw new Error(`تعذر استخراج تحليل الذكاء الاصطناعي: ${err.message || 'خطأ غير متوقع'}`);
     }
   }
 }
