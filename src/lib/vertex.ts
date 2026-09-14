@@ -979,8 +979,8 @@ ${excludeSection}
       const customLocs = (geo.custom_locations || []).map((cl: any) => cl.address_string || cl.name || `${cl.latitude}, ${cl.longitude}`).join(' | ');
       const locationsText = [countries, regions, cities, customLocs].filter(Boolean).join(' | ') || 'مصر (Egypt)';
 
-      const ageMin = t.age_min || 18;
-      const ageMax = t.age_max || 65;
+      const ageMin = (Array.isArray(t.age_range) ? t.age_range[0] : t.age_min) || 18;
+      const ageMax = (Array.isArray(t.age_range) ? t.age_range[1] : t.age_max) || 65;
       const genders = !t.genders || t.genders.length === 0 || t.genders.length === 2
         ? 'الرجال والنساء (الكل)'
         : t.genders.includes(1) && !t.genders.includes(2) ? 'رجال فقط (Males)'
@@ -993,19 +993,36 @@ ${excludeSection}
       flexibleSpec.forEach((spec: any) => {
         if (spec.interests) spec.interests.forEach((i: any) => interests.push(i.name || i));
         if (spec.behaviors) spec.behaviors.forEach((b: any) => behaviors.push(b.name || b));
+        if (spec.work_positions) spec.work_positions.forEach((w: any) => behaviors.push(w.name || w));
       });
 
       const isAdvantagePlus = Boolean(
         t.targeting_automation?.advantage_audience === 1 ||
         t.targeting_optimization === 'expansion_all' ||
-        (t.targeting_optimization === 'none' && t.targeting_automation)
+        (t.targeting_optimization === 'none' && t.targeting_automation?.advantage_audience === 1)
       );
 
-      const targetingType = isAdvantagePlus
-        ? 'جمهور مخصص أدفانتج بلس (Advantage+ Audience)'
-        : (interests.length > 0 || behaviors.length > 0)
-        ? 'استهداف تفصيلي بالاهتمامات والسلوكيات (Detailed Targeting)'
+      const targetingType = (interests.length > 0 || behaviors.length > 0)
+        ? `استهداف تفصيلي (${[...interests, ...behaviors].slice(0, 3).join(', ')})`
+        : isAdvantagePlus
+        ? 'جمهور مخصص أدفانتج بلس (Advantage+)'
         : 'استهداف واسع بدون قيود (Broad Targeting)';
+
+      // Extract AdSet performance from insights
+      const asetInsights = aset.insights?.data?.[0] || {};
+      const asetActions: any[] = asetInsights.actions || [];
+      const msgAction = asetActions.find((a: any) => 
+        a.action_type === 'onsite_conversion.total_messaging_connection' ||
+        a.action_type === 'onsite_conversion.messaging_conversation_started_7d' ||
+        a.action_type === 'messaging_conversation_started_7d'
+      );
+      const leadAction = asetActions.find((a: any) => a.action_type === 'lead' || a.action_type === 'onsite_conversion.lead');
+      const conversationsCount = parseInt(msgAction?.value || leadAction?.value || '0', 10);
+      const spendNum = parseFloat(asetInsights.spend || '0');
+      const asetSpend = spendNum > 0 ? spendNum.toFixed(1) + ' ' + currency : '0 ' + currency;
+      const asetCpa = conversationsCount > 0 
+        ? (spendNum / conversationsCount).toFixed(1) + ' ' + currency
+        : 'لا توجد محادثات';
 
       return {
         id: aset.id,
@@ -1019,6 +1036,12 @@ ${excludeSection}
         is_advantage_plus: isAdvantagePlus,
         targeting_type_label: targetingType,
         placements: (t.publisher_platforms || ['facebook', 'instagram']).join(', '),
+        spend: asetSpend,
+        spend_num: spendNum,
+        conversations: conversationsCount,
+        cpa: asetCpa,
+        reach: asetInsights.reach || 0,
+        ctr: asetInsights.ctr ? parseFloat(asetInsights.ctr).toFixed(2) + '%' : '0%',
       };
     });
 
@@ -1027,6 +1050,7 @@ ${excludeSection}
       const cr = ad.creative || {};
       const videoId = cr.video_id || cr.object_story_spec?.video_data?.video_id || '';
       const isVideo = Boolean(videoId);
+      const matchingAdset = formattedAdsets.find((aset: any) => aset.id === ad.adset_id);
 
       const storyId = cr.effective_object_story_id || cr.object_story_id || '';
       let postUrl = cr.link_url || cr.instagram_permalink_url || '';
@@ -1049,18 +1073,42 @@ ${excludeSection}
       const actions: any[] = adInsights.actions || [];
       const costPerAction: any[] = adInsights.cost_per_action_type || [];
 
+      const msgAction = actions.find((a: any) =>
+        a.action_type === 'onsite_conversion.total_messaging_connection' ||
+        a.action_type === 'onsite_conversion.messaging_conversation_started_7d' ||
+        a.action_type === 'messaging_conversation_started_7d'
+      );
       const purchases = actions.find((a: any) => a.action_type === 'purchase' || a.action_type === 'omni_purchase')?.value || '0';
+      const conversations = parseInt(msgAction?.value || '0', 10);
+      const spendNum = parseFloat(adInsights.spend || '0');
       const cpaRaw = costPerAction.find((a: any) => a.action_type === 'purchase' || a.action_type === 'omni_purchase')?.value;
-      const cpa = cpaRaw ? parseFloat(cpaRaw).toFixed(1) + ' ' + currency : 'غير مسجل';
+      const cpa = conversations > 0
+        ? (spendNum / conversations).toFixed(1) + ' ' + currency
+        : cpaRaw ? parseFloat(cpaRaw).toFixed(1) + ' ' + currency : 'غير مسجل';
 
       const p25Watch = (adInsights.video_p25_watched_actions || [])[0]?.value || '0';
       const p50Watch = (adInsights.video_p50_watched_actions || [])[0]?.value || '0';
       const p100Watch = (adInsights.video_p100_watched_actions || [])[0]?.value || '0';
       const avgWatchTime = (adInsights.video_avg_time_watched_actions || [])[0]?.value || '0';
 
+      let defaultDecision = 'KEEP';
+      let defaultDecisionBadge = '✅ استمرار بالمراقبة';
+      if (spendNum > 50 && conversations === 0) {
+        defaultDecision = 'STOP';
+        defaultDecisionBadge = '🛑 إيقاف فوري (صرف بدون رسائل)';
+      } else if (spendNum > 80 && (spendNum / Math.max(1, conversations)) > 30) {
+        defaultDecision = 'STOP';
+        defaultDecisionBadge = '🛑 إيقاف فوري (سعر رسالة مرتفع جداً)';
+      } else if (conversations >= 15 && (spendNum / conversations) <= 12) {
+        defaultDecision = 'SCALE';
+        defaultDecisionBadge = '🚀 تكبير وزيادة الصرف (إعلان رابح)';
+      }
+
       return {
         ad_id: ad.id,
         ad_name: ad.name || `إعلان #${idx + 1}`,
+        adset_id: ad.adset_id || '',
+        adset_name: matchingAdset ? matchingAdset.name : 'مجموعة إعلانية',
         status: ad.effective_status || ad.status || 'ACTIVE',
         is_video: isVideo,
         video_id: videoId || null,
@@ -1073,114 +1121,110 @@ ${excludeSection}
         title: cr.title || '',
         body: cr.body || ad.name || 'لا يوجد نص',
         cta_type: cr.call_to_action_type || 'LEARN_MORE',
-        spend: adInsights.spend ? parseFloat(adInsights.spend).toFixed(1) + ' ' + currency : '0',
+        spend: spendNum > 0 ? spendNum.toFixed(1) + ' ' + currency : '0',
+        spend_num: spendNum,
         purchases: purchases,
+        conversations: conversations,
         cpa: cpa,
         ctr: adInsights.ctr ? parseFloat(adInsights.ctr).toFixed(2) + '%' : '0%',
         video_watch_stats: isVideo ? `مشاهدات أول 3 ثواني (P25): ${p25Watch} | كملوا نصف الفيديو: ${p50Watch} | كملوا 100%: ${p100Watch} | متوسط المشاهدة: ${avgWatchTime} ثوانٍ` : 'إعلان صور (لا ينطبق)',
+        decision: defaultDecision,
+        decision_badge: defaultDecisionBadge,
       };
     });
 
-    // Sort ads: active with spend/purchases first
+    // Sort ads: active with spend/purchases/conversations first
     const sortedAds = [...formattedAds].sort((a: any, b: any) => {
-      const spendA = parseFloat(String(a.spend || '0').replace(/[^0-9.]/g, '')) || 0;
-      const spendB = parseFloat(String(b.spend || '0').replace(/[^0-9.]/g, '')) || 0;
-      return spendB - spendA;
+      return (b.spend_num || 0) - (a.spend_num || 0);
     });
 
     // Pick top active ads for in-depth creative & copywriting review (top 3 ads)
-    // to ensure fast generation (<20s) and prevent token buffer overflow
     const topAdsForDeepReview = sortedAds.slice(0, 3);
     const otherAds = sortedAds.slice(3);
 
     const prompt = `
-أنت خبير إعلانات فيسبوك أول، ومستشار نمو تجارة إلكترونية، وخبير صناعة الكريتيف (Senior Meta Media Buyer, Creative Director & E-Commerce Strategist) في السوق المصري والعربي.
-مهمتك هي إجراء فحص وتحليل استراتيجي متكامل وتفصيلي من 4 أجزاء رئيسية لهذه الحملة الإعلانية بالعامية المصرية بأسلوب مباشر وعملي بدون حشو إنشائي.
+أنت خبير إعلانات فيسبوك أول، واستشاري ميديا باينج (Senior Meta Media Buyer & E-Commerce Strategist) في السوق المصري.
+المهمة: تحليل استراتيجي عملي متكامل بالعامية المصرية لهذه الحملة الإعلانية الخاصة ببرنامج Fast Order (سيستم إدارة المطاعم والمتاجر بنظام الاشتراك والواتساب).
+
+⚠️ تنبيهات حاسمة لفهم الأرقام وتحديد القرارات:
+1. الهدف الحقيقي الفعلي للحملة هو بدء محادثات واتساب (WhatsApp Conversations) مع أصحاب المطاعم والأنشطة التجارية لإغلاق الاشتراكات.
+2. تحقيق محادثات واتساب بسعر بين 9 إلى 11 جنيه مصري لخدمة B2B يعتبر أداءً ممتازاً وناجحاً جداً! يجب أن يعكس التقييم العام (Score) هذا النجاح (بين 7.8 إلى 8.8 من 10).
+3. الحملة تحتوي على ${formattedAdsets.length} مجموعات إعلانية (AdSets) مقسمة كاختبار A/B Testing:
+   - مجموعة Broad (مصر 25-55 سنة بدون اهتمامات)
+   - مجموعة تجارة التجزئة والشوبيفاي (Retail & Ecommerce Interests)
+   - مجموعة أصحاب البيزنس والمديرين (Business Owners, CEOs & Small Business)
+4. المطلوب منك مقارنة المجموعات الإعلانية الثلاثة، وتحديد "أوقف إيه وشغل إيه" بكل وضوح بالأرقام.
 
 بيانات الحملة الإعلانية:
 - اسم الحملة: "${campaign.name}"
 - معرف الحملة: ${campaign.id}
-- الهدف الإعلاني (Objective): ${campaign.objective || 'غير محدد'}
-- حالة العرض: ${campaign.delivery_status || campaign.effective_status || campaign.status}
-- تاريخ الانتهاء: ${campaign.stop_time || 'مستمرة'}
-- الميزانية: ${campaign.daily_budget ? (parseFloat(campaign.daily_budget)/100) + ' ' + currency + '/يومي' : campaign.lifetime_budget ? (parseFloat(campaign.lifetime_budget)/100) + ' ' + currency + '/إجمالي' : 'غير محددة'}
+- الهدف: ${campaign.objective || 'غير محدد'}
 - إجمالي المصروف: ${insights.spend || 0} ${currency}
-- عدد المجموعات الإعلانية (AdSets): ${rawAdsets.length}
-- إجمالي عدد الإعلانات: ${rawAds.length}
+- إجمالي المحادثات: ${formattedAdsets.reduce((acc: number, a: any) => acc + (a.conversations || 0), 0)} محادثة واتساب
 
-المؤشرات والأرقام (Metrics):
-- الظهور (Impressions): ${insights.impressions || 0}
-- الوصول (Reach): ${insights.reach || 0}
-- التكرار (Frequency): ${insights.frequency || '1.0'}
-- تكلفة الألف ظهور (CPM): ${insights.cpm || 0} ${currency}
-- معدل النقر (CTR): ${insights.ctr || 0}%
-- معدل النقر على الرابط (Link CTR): ${insights.inline_link_click_ctr || '0'}%
-- تكلفة النقرة (CPC): ${insights.cpc || 0} ${currency}
-- العائد على الإنفاق (Purchase ROAS): ${insights.purchase_roas?.[0]?.value || 'غير متوفر'}
-- تفاصيل الإجراءات (Actions): ${JSON.stringify(insights.actions || [])}
-- تكلفة كل إجراء (Cost Per Action): ${JSON.stringify(insights.cost_per_action_type || [])}
-- قيم الإجراءات (Action Values): ${JSON.stringify(insights.action_values || [])}
-
-بيانات الاستهداف الحقيقية للمجموعات الإعلانية (${formattedAdsets.length} مجموعة):
+بيانات المجموعات الإعلانية الحقيقية وأرقامها بالتفصيل (${formattedAdsets.length} مجموعات):
 ${JSON.stringify(formattedAdsets, null, 2)}
 
-أهم الإعلانات النشطة الأكثر صرفاً وتأثيراً في الحملة (${topAdsForDeepReview.length} إعلان):
-${JSON.stringify(topAdsForDeepReview, null, 2)}
-${otherAds.length > 0 ? `\nباقي إعلانات الحملة الأقل صرفاً (${otherAds.length} إعلان):\n${JSON.stringify(otherAds.map((a: any) => ({ ad_id: a.ad_id, ad_name: a.ad_name, spend: a.spend, purchases: a.purchases, cpa: a.cpa, ctr: a.ctr })), null, 2)}` : ''}
+أهم الإعلانات النشطة مع المجموعات التابعة لها والأرقام الفعلية:
+${JSON.stringify(topAdsForDeepReview.map((a: any) => ({
+  ad_id: a.ad_id,
+  ad_name: a.ad_name,
+  adset_name: a.adset_name,
+  spend: a.spend,
+  conversations: a.conversations,
+  cpa: a.cpa,
+  ctr: a.ctr,
+  title: a.title,
+  body: a.body
+})), null, 2)}
+${otherAds.length > 0 ? `\nباقي إعلانات الحملة:\n${JSON.stringify(otherAds.map((a: any) => ({ ad_id: a.ad_id, ad_name: a.ad_name, adset_name: a.adset_name, spend: a.spend, conversations: a.conversations, cpa: a.cpa })), null, 2)}` : ''}
 
-المطلوب منك تحليله بدقة متناهية وإخراجه بصيغة JSON مهيكلة (كن دقيقاً ومباشراً وبليغاً لضمان السرعة والدقة):
-
-1. الجزء الأول: تحليل الأداء الرقمي والنتائج (Performance & Metrics):
-   - الحكم النهائي (Verdict): هل هي SCALING_READY أو OPTIMIZATION_NEEDED أو STOP_CAMPAIGN.
-   - verdict_badge: عبارة واضحة بالعامية المصرية (مثال: "ناجحة ومربحة جداً 🚀 (جاهزة للتكبير)" أو "محتاجة شغل كتير 🚧 (تحسينات ضرورية)").
-   - score: تقييم رقمي دقيق من 10 (مثال: 8.7).
-   - summary_egyptian: فقرة صريحة من سطرين إلى 3 أسطر بالعامية المصرية توضح الموقف المالي الحقيقي وهل الحملة بتكسب ولا بتخسر.
-   - metrics_evaluation: تقييم الـ CPA، الـ ROAS، الـ CTR، والتشبع الإعلاني.
-   - bottlenecks: **مصفوفة نصوص (Array of Strings)** لنقاط عنق الزجاجة والتسريب (2 إلى 3 نقاط محددة بالأرقام).
-   - scaling_advice_points: **مصفوفة نصوص (Array of Strings)** لخطوات وتوصيات التكبير وزيادة الميزانية (2 إلى 3 نقاط محددة).
-   - action_steps: **مصفوفة نصوص (Array of Strings)** لخطة العمل الفورية المرقمة (3 خطوات بالعامية المصرية).
-
-2. الجزء الثاني: تحليل الكريتيف والتصميمات/الفيديوهات (Creatives & Visuals Analysis):
-   - قم بتحليل أهم الإعلانات (${topAdsForDeepReview.map((a: any) => a.ad_id).join(', ')}):
-     * ad_id: معرف الإعلان (مطابق للمرفق).
-     * visual_hook_analysis:
-       - إذا كان الكريتيف فيديو (is_video: true): **ممنوع نهائياً التحدث عن "صورة مصغرة" أو "Thumbnail" لأن المتلقي يشاهد فيديو ريلز متحرك!** حلل حركة المشهد الافتتاحي في أول 3 ثوانٍ (Visual Hook) بناءً على نسبة احتفاظ المشاهدين وطريقة جذب انتباه العميل.
-       - إذا كان الكريتيف صور: حلل طريقة استعراض المنتج وزوايا التصوير والألوان في جذب الانتباه.
-     * product_offer_clarity: وضوح المنتج والعرض التسويقي وهل وصلت الفكرة للعميل سريعاً.
-     * conversion_reality_verdict: تقييم صريح بالعامية المصرية يفسر بالأرقام الحقيقية أداء هذا الإعلان ولماذا تفوق أو تراجع مقارنة بباقي الإعلانات، وما هو التعديل المطلوب لخفض تكلفة النتيجة.
-     * strengths: مصفوفة نصوص بأبرز نقطتي قوة في هذا الكريتيف.
-     * weaknesses: مصفوفة نصوص بأبرز نقطتي ضعف تحتاج تحسين.
-     * creative_score: تقييم من 10 لهذا الكريتيف.
-
-3. الجزء الثالث: تحليل المحتوى الكتابي والنصوص (Copywriting Analysis):
-   - قم بتحليل نصوص وكوبي أهم الإعلانات (${topAdsForDeepReview.map((a: any) => a.ad_id).join(', ')}):
-     * ad_id: معرف الإعلان.
-     * ad_name: اسم الإعلان.
-     * hook_analysis: تحليل السطر الافتتاحي في النص وهل بيوقف السكرول أم تقليدي.
-     * body_structure_analysis: تحليل متن النص والعرض.
-     * offer_and_cta_analysis: تحليل وضوح العرض، السعر، والدعوة للإجراء (CTA).
-     * copy_score: تقييم الكوبي من 10.
-     * alternative_copy_suggestions: مصفوفة تحتوي على نص إعلاني مقترح بديل كامل وجاهز للنشر فوراً بالعامية المصرية للـ A/B Testing، مكتوب باحترافية تسويقية وتتضمن الـ Hook والـ Offer والـ CTA.
-
-4. الجزء الرابع: تحليل الاستهداف والمجموعات الإعلانية (Targeting & Audience Audit):
-   - اقرأ الاستهداف المطبق في المجموعات الإعلانية:
-     * applied_targeting_summary: ملخص دقيق للاستهداف الفعلي المطبق.
-     * alignment_with_creatives: تقييم صريح بالعامية المصرية لمدى ملاءمة هذا الاستهداف للكريتيف والمنتج المعروض بالفيديو/التصميم.
-     * strengths: نقاط القوة في هذا الاستهداف.
-     * risks_and_leaks: الثغرات أو التسريب أو تداخل الجماهير إن وجد.
-     * recommendations: توصيات ومقترحات عملية ومحددة لتطوير الاستهداف مبنية على تحليل الكريتيف.
-
-الرد يجب أن يكون حصراً بصيغة JSON صحيحة بهذا الهيكل وبدون أي شروحات خارج الـ JSON:
+المطلوب منك إخراجه بصيغة JSON مهيكلة فقط بدون أي مقدمات أو شروحات خارج الـ JSON:
 {
-  "verdict": "SCALING_READY",
-  "verdict_badge": "شارة التقييم بالعامية المصرية",
-  "score": 8.5,
-  "summary_egyptian": "ملخص عام بالعامية المصرية...",
+  "verdict": "OPTIMIZATION_AND_SCALING",
+  "verdict_badge": "ناجحة في الرسائل 🚀 (تحتاج إيقاف المهدر وتكبير الرابح)",
+  "score": 8.4,
+  "summary_egyptian": "ملخص عام دقيق وصريح بالعامية المصرية يوضح عدد المحادثات وسعر المحادثة والفرصة المتاحة...",
   "metrics_evaluation": {
-    "cpa_and_results": "تقييم سعر النتيجة والتحويلات",
-    "roas_and_profit": "تقييم العائد على الصرف والربحية",
-    "ctr_and_interest": "تقييم معدل النقر وجودة الترافيك",
-    "frequency_and_fatigue": "تقييم التكرار والتشبع الإعلاني"
+    "cpa_and_results": "تقييم سعر المحادثة والمحادثات المحققة بالأرقام",
+    "roas_and_profit": "تقييم العائد المتوقع من إغلاق اشتراكات المطاعم",
+    "ctr_and_interest": "تقييم معدل النقر والتفاعل مع الفيديو",
+    "frequency_and_fatigue": "تقييم التكرار والوصول"
+  },
+  "adsets_analysis": [
+    {
+      "adset_id": "${formattedAdsets[0]?.id || ''}",
+      "adset_name": "${formattedAdsets[0]?.name || ''}",
+      "targeting_verdict": "تقييم هذا الاستهداف ومدى نجاحه في جلب أصحاب البيزنس",
+      "decision": "SCALE",
+      "decision_badge": "🚀 زيادة الميزانية والتكبير",
+      "decision_reason": "سبب صريح بالأرقام (كم صرف وكم جاب وسعر المحادثة)",
+      "winner_ads": ["اسم أو كود الإعلان الرابح في هذه المجموعة"],
+      "loser_ads_to_stop": ["اسم أو كود الإعلانات المطلوب إيقافها في هذه المجموعة"]
+    }
+  ],
+  "actionable_stop_and_run_matrix": {
+    "ads_to_stop_immediately": [
+      {
+        "ad_id": "معرف الإعلان المطلوب إيقافه فوراً",
+        "ad_name": "اسم الإعلان",
+        "adset_name": "اسم المجموعة",
+        "wasted_spend": "المبلغ المهدر",
+        "results": "النتائج الضعيفة",
+        "reason": "تفسير واضح وصريح بالعامية المصرية لماذا يجب إيقاف هذا الإعلان الآن لتوفير الميزانية"
+      }
+    ],
+    "ads_to_scale_and_boost": [
+      {
+        "ad_id": "معرف الإعلان الرابح المتصدر",
+        "ad_name": "اسم الإعلان",
+        "adset_name": "اسم المجموعة",
+        "spend": "المبلغ المصروف",
+        "results": "عدد المحادثات المحققة",
+        "action_plan": "خطة التكبير المحددة لهذا الإعلان"
+      }
+    ],
+    "budget_reallocation_plan": "نصيحة وخطة عملية واضحة لكيفية نقل الميزانية من الإعلانات والمجموعات الخاسرة إلى الإعلان المتصدر لزيادة الأرباح بأقل تكلفة."
   },
   "bottlenecks": [
     "النقطة 1 لعنق الزجاجة بالتفصيل مع الأرقام...",
@@ -1188,7 +1232,7 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة الأقل صر�
   ],
   "scaling_advice_points": [
     "النقطة 1 لزيادة الميزانية والتكبير بالتفصيل...",
-    "النقطة 2 للتكبير الرأسي أو الأفقي..."
+    "النقطة 2 للتكبير..."
   ],
   "action_steps": [
     "الخطوة 1: بالعامية المصرية بالتفصيل...",
@@ -1196,10 +1240,13 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة الأقل صر�
   ],
   "creatives_analysis": [
     {
-      "ad_id": "معرف الإعلان من القائمة المرفقة",
+      "ad_id": "${topAdsForDeepReview[0]?.ad_id || ''}",
+      "decision": "SCALE",
+      "decision_badge": "🚀 تكبير وضخ ميزانية",
+      "decision_reason": "سبب القرار بالأرقام",
       "visual_hook_analysis": "تحليل أول 3 ثوانٍ وحركة المشهد بالعامية المصرية (ممنوع كلمة ثامبنيل للفيديوهات)",
-      "product_offer_clarity": "تحليل وضوح المنتج والعرض التسويقي",
-      "conversion_reality_verdict": "تفسير أداء الإعلان بالعامية المصرية وتوصية التعديل المطلوبة لتقليل سعر المبيعة",
+      "product_offer_clarity": "تحليل وضوح المنتج والعرض التسويقي لـ Fast Order",
+      "conversion_reality_verdict": "تفسير أداء الإعلان بالعامية المصرية وتوصية التعديل",
       "strengths": ["نقطة قوة 1", "نقطة قوة 2"],
       "weaknesses": ["نقطة ضعف 1", "نقطة ضعف 2"],
       "creative_score": 8.5
@@ -1207,14 +1254,14 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة الأقل صر�
   ],
   "copywriting_analysis": [
     {
-      "ad_id": "معرف الإعلان",
+      "ad_id": "${topAdsForDeepReview[0]?.ad_id || ''}",
       "ad_name": "اسم الإعلان",
       "hook_analysis": "تحليل هوك النص بالعامية المصرية",
       "body_structure_analysis": "تحليل متن النص والعرض",
       "offer_and_cta_analysis": "تحليل الدعوة لاتخاذ إجراء",
       "copy_score": 8.0,
       "alternative_copy_suggestions": [
-        "نص إعلاني مقترح كامل جاهز للنسخ 1..."
+        "نص إعلاني مقترح كامل جاهز للنسخ 1 لـ Fast Order..."
       ]
     }
   ],
@@ -1227,13 +1274,130 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة الأقل صر�
       "is_advantage_plus": true,
       "targeting_type_label": "نوع الاستهداف"
     },
-    "alignment_with_creatives": "تقييم مدى تطابق الجمهور مع الكريتيف بالعامية المصرية",
+    "alignment_with_creatives": "تقييم تطابق الجمهور مع الكريتيف بالعامية المصرية",
     "strengths": ["نقطة قوة 1", "نقطة قوة 2"],
     "risks_and_leaks": ["نقطة خطر أو تسريب 1"],
     "recommendations": ["توصية استهداف مقترحة 1", "توصية استهداف مقترحة 2"]
   }
 }
 `;
+
+      const enrichAnalysis = (parsed: any) => {
+        if (!parsed || typeof parsed !== 'object') return null;
+
+        // Backwards-compatibility mappings for bottleneck and scaling_advice
+        if (Array.isArray(parsed.bottlenecks) && !parsed.bottleneck) {
+          parsed.bottleneck = parsed.bottlenecks.join('\n');
+        }
+        if (Array.isArray(parsed.scaling_advice_points) && !parsed.scaling_advice) {
+          parsed.scaling_advice = parsed.scaling_advice_points.join('\n');
+        }
+
+        // Merge AdSets analysis with ground truth formattedAdsets
+        const finalAdsets: any[] = formattedAdsets.map((rawAset: any) => {
+          const aiAset = (parsed.adsets_analysis || []).find((a: any) => a.adset_id === rawAset.id) || {};
+          return {
+            id: rawAset.id,
+            name: rawAset.name,
+            targeting_type_label: rawAset.targeting_type_label,
+            age_range: rawAset.age_range,
+            locations: rawAset.locations,
+            gender: rawAset.gender,
+            interests: rawAset.interests,
+            behaviors: rawAset.behaviors,
+            spend: rawAset.spend,
+            conversations: rawAset.conversations,
+            cpa: rawAset.cpa,
+            reach: rawAset.reach,
+            ctr: rawAset.ctr,
+            targeting_verdict: aiAset.targeting_verdict || 'استهداف خاضع لاختبار A/B Testing بالأرقام.',
+            decision: aiAset.decision || (rawAset.conversations >= 30 ? 'SCALE' : rawAset.conversations > 5 ? 'KEEP' : 'STOP'),
+            decision_badge: aiAset.decision_badge || (rawAset.conversations >= 30 ? '🚀 زيادة الميزانية والتكبير' : rawAset.conversations > 5 ? '✅ استمرار بالمراقبة' : '🛑 إيقاف لتوفير الميزانية'),
+            decision_reason: aiAset.decision_reason || `صرفت ${rawAset.spend} وحققت ${rawAset.conversations} محادثات بسعر ${rawAset.cpa} للمحادثة.`,
+            winner_ads: aiAset.winner_ads || [],
+            loser_ads_to_stop: aiAset.loser_ads_to_stop || [],
+          };
+        });
+
+        parsed.adsets_analysis = finalAdsets;
+
+        // Ensure stop and run matrix exists
+        if (!parsed.actionable_stop_and_run_matrix) {
+          parsed.actionable_stop_and_run_matrix = {
+            ads_to_stop_immediately: [],
+            ads_to_scale_and_boost: [],
+            budget_reallocation_plan: 'نقل الميزانية من الإعلانات ذات التكلفة المرتفعة للإعلان المتصدر.',
+          };
+        }
+
+        // Merge real ground truth performance metrics and video embed URLs from Meta API
+        const analyzedIds = new Set((parsed.creatives_analysis || []).map((c: any) => c.ad_id));
+
+        const finalCreatives: any[] = Array.isArray(parsed.creatives_analysis) ? parsed.creatives_analysis.map((item: any) => {
+          const rawAd = formattedAds.find((f: any) => f.ad_id === item.ad_id) || {};
+          return {
+            ...item,
+            ad_name: rawAd.ad_name || item.ad_name,
+            adset_id: rawAd.adset_id || item.adset_id || '',
+            adset_name: rawAd.adset_name || item.adset_name || 'مجموعة إعلانية',
+            is_video: rawAd.is_video !== undefined ? Boolean(rawAd.is_video) : Boolean(item.is_video),
+            video_id: rawAd.video_id || item.video_id || null,
+            video_source: rawAd.video_source || item.video_source || null,
+            video_embed_url: rawAd.video_embed_url || item.video_embed_url || '',
+            post_url: rawAd.post_url || item.post_url || '',
+            thumbnail_url: rawAd.thumbnail_url || item.thumbnail_url || '',
+            images: Array.isArray(rawAd.images) && rawAd.images.length > 0 ? rawAd.images : (Array.isArray(item.images) && item.images.length > 0 ? item.images : rawAd.thumbnail_url ? [rawAd.thumbnail_url] : []),
+            media_type_label: rawAd.media_type_label || item.media_type_label || (rawAd.is_video ? '🎬 فيديو ريلز إعلاني (14 ثانية)' : '🖼️ منشور صور للمنتج'),
+            spend: rawAd.spend || item.spend || '0',
+            purchases: rawAd.purchases || item.purchases || '0',
+            conversations: rawAd.conversations !== undefined ? rawAd.conversations : item.conversations || 0,
+            cpa: rawAd.cpa || item.cpa || 'غير مسجل',
+            ctr: rawAd.ctr || item.ctr || '0%',
+            video_watch_stats: rawAd.video_watch_stats || '',
+            decision: item.decision || rawAd.decision || 'KEEP',
+            decision_badge: item.decision_badge || rawAd.decision_badge || '✅ استمرار بالمراقبة',
+            decision_reason: item.decision_reason || rawAd.decision_reason || '',
+          };
+        }) : [];
+
+        // Ensure any extra ads from the campaign are also included in the report with accurate Meta data
+        otherAds.forEach((extraAd: any) => {
+          if (!analyzedIds.has(extraAd.ad_id)) {
+            finalCreatives.push({
+              ad_id: extraAd.ad_id,
+              ad_name: extraAd.ad_name,
+              adset_id: extraAd.adset_id || '',
+              adset_name: extraAd.adset_name || 'مجموعة إعلانية',
+              is_video: Boolean(extraAd.is_video),
+              video_id: extraAd.video_id || null,
+              video_source: extraAd.video_source || null,
+              video_embed_url: extraAd.video_embed_url || '',
+              post_url: extraAd.post_url || '',
+              thumbnail_url: extraAd.thumbnail_url || '',
+              images: extraAd.images || [],
+              media_type_label: extraAd.media_type_label,
+              spend: extraAd.spend,
+              purchases: extraAd.purchases,
+              conversations: extraAd.conversations || 0,
+              cpa: extraAd.cpa,
+              ctr: extraAd.ctr,
+              video_watch_stats: extraAd.video_watch_stats,
+              decision: extraAd.decision || 'KEEP',
+              decision_badge: extraAd.decision_badge || '✅ استمرار بالمراقبة',
+              decision_reason: extraAd.decision_reason || '',
+              visual_hook_analysis: extraAd.is_video ? 'فيديو إضافي بالحملة بمعدل إنفاق منخفض، يُنصح بمقارنته مع الكريتيف المتصدر.' : 'تصميم إضافي بالحملة، لم يحصل على الجزء الأكبر من الميزانية.',
+              product_offer_clarity: 'عرض منتج تكميلي في الحملة.',
+              conversion_reality_verdict: `صرف ${extraAd.spend} وحقق ${extraAd.conversations || extraAd.purchases} نتائج. الأولوية للتركيز على الإعلان المتصدر أولاً.`,
+              strengths: ['يساعد في اختبار زوايا عرض إضافية'],
+              weaknesses: ['لم يحصل على ميزانية كافية للتحويل'],
+              creative_score: 7.0,
+            });
+          }
+        });
+
+        parsed.creatives_analysis = finalCreatives;
+        return parsed;
+      };
 
     try {
       const rawText = await this.generate(prompt, {
@@ -1246,71 +1410,11 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة الأقل صر�
       });
 
       const parsed = safeParseJson(rawText);
-
-      // Backwards-compatibility mappings for bottleneck and scaling_advice
-      if (Array.isArray(parsed.bottlenecks) && !parsed.bottleneck) {
-        parsed.bottleneck = parsed.bottlenecks.join('\n');
-      }
-      if (Array.isArray(parsed.scaling_advice_points) && !parsed.scaling_advice) {
-        parsed.scaling_advice = parsed.scaling_advice_points.join('\n');
+      if (!parsed) {
+        throw new Error('فشل استخراج كائن JSON صالح من الاستجابة');
       }
 
-      // Merge real ground truth performance metrics and video embed URLs from Meta API
-      const analyzedIds = new Set((parsed.creatives_analysis || []).map((c: any) => c.ad_id));
-
-      const finalCreatives: any[] = Array.isArray(parsed.creatives_analysis) ? parsed.creatives_analysis.map((item: any) => {
-        const rawAd = formattedAds.find((f: any) => f.ad_id === item.ad_id) || {};
-        return {
-          ...item,
-          ad_name: rawAd.ad_name || item.ad_name,
-          is_video: rawAd.is_video !== undefined ? Boolean(rawAd.is_video) : Boolean(item.is_video),
-          video_id: rawAd.video_id || item.video_id || null,
-          video_source: rawAd.video_source || item.video_source || null,
-          video_embed_url: rawAd.video_embed_url || item.video_embed_url || '',
-          post_url: rawAd.post_url || item.post_url || '',
-          thumbnail_url: rawAd.thumbnail_url || item.thumbnail_url || '',
-          images: Array.isArray(rawAd.images) && rawAd.images.length > 0 ? rawAd.images : (Array.isArray(item.images) && item.images.length > 0 ? item.images : rawAd.thumbnail_url ? [rawAd.thumbnail_url] : []),
-          media_type_label: rawAd.media_type_label || item.media_type_label || (rawAd.is_video ? '🎬 فيديو ريلز إعلاني (14 ثانية)' : '🖼️ منشور صور للمنتج'),
-          spend: rawAd.spend || item.spend || '0',
-          purchases: rawAd.purchases || item.purchases || '0',
-          cpa: rawAd.cpa || item.cpa || 'غير مسجل',
-          ctr: rawAd.ctr || item.ctr || '0%',
-          video_watch_stats: rawAd.video_watch_stats || '',
-        };
-      }) : [];
-
-      // Ensure any extra ads from the campaign are also included in the report with accurate Meta data
-      otherAds.forEach((extraAd: any) => {
-        if (!analyzedIds.has(extraAd.ad_id)) {
-          finalCreatives.push({
-            ad_id: extraAd.ad_id,
-            ad_name: extraAd.ad_name,
-            is_video: Boolean(extraAd.is_video),
-            video_id: extraAd.video_id || null,
-            video_source: extraAd.video_source || null,
-            video_embed_url: extraAd.video_embed_url || '',
-            post_url: extraAd.post_url || '',
-            thumbnail_url: extraAd.thumbnail_url || '',
-            images: extraAd.images || [],
-            media_type_label: extraAd.media_type_label,
-            spend: extraAd.spend,
-            purchases: extraAd.purchases,
-            cpa: extraAd.cpa,
-            ctr: extraAd.ctr,
-            video_watch_stats: extraAd.video_watch_stats,
-            visual_hook_analysis: extraAd.is_video ? 'فيديو إضافي بالحملة بمعدل إنفاق منخفض، يُنصح بمقارنته مع الكريتيف المتصدر.' : 'تصميم إضافي بالحملة، لم يحصل على الجزء الأكبر من الميزانية.',
-            product_offer_clarity: 'عرض منتج تكميلي في الحملة.',
-            conversion_reality_verdict: `صرف ${extraAd.spend} وحقق ${extraAd.purchases} مبيعات. الأولوية للتركيز على الإعلان المتصدر أولاً.`,
-            strengths: ['يساعد في اختبار زوايا عرض إضافية'],
-            weaknesses: ['لم يحصل على ميزانية كافية للتحويل'],
-            creative_score: 7.0,
-          });
-        }
-      });
-
-      parsed.creatives_analysis = finalCreatives;
-
-      return parsed;
+      return enrichAnalysis(parsed);
     } catch (err: any) {
       console.warn('[VertexAI analyzeCampaignPerformance] Primary model call failed, retrying with fastModel...', err.message);
       try {
@@ -1324,13 +1428,7 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة الأقل صر�
         });
         const parsed = safeParseJson(fallbackText);
         if (parsed) {
-          if (Array.isArray(parsed.bottlenecks) && !parsed.bottleneck) {
-            parsed.bottleneck = parsed.bottlenecks.join('\n');
-          }
-          if (Array.isArray(parsed.scaling_advice_points) && !parsed.scaling_advice) {
-            parsed.scaling_advice = parsed.scaling_advice_points.join('\n');
-          }
-          return parsed;
+          return enrichAnalysis(parsed);
         }
       } catch (retryErr: any) {
         console.error('[VertexAI analyzeCampaignPerformance retry error]:', retryErr.message);

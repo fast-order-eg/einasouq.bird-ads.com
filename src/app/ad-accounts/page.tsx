@@ -131,7 +131,7 @@ export default function AdAccountsPage() {
   // AI Campaign Analysis State
   const [analyzingCampId, setAnalyzingCampId] = useState<string | null>(null);
   const [activeAnalysisModal, setActiveAnalysisModal] = useState<{ campaign: any; analysis: any } | null>(null);
-  const [analysisModalTab, setAnalysisModalTab] = useState<'ALL' | 'METRICS' | 'CREATIVES' | 'COPYWRITING' | 'TARGETING'>('ALL');
+  const [analysisModalTab, setAnalysisModalTab] = useState<'ALL' | 'METRICS' | 'ADSETS' | 'CREATIVES' | 'COPYWRITING' | 'TARGETING'>('ALL');
   const [copiedCopyText, setCopiedCopyText] = useState<string | null>(null);
 
   // Last Updated Timestamps
@@ -2611,6 +2611,11 @@ export default function AdAccountsPage() {
           : [];
 
         const actionSteps: string[] = Array.isArray(analysis.action_steps) ? analysis.action_steps : [];
+        const adsets: any[] = Array.isArray(analysis.adsets_analysis) ? analysis.adsets_analysis : [];
+        const stopRunMatrix: any = analysis.actionable_stop_and_run_matrix || {};
+        const adsToStop: any[] = Array.isArray(stopRunMatrix.ads_to_stop_immediately) ? stopRunMatrix.ads_to_stop_immediately : [];
+        const adsToScale: any[] = Array.isArray(stopRunMatrix.ads_to_scale_and_boost) ? stopRunMatrix.ads_to_scale_and_boost : [];
+        const budgetPlan: string = stopRunMatrix.budget_reallocation_plan || '';
         const creatives: any[] = Array.isArray(analysis.creatives_analysis) ? analysis.creatives_analysis : [];
         const copies: any[] = Array.isArray(analysis.copywriting_analysis) ? analysis.copywriting_analysis : [];
         const targeting: any = analysis.targeting_audit || {};
@@ -2671,10 +2676,11 @@ export default function AdAccountsPage() {
               <div className="px-4 sm:px-6 py-2.5 bg-slate-950 border-b border-slate-800/80 flex items-center gap-2 overflow-x-auto whitespace-nowrap scrollbar-none">
                 {[
                   { id: 'ALL', label: '📄 التقرير بالكامل (شامل)' },
-                  { id: 'METRICS', label: '📊 1. الأداء والنتائج والمقاييس' },
-                  { id: 'CREATIVES', label: `🎬 2. الكريتيف والتصميمات (${creatives.length})` },
-                  { id: 'COPYWRITING', label: `✍️ 3. المحتوى والكوبي (${copies.length})` },
-                  { id: 'TARGETING', label: '🎯 4. تدقيق الاستهداف' },
+                  { id: 'METRICS', label: '📊 1. الأداء والنتائج' },
+                  { id: 'ADSETS', label: `⚡ 2. المجموعات والقرارات (${adsets.length})` },
+                  { id: 'CREATIVES', label: `🎬 3. الكريتيف والفيديوهات (${creatives.length})` },
+                  { id: 'COPYWRITING', label: `✍️ 4. المحتوى والكوبي (${copies.length})` },
+                  { id: 'TARGETING', label: '🎯 5. تدقيق الاستهداف' },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -2813,16 +2819,211 @@ export default function AdAccountsPage() {
                   </div>
                 )}
 
-                {/* SECTION 2: CREATIVES & VISUALS ANALYSIS */}
+                {/* SECTION 2: ADSETS & STOP/SCALE MATRIX */}
+                {(analysisModalTab === 'ALL' || analysisModalTab === 'ADSETS') && (
+                  <div className="space-y-6 pt-4 border-t border-slate-800/80">
+                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black">
+                          2
+                        </div>
+                        <h4 className="text-lg sm:text-xl font-black text-white">
+                          الجزء الثاني: تحليل المجموعات الإعلانية ومصفوفة الإيقاف والتشغيل (AdSets & Action Matrix)
+                        </h4>
+                      </div>
+                      <span className="text-xs text-slate-400 font-bold hidden sm:inline">
+                        مقارنة الـ A/B Testing وقرارات فورية لكل إعلان
+                      </span>
+                    </div>
+
+                    {/* STOP & RUN ACTION MATRIX BANNER */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {/* ADS TO STOP IMMEDIATELY */}
+                      <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-red-950/40 via-slate-950 to-red-950/20 border border-red-500/40 shadow-xl space-y-4">
+                        <div className="flex items-center justify-between border-b border-red-500/20 pb-3">
+                          <div className="flex items-center gap-2 text-red-400 font-black text-base sm:text-lg">
+                            <XCircle className="w-5 h-5 text-red-400" />
+                            <span>🛑 إعلانات يجب إيقافها فوراً (لتوفير الميزانية)</span>
+                          </div>
+                          <span className="px-2.5 py-0.5 rounded-full bg-red-500/20 border border-red-500/40 text-red-300 font-bold text-xs">
+                            {adsToStop.length} إعلان
+                          </span>
+                        </div>
+
+                        {adsToStop.length === 0 ? (
+                          <p className="text-xs sm:text-sm text-slate-400">لا توجد إعلانات تحرق الميزانية حالياً بشكل حرج.</p>
+                        ) : (
+                          <div className="space-y-3">
+                            {adsToStop.map((ad: any, sIdx: number) => (
+                              <div key={sIdx} className="p-3.5 rounded-xl bg-slate-900/90 border border-red-500/30 space-y-2">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <h6 className="text-white font-bold text-sm line-clamp-1">{ad.ad_name || `إعلان #${ad.ad_id}`}</h6>
+                                    <span className="text-[11px] text-slate-400 font-mono">معرف: {ad.ad_id} {ad.adset_name ? `• ${ad.adset_name}` : ''}</span>
+                                  </div>
+                                  <span className="px-2.5 py-0.5 rounded-full bg-red-500/20 text-red-300 font-bold text-xs shrink-0">
+                                    صرف: {ad.wasted_spend || ad.spend || 'غير محدد'}
+                                  </span>
+                                </div>
+                                <p className="text-xs sm:text-sm text-red-200 leading-relaxed bg-red-950/40 p-2 rounded-lg border border-red-500/20">
+                                  ⚠️ <span className="font-semibold">{ad.reason || 'إعلان منخفض الأداء يحرق الميزانية بدون نتائج كافية.'}</span>
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* ADS TO SCALE & BOOST */}
+                      <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-emerald-950/40 via-slate-950 to-emerald-950/20 border border-emerald-500/40 shadow-xl space-y-4">
+                        <div className="flex items-center justify-between border-b border-emerald-500/20 pb-3">
+                          <div className="flex items-center gap-2 text-emerald-400 font-black text-base sm:text-lg">
+                            <TrendingUp className="w-5 h-5 text-emerald-400" />
+                            <span>🚀 إعلانات رابحة يجب تكبيرها (Scale & Boost)</span>
+                          </div>
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-xs">
+                            {adsToScale.length} إعلان
+                          </span>
+                        </div>
+
+                        {adsToScale.length === 0 ? (
+                          <p className="text-xs sm:text-sm text-slate-400">لم يتم رصد إعلانات متصدرة بشكل استثنائي بعد.</p>
+                        ) : (
+                          <div className="space-y-3">
+                            {adsToScale.map((ad: any, wIdx: number) => (
+                              <div key={wIdx} className="p-3.5 rounded-xl bg-slate-900/90 border border-emerald-500/30 space-y-2">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <h6 className="text-white font-bold text-sm line-clamp-1">{ad.ad_name || `إعلان #${ad.ad_id}`}</h6>
+                                    <span className="text-[11px] text-slate-400 font-mono">معرف: {ad.ad_id} {ad.adset_name ? `• ${ad.adset_name}` : ''}</span>
+                                  </div>
+                                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-xs shrink-0">
+                                    نتائج: {ad.conversations || ad.purchases || 'متصدر'}
+                                  </span>
+                                </div>
+                                <p className="text-xs sm:text-sm text-emerald-200 leading-relaxed bg-emerald-950/40 p-2 rounded-lg border border-emerald-500/20">
+                                  🌟 <span className="font-semibold">{ad.scale_action || ad.reason || 'إعلان رابح بأقل سعر محادثة، يجب تركيز الميزانية عليه.'}</span>
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* BUDGET REALLOCATION PLAN */}
+                    {budgetPlan && (
+                      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-950/40 via-slate-950 to-indigo-950/40 border border-blue-500/30 flex items-start gap-3">
+                        <Zap className="w-6 h-6 text-blue-400 shrink-0 mt-1" />
+                        <div className="space-y-1">
+                          <span className="text-sm font-black text-blue-300 block">💡 خطة إعادة توزيع وضخ الميزانية:</span>
+                          <p className="text-sm sm:text-base text-slate-200 leading-relaxed font-medium">{budgetPlan}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ADSETS DETAILED COMPARISON CARDS */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h5 className="font-black text-white text-base sm:text-lg flex items-center gap-2">
+                          <Layers className="w-5 h-5 text-amber-400" />
+                          <span>تفاصيل ومقارنة المجموعات الإعلانية ({adsets.length})</span>
+                        </h5>
+                        <span className="text-xs text-slate-400 font-bold">مقارنة معدل الصرف والنتائج وتكلفة التحويل</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {adsets.map((aset: any, aIdx: number) => {
+                          const isScale = aset.decision === 'SCALE';
+                          const isStop = aset.decision === 'STOP';
+                          return (
+                            <div
+                              key={aIdx}
+                              className={`p-5 rounded-2xl bg-slate-950 border transition-all space-y-4 shadow-lg flex flex-col justify-between ${
+                                isScale
+                                  ? 'border-emerald-500/50 shadow-emerald-950/30'
+                                  : isStop
+                                  ? 'border-red-500/40 shadow-red-950/20'
+                                  : 'border-slate-800 hover:border-slate-700'
+                              }`}
+                            >
+                              <div className="space-y-3">
+                                {/* Header */}
+                                <div className="space-y-1 border-b border-slate-800 pb-3">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 font-bold">
+                                      مجموعة #{aIdx + 1}
+                                    </span>
+                                    <span className={`text-xs px-3 py-1 rounded-full font-black border ${
+                                      isScale
+                                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                        : isStop
+                                        ? 'bg-red-500/20 text-red-300 border-red-500/40'
+                                        : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                                    }`}>
+                                      {aset.decision_badge || (isScale ? '🚀 تكبير' : isStop ? '🛑 إيقاف' : '✅ استمرار')}
+                                    </span>
+                                  </div>
+                                  <h6 className="text-white font-black text-base line-clamp-2 mt-1">{aset.name}</h6>
+                                  <span className="text-[11px] text-amber-300 font-semibold block">{aset.targeting_type_label || 'استهداف جمهور'}</span>
+                                </div>
+
+                                {/* Numbers Bar */}
+                                <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-slate-900 border border-slate-800/80 text-center">
+                                  <div>
+                                    <span className="text-[10px] text-slate-400 block font-medium">المصروف</span>
+                                    <span className="font-black text-slate-100 text-xs sm:text-sm">{aset.spend || '0 EGP'}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] text-emerald-400 block font-bold">المحادثات</span>
+                                    <span className="font-black text-emerald-400 text-sm sm:text-base">{aset.conversations || 0}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] text-indigo-400 block font-medium">سعر المحادثة</span>
+                                    <span className="font-black text-indigo-300 text-xs sm:text-sm">{aset.cpa || 'غير مسجل'}</span>
+                                  </div>
+                                </div>
+
+                                {/* Targeting Verdict */}
+                                {aset.targeting_verdict && (
+                                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-200 leading-relaxed">
+                                    <span className="font-bold text-amber-400 block mb-0.5">🎯 تقييم الجمهور:</span>
+                                    <p className="font-medium">{aset.targeting_verdict}</p>
+                                  </div>
+                                )}
+
+                                {/* Decision Reason */}
+                                {aset.decision_reason && (
+                                  <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs leading-relaxed">
+                                    <span className="font-bold text-indigo-400 block mb-0.5">⚖️ حيثيات القرار:</span>
+                                    <p className="text-slate-300 font-medium">{aset.decision_reason}</p>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Age & Location badge */}
+                              <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between text-[11px] text-slate-400">
+                                <span>العمر: {aset.age_range || '25-55'}</span>
+                                <span>الوصول: {Number(aset.reach || 0).toLocaleString()}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SECTION 3: CREATIVES & VISUALS ANALYSIS */}
                 {(analysisModalTab === 'ALL' || analysisModalTab === 'CREATIVES') && (
                   <div className="space-y-5 pt-4 border-t border-slate-800/80">
                     <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center font-black">
-                          2
+                          3
                         </div>
                         <h4 className="text-lg sm:text-xl font-black text-white">
-                          الجزء الثاني: فحص وتحليل الكريتيف والتصميمات والفيديوهات ({creatives.length})
+                          الجزء الثالث: فحص وتحليل الكريتيف والتصميمات والفيديوهات ({creatives.length})
                         </h4>
                       </div>
                       <span className="text-xs text-slate-400 font-bold">
@@ -2869,11 +3070,31 @@ export default function AdAccountsPage() {
                                         {mediaLabel}
                                       </span>
                                     </div>
-                                    <span className="text-xs text-slate-400 font-mono mt-0.5 block">معرف: {cr.ad_id}</span>
+                                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                                      <span className="text-xs text-slate-400 font-mono">معرف: {cr.ad_id}</span>
+                                      {cr.adset_name && (
+                                        <span className="text-xs px-2 py-0.5 rounded bg-slate-800/80 text-amber-300 font-bold border border-slate-700">
+                                          {cr.adset_name}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
-                                  <span className="px-3.5 py-1.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 text-xs sm:text-sm font-black shadow-sm">
-                                    {cr.creative_score || '8'}/10 ⭐
-                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    {cr.decision_badge && (
+                                      <span className={`px-2.5 py-1 rounded-full text-xs font-black border ${
+                                        cr.decision === 'STOP'
+                                          ? 'bg-red-500/20 text-red-300 border-red-500/40'
+                                          : cr.decision === 'SCALE'
+                                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                          : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                                      }`}>
+                                        {cr.decision_badge}
+                                      </span>
+                                    )}
+                                    <span className="px-3.5 py-1.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 text-xs sm:text-sm font-black shadow-sm">
+                                      {cr.creative_score || '8'}/10 ⭐
+                                    </span>
+                                  </div>
                                 </div>
 
                                 {/* Media Player / Viewer (Native Centered Video or High-Res Image Gallery) */}
@@ -2995,11 +3216,15 @@ export default function AdAccountsPage() {
                                     <span className="font-black text-slate-100">{cr.spend || '0 EGP'}</span>
                                   </div>
                                   <div className="space-y-0.5">
-                                    <span className="text-[11px] text-emerald-400 block font-bold">المبيعات (Purchases):</span>
-                                    <span className="font-black text-emerald-400 text-sm">{cr.purchases ?? '0'}</span>
+                                    <span className="text-[11px] text-emerald-400 block font-bold">
+                                      {cr.conversations !== undefined ? 'المحادثات (واتساب):' : 'النتائج (Purchases):'}
+                                    </span>
+                                    <span className="font-black text-emerald-400 text-sm">
+                                      {cr.conversations !== undefined ? cr.conversations : (cr.purchases ?? '0')}
+                                    </span>
                                   </div>
                                   <div className="space-y-0.5">
-                                    <span className="text-[11px] text-indigo-400 block font-medium">تكلفة الشراء (CPA):</span>
+                                    <span className="text-[11px] text-indigo-400 block font-medium">سعر النتيجة (CPA):</span>
                                     <span className="font-black text-indigo-300">{cr.cpa || 'غير مسجل'}</span>
                                   </div>
                                   <div className="space-y-0.5">
@@ -3007,6 +3232,20 @@ export default function AdAccountsPage() {
                                     <span className="font-black text-amber-300">{cr.ctr || '0%'}</span>
                                   </div>
                                 </div>
+
+                                {/* Immediate Decision Note */}
+                                {cr.decision_reason && (
+                                  <div className={`p-3 rounded-xl border text-xs leading-relaxed ${
+                                    cr.decision === 'STOP'
+                                      ? 'bg-red-950/40 border-red-500/40 text-red-200'
+                                      : cr.decision === 'SCALE'
+                                      ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
+                                      : 'bg-indigo-950/40 border-indigo-500/30 text-indigo-200'
+                                  }`}>
+                                    <span className="font-bold">⚡ {cr.decision_badge || 'القرار'}: </span>
+                                    <span className="font-medium">{cr.decision_reason}</span>
+                                  </div>
+                                )}
 
                                 {/* Direct Post / Video Link */}
                                 {postUrl && (
@@ -3104,16 +3343,16 @@ export default function AdAccountsPage() {
                   </div>
                 )}
 
-                {/* SECTION 3: COPYWRITING & AD COPY ANALYSIS */}
+                {/* SECTION 4: COPYWRITING & AD COPY ANALYSIS */}
                 {(analysisModalTab === 'ALL' || analysisModalTab === 'COPYWRITING') && (
                   <div className="space-y-5 pt-4 border-t border-slate-800/80">
                     <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center font-black">
-                          3
+                          4
                         </div>
                         <h4 className="text-lg sm:text-xl font-black text-white">
-                          الجزء الثالث: فحص وتحليل المحتوى الإعلاني والكتابة التسويقية ({copies.length})
+                          الجزء الرابع: فحص وتحليل المحتوى الإعلاني والكتابة التسويقية ({copies.length})
                         </h4>
                       </div>
                       <span className="text-xs text-slate-400 font-bold">
@@ -3213,16 +3452,16 @@ export default function AdAccountsPage() {
                   </div>
                 )}
 
-                {/* SECTION 4: TARGETING & AUDIENCE AUDIT */}
+                {/* SECTION 5: TARGETING & AUDIENCE AUDIT */}
                 {(analysisModalTab === 'ALL' || analysisModalTab === 'TARGETING') && (
                   <div className="space-y-5 pt-4 border-t border-slate-800/80">
                     <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center font-black">
-                          4
+                          5
                         </div>
                         <h4 className="text-lg sm:text-xl font-black text-white">
-                          الجزء الرابع: فحص وتدقيق الاستهداف والجمهور (Targeting Audit)
+                          الجزء الخامس: فحص وتدقيق الاستهداف والجمهور (Targeting Audit)
                         </h4>
                       </div>
                       <span className="text-xs text-slate-400 font-bold">
