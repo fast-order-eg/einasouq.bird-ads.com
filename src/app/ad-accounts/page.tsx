@@ -1904,23 +1904,13 @@ export default function AdAccountsPage() {
                             </p>
                           </div>
 
-                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
+                          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-end">
                             <button
                               onClick={() => openCampaignAnalysis(campObj)}
-                              className="flex items-center gap-1 text-xs font-bold text-indigo-400 hover:text-indigo-300 cursor-pointer"
+                              className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-xs font-bold text-indigo-300 hover:text-indigo-200 transition-all cursor-pointer"
                             >
                               <Eye className="w-3.5 h-3.5" />
-                              <span>عرض التقرير المحفوظ</span>
-                            </button>
-
-                            <button
-                              onClick={() => handleAnalyzeCampaign(campObj, true)}
-                              disabled={analyzingCampId === item.campaign_id}
-                              title="إعادة فحص الحملة بالذكاء الاصطناعي بناءً على الأرقام الحالية"
-                              className="flex items-center gap-1 text-[11px] font-bold text-purple-400 hover:text-purple-300 cursor-pointer bg-purple-500/10 px-2 py-1 rounded-lg border border-purple-500/30"
-                            >
-                              <RotateCw className={`w-3 h-3 ${analyzingCampId === item.campaign_id ? 'animate-spin' : ''}`} />
-                              <span>إعادة التحليل بالأرقام الحالية</span>
+                              <span>عرض التقرير المحفوظ 🧠</span>
                             </button>
                           </div>
                         </div>
@@ -2009,25 +1999,40 @@ export default function AdAccountsPage() {
 
                             {/* Top Right: AI Analysis Button + Explicit Campaign ID + Date */}
                             <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
-                              {/* AI Strategic Analysis Button */}
-                              <button
-                                onClick={() => openCampaignAnalysis(camp)}
-                                disabled={analyzingCampId === camp.id}
-                                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-white font-black text-xs shadow-md transition-all cursor-pointer font-sans ${
-                                  hasSavedAnalysis
-                                    ? 'bg-purple-700 hover:bg-purple-600 border border-purple-400/40'
-                                    : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-purple-600/20'
-                                }`}
-                              >
-                                <Sparkles className={`w-3.5 h-3.5 ${analyzingCampId === camp.id ? 'animate-spin' : ''}`} />
-                                <span>
-                                  {analyzingCampId === camp.id
-                                    ? 'جاري التحليل...'
-                                    : hasSavedAnalysis
-                                    ? 'عرض تقرير الذكاء الاصطناعي 🧠'
-                                    : 'حلل بالذكاء الاصطناعي 🤖'}
-                                </span>
-                              </button>
+                              {/* AI Strategic Analysis Buttons */}
+                              {hasSavedAnalysis ? (
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <button
+                                    onClick={() => openCampaignAnalysis(camp)}
+                                    disabled={analyzingCampId === camp.id}
+                                    title="عرض التقرير الاستراتيجي المحفوظ سابقاً"
+                                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-white font-black text-xs shadow-md transition-all cursor-pointer font-sans bg-purple-700 hover:bg-purple-600 border border-purple-400/40"
+                                  >
+                                    <Sparkles className="w-3.5 h-3.5 text-purple-300" />
+                                    <span>عرض تقرير الذكاء الاصطناعي 🧠</span>
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleAnalyzeCampaign(camp, true)}
+                                    disabled={analyzingCampId === camp.id}
+                                    title="إعادة فحص وتحديث الحملة بالذكاء الاصطناعي بناءً على الأرقام الحالية"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-purple-200 hover:text-white font-bold text-xs transition-all cursor-pointer font-sans bg-purple-500/20 hover:bg-purple-600/40 border border-purple-500/40 shadow-sm"
+                                  >
+                                    <RotateCw className={`w-3.5 h-3.5 ${analyzingCampId === camp.id ? 'animate-spin text-purple-300' : ''}`} />
+                                    <span>{analyzingCampId === camp.id ? 'جاري الفحص...' : 'إعادة التحليل بالأرقام الحالية'}</span>
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => handleAnalyzeCampaign(camp, false)}
+                                  disabled={analyzingCampId === camp.id}
+                                  title="فحص وتحليل استراتيجي للحملة بالذكاء الاصطناعي"
+                                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-white font-black text-xs shadow-md transition-all cursor-pointer font-sans bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-purple-600/20"
+                                >
+                                  <Sparkles className={`w-3.5 h-3.5 ${analyzingCampId === camp.id ? 'animate-spin' : ''}`} />
+                                  <span>{analyzingCampId === camp.id ? 'جاري التحليل...' : 'حلل بالذكاء الاصطناعي 🤖'}</span>
+                                </button>
+                              )}
 
                               {/* Explicit Campaign ID with Copy Button */}
                               <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 font-mono text-[11px]">
