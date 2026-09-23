@@ -219,7 +219,7 @@ export default function AdAccountsPage() {
           setAccountsLastUpdated(data.lastUpdated);
         }
         try {
-          localStorage.setItem('adscope_cached_ad_accounts', JSON.stringify(data));
+          localStorage.setItem('adscope_cached_ad_accounts_v2', JSON.stringify(data));
         } catch (e) {}
       }
     } catch (err) {
@@ -243,7 +243,7 @@ export default function AdAccountsPage() {
     }
 
     try {
-      const cached = localStorage.getItem('adscope_cached_ad_accounts');
+      const cached = localStorage.getItem('adscope_cached_ad_accounts_v2');
       if (cached) {
         const parsed = JSON.parse(cached);
         if (parsed.adAccounts && parsed.adAccounts.length > 0) {
@@ -390,11 +390,11 @@ export default function AdAccountsPage() {
             globalAdAccountsCache.adAccounts = updated;
           }
           try {
-            const cached = localStorage.getItem('adscope_cached_ad_accounts');
+            const cached = localStorage.getItem('adscope_cached_ad_accounts_v2');
             if (cached) {
               const parsed = JSON.parse(cached);
               parsed.adAccounts = updated;
-              localStorage.setItem('adscope_cached_ad_accounts', JSON.stringify(parsed));
+              localStorage.setItem('adscope_cached_ad_accounts_v2', JSON.stringify(parsed));
             }
           } catch (e) {}
           return updated;
