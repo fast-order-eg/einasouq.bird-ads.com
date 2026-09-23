@@ -26,6 +26,16 @@ export async function GET(req: Request) {
           const accountStatus = meta.account_status !== undefined ? meta.account_status : (a.isAuthorized ? 1 : 2);
           const isExcluded = meta.is_excluded !== undefined ? meta.is_excluded : (accountStatus !== 1);
 
+          let activeCampaignsCount = meta.active_campaigns_count || 0;
+          if (Array.isArray(meta.campaigns_cache)) {
+            activeCampaignsCount = meta.campaigns_cache.filter((c: any) => c.delivery_status === 'ACTIVE').length;
+          }
+          if (accountStatus !== 1 || isExcluded) {
+            activeCampaignsCount = 0;
+          }
+
+          const roundedFunds = Math.round(parseFloat(meta.available_funds || '0')).toString();
+
           return {
             id: a.externalId,
             account_id: a.externalId.replace(/^act_/, ''),
@@ -33,8 +43,8 @@ export async function GET(req: Request) {
             account_status: accountStatus,
             currency: meta.currency || 'EGP',
             amount_spent: meta.amount_spent || '0',
-            available_funds: meta.available_funds || '0.00',
-            active_campaigns_count: meta.active_campaigns_count || 0,
+            available_funds: roundedFunds,
+            active_campaigns_count: activeCampaignsCount,
             has_cache: Boolean(meta.campaigns_cache && meta.campaigns_cache.length > 0),
             note: meta.note || null,
             note_updated_at: meta.note_updated_at || null,
@@ -82,9 +92,10 @@ export async function GET(req: Request) {
           console.error('[Accounts API] Error loading businesses from DB:', bErr);
         }
 
-        const totalSpent = adAccounts.reduce((acc, a) => acc + parseFloat(a.amount_spent || '0') / 100, 0);
-        const totalAvailableFunds = adAccounts.reduce((acc, a) => acc + parseFloat(a.available_funds || '0'), 0);
-        const totalActiveCampaigns = adAccounts.reduce((acc, a) => acc + (a.active_campaigns_count || 0), 0);
+        const activeVisibleAccounts = adAccounts.filter(a => a.account_status === 1 && !a.is_excluded);
+        const totalSpent = Math.round(activeVisibleAccounts.reduce((acc, a) => acc + parseFloat(a.amount_spent || '0') / 100, 0));
+        const totalAvailableFunds = Math.round(activeVisibleAccounts.reduce((acc, a) => acc + parseFloat(a.available_funds || '0'), 0));
+        const totalActiveCampaigns = activeVisibleAccounts.reduce((acc, a) => acc + (a.active_campaigns_count || 0), 0);
 
         const lastUpdated = savedAccounts[0]?.updatedAt ? new Date(savedAccounts[0].updatedAt).toISOString() : new Date().toISOString();
 
@@ -96,7 +107,7 @@ export async function GET(req: Request) {
           businesses,
           summary: {
             totalAccounts: adAccounts.length,
-            activeAccounts: adAccounts.filter(a => a.account_status === 1 && !a.is_excluded).length,
+            activeAccounts: activeVisibleAccounts.length,
             excludedAccounts: adAccounts.filter(a => a.is_excluded).length,
             disabledAccounts: adAccounts.filter(a => a.account_status !== 1).length,
             totalActiveCampaigns,
@@ -123,15 +134,15 @@ export async function GET(req: Request) {
       const formattedExternalId = a.id.startsWith('act_') ? a.id : `act_${cleanId}`;
       const accountStatus = a.account_status !== undefined ? a.account_status : 1;
 
-      let availableFunds = '0.00';
+      let availableFunds = '0';
       const balance = parseFloat(a.balance || '0') / 100;
       const spendCap = parseFloat(a.spend_cap || '0') / 100;
       const amountSpent = parseFloat(a.amount_spent || '0') / 100;
 
       if (spendCap > 0 && amountSpent > 0 && spendCap > amountSpent) {
-        availableFunds = (spendCap - amountSpent).toFixed(2);
+        availableFunds = Math.round(spendCap - amountSpent).toString();
       } else if (balance > 0) {
-        availableFunds = balance.toFixed(2);
+        availableFunds = Math.round(balance).toString();
       }
 
       // Check existing note, is_excluded, and analyses
@@ -139,6 +150,7 @@ export async function GET(req: Request) {
       let existingNoteDate: string | null = null;
       let isExcluded = accountStatus !== 1;
       let campaignAnalyses: any = null;
+      let existingParsedMeta: any = {};
 
       const existingAsset = await prisma.metaAsset.findFirst({
         where: { externalId: formattedExternalId },
@@ -147,6 +159,7 @@ export async function GET(req: Request) {
       if (existingAsset?.metadataJson) {
         try {
           const parsed = JSON.parse(existingAsset.metadataJson);
+          existingParsedMeta = parsed;
           if (parsed.note) {
             existingNote = parsed.note;
             existingNoteDate = parsed.note_updated_at;
@@ -160,19 +173,29 @@ export async function GET(req: Request) {
         } catch (e) {}
       }
 
-      // Quick active campaigns count check
+      // Accurate active campaigns count check (excludes paused, ended/completed, disapproved, or 0 active ads)
       let activeCampsCount = 0;
       if (accountStatus === 1 && !isExcluded) {
         try {
-          const campsRes = await fetch(`https://graph.facebook.com/v21.0/${formattedExternalId}/campaigns?fields=id,status,effective_status&effective_status=['ACTIVE']&limit=50&access_token=${process.env.META_USER_TOKEN}`);
+          const filterParam = encodeURIComponent(JSON.stringify([{ field: 'effective_status', operator: 'IN', value: ['ACTIVE'] }]));
+          const campsRes = await fetch(`https://graph.facebook.com/v21.0/${formattedExternalId}/campaigns?fields=id,status,effective_status,stop_time,ads.limit(10){effective_status}&filtering=${filterParam}&limit=100&access_token=${process.env.META_USER_TOKEN}`);
           const campsData = await campsRes.json();
           if (campsData.data && Array.isArray(campsData.data)) {
-            activeCampsCount = campsData.data.length;
+            const now = new Date();
+            activeCampsCount = campsData.data.filter((c: any) => {
+              const isPaused = c.status === 'PAUSED' || c.effective_status === 'PAUSED' || c.effective_status === 'CAMPAIGN_PAUSED' || c.effective_status === 'ADSET_PAUSED';
+              const isEnded = c.stop_time && new Date(c.stop_time) < now;
+              const innerAds = c.ads?.data || [];
+              const hasDisapprovedAds = innerAds.some((ad: any) => ad.effective_status === 'DISAPPROVED');
+              const hasActiveAds = innerAds.length > 0 ? innerAds.some((ad: any) => ad.effective_status === 'ACTIVE') : false;
+              return !isPaused && !isEnded && !hasDisapprovedAds && hasActiveAds;
+            }).length;
           }
         } catch (e) {}
       }
 
       const metaPayload = {
+        ...existingParsedMeta,
         account_status: accountStatus,
         currency: a.currency,
         amount_spent: a.amount_spent,
@@ -189,6 +212,7 @@ export async function GET(req: Request) {
         account_id: cleanId,
         available_funds: availableFunds,
         active_campaigns_count: activeCampsCount,
+        has_cache: Boolean(existingParsedMeta.campaigns_cache && existingParsedMeta.campaigns_cache.length > 0),
         note: existingNote,
         note_updated_at: existingNoteDate,
         is_excluded: isExcluded,
@@ -235,8 +259,9 @@ export async function GET(req: Request) {
       return parseFloat(b.amount_spent || '0') - parseFloat(a.amount_spent || '0');
     });
 
-    const totalSpent = enrichedAccounts.reduce((acc, a) => acc + parseFloat(a.amount_spent || '0') / 100, 0);
-    const totalAvailableFunds = enrichedAccounts.reduce((acc, a) => acc + parseFloat(a.available_funds || '0'), 0);
+    const activeVisibleEnriched = enrichedAccounts.filter(a => a.account_status === 1 && !a.is_excluded);
+    const totalSpent = Math.round(activeVisibleEnriched.reduce((acc, a) => acc + parseFloat(a.amount_spent || '0') / 100, 0));
+    const totalAvailableFunds = Math.round(activeVisibleEnriched.reduce((acc, a) => acc + parseFloat(a.available_funds || '0'), 0));
     // Persist businesses to DB
     for (const b of businesses) {
       try {
@@ -260,7 +285,7 @@ export async function GET(req: Request) {
       } catch (bErr) {}
     }
 
-    const totalActiveCampaigns = enrichedAccounts.reduce((acc, a) => acc + (a.active_campaigns_count || 0), 0);
+    const totalActiveCampaigns = activeVisibleEnriched.reduce((acc, a) => acc + (a.active_campaigns_count || 0), 0);
 
     const lastUpdated = new Date().toISOString();
 

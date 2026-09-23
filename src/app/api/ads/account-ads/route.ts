@@ -127,6 +127,7 @@ export async function POST(req: Request) {
 
         if (!isCustomDate) {
           meta.campaigns_cache = processedCampaigns;
+          meta.active_campaigns_count = processedCampaigns.filter((c: any) => c.delivery_status === 'ACTIVE').length;
           meta.ads_cache = result.ads || [];
           meta.last_inspected_at = new Date().toISOString();
 

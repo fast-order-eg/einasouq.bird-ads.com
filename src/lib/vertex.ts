@@ -196,22 +196,23 @@ export class VertexGeminiProvider {
   private tokenExpiresAt: number = 0;
 
   constructor() {
-    this.projectId = process.env.GOOGLE_CLOUD_PROJECT || 'project-c1442437-41e2-480c-86d';
-    // europe-west4 provides abundant Gemini 2.5 Pro TPU capacity with dedicated quota
-    this.location = process.env.GOOGLE_CLOUD_LOCATION || 'europe-west4';
-    // Strictly use the flagship Gemini 2.5 Pro model for all strategic analyses
-    this.qualityModel = process.env.VERTEX_QUALITY_MODEL || 'gemini-2.5-pro';
-    this.fastModel = process.env.VERTEX_FAST_MODEL || 'gemini-2.5-flash';
+    this.projectId = process.env.GOOGLE_CLOUD_PROJECT || 'fast-order-505012';
+    this.location = process.env.GOOGLE_CLOUD_LOCATION || 'global';
+    this.qualityModel = process.env.VERTEX_QUALITY_MODEL || 'gemini-3.8-flash';
+    this.fastModel = process.env.VERTEX_FAST_MODEL || 'gemini-3.8-flash';
 
     // Flexible credential path resolution for local dev, Docker, and production servers
-    const projectCredPath = path.join(process.cwd(), 'credentials', 'google-service-account.json');
+    const projectCredPath = path.join(process.cwd(), 'credentials', 'fast-order-505012-2adde4c0badf.json');
+    const legacyCredPath = path.join(process.cwd(), 'credentials', 'google-service-account.json');
     const localRootCredPath = path.join(process.cwd(), 'google-credentials.json');
-    const fallbackPath = 'E:/programing/flutter project/bot.bird-ads.com/project-c1442437-41e2-480c-86d-0935778ac612.json';
+    const fallbackPath = 'E:/programing/flutter project/bot.bird-ads.com/fast-order-505012-2adde4c0badf.json';
 
     if (process.env.GOOGLE_APPLICATION_CREDENTIALS && fs.existsSync(process.env.GOOGLE_APPLICATION_CREDENTIALS)) {
       this.credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
     } else if (fs.existsSync(projectCredPath)) {
       this.credentialsPath = projectCredPath;
+    } else if (fs.existsSync(legacyCredPath)) {
+      this.credentialsPath = legacyCredPath;
     } else if (fs.existsSync(localRootCredPath)) {
       this.credentialsPath = localRootCredPath;
     } else if (fs.existsSync(fallbackPath)) {
@@ -287,9 +288,10 @@ export class VertexGeminiProvider {
     const primaryModel = options.model === 'fast' ? this.fastModel : this.qualityModel;
     const fallbackModel = this.fastModel;
 
-    // Multi-region priority list: europe-west4 has highest TPU capacity, followed by us-east4, europe-west1, us-central1
+    // Multi-region priority list: global endpoint is preferred for gemini-3.8-flash
     const candidateLocations = [
       this.location,
+      'global',
       'europe-west4',
       'us-east4',
       'europe-west1',
@@ -297,7 +299,10 @@ export class VertexGeminiProvider {
     ].filter((v, i, a) => a.indexOf(v) === i);
 
     const executeCall = async (modelToUse: string, locationToUse: string, includeImage: boolean = true) => {
-      const url = `https://${locationToUse}-aiplatform.googleapis.com/v1/projects/${this.projectId}/locations/${locationToUse}/publishers/google/models/${modelToUse}:generateContent`;
+      const host = (locationToUse === 'global' || !locationToUse)
+        ? 'aiplatform.googleapis.com'
+        : `${locationToUse}-aiplatform.googleapis.com`;
+      const url = `https://${host}/v1/projects/${this.projectId}/locations/${locationToUse}/publishers/google/models/${modelToUse}:generateContent`;
 
       const parts: any[] = [{ text: prompt }];
 
@@ -334,15 +339,15 @@ export class VertexGeminiProvider {
     let lastErrorText = '';
     let res: Response | null = null;
 
-    // 1. Try primaryModel (Gemini 2.5 Pro) across candidate regions
+    // 1. Try primaryModel across candidate regions
     for (const loc of candidateLocations) {
       try {
         res = await executeCall(primaryModel, loc, true);
         if (res.ok) break;
 
         lastErrorText = await res.text();
-        // If rate limited (429) or overloaded (503), try next region
-        if (res.status === 429 || res.status === 503) {
+        // If rate limited (429) or overloaded (503) or 404, try next region
+        if (res.status === 429 || res.status === 503 || res.status === 404) {
           console.warn(`[Vertex AI] ${primaryModel} in ${loc} returned ${res.status}. Trying next region...`);
           continue;
         } else {
@@ -353,20 +358,20 @@ export class VertexGeminiProvider {
       }
     }
 
-    // 2. If all regions rate-limited with image, try primaryModel (Gemini 2.5 Pro) text-only
+    // 2. If all regions rate-limited with image, try primaryModel text-only
     if ((!res || !res.ok) && options.imageBase64) {
-      console.warn(`[Vertex AI] Retrying text-only on ${primaryModel} in europe-west4...`);
-      res = await executeCall(primaryModel, 'europe-west4', false);
+      console.warn(`[Vertex AI] Retrying text-only on ${primaryModel}...`);
+      res = await executeCall(primaryModel, 'global', false);
     }
 
-    // 3. Ultimate safeguard: if still failing, use fallbackModel (Gemini 2.5 Flash)
+    // 3. Safeguard: if still failing, use fallbackModel
     if ((!res || !res.ok) && primaryModel !== fallbackModel) {
-      console.warn(`[Vertex AI] All Pro regions exhausted, falling back to ${fallbackModel}...`);
-      res = await executeCall(fallbackModel, 'europe-west4', true);
+      console.warn(`[Vertex AI] Primary model failed, falling back to ${fallbackModel}...`);
+      res = await executeCall(fallbackModel, 'global', true);
     }
 
     if (!res || !res.ok) {
-      const errText = res ? await res.text() : lastErrorText;
+      const errText = lastErrorText || (res ? await res.text() : 'No response');
       throw new Error(`Vertex AI Error (${res?.status || 500}): ${errText}`);
     }
 

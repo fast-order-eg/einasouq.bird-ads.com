@@ -226,7 +226,7 @@ export default function Sidebar() {
             محرك الذكاء
           </span>
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold">
-            Gemini 2.5 Pro
+            Gemini 3.8 Flash
           </span>
         </div>
         <div className="flex items-center justify-between">

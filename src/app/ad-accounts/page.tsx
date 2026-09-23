@@ -379,16 +379,26 @@ export default function AdAccountsPage() {
           setAdDeliveryFilter('ALL');
         }
 
-        if (isSingleRefresh) {
-          const realActiveCount = camps.filter((c: any) => c.delivery_status === 'ACTIVE').length;
-          setAdAccounts((prev) =>
-            prev.map((a) =>
-              (a.account_id === account.account_id || a.id === account.id)
-                ? { ...a, active_campaigns_count: realActiveCount, has_cache: true }
-                : a
-            )
+        const realActiveCount = camps.filter((c: any) => c.delivery_status === 'ACTIVE').length;
+        setAdAccounts((prev) => {
+          const updated = prev.map((a) =>
+            (a.account_id === account.account_id || a.id === account.id)
+              ? { ...a, active_campaigns_count: realActiveCount, has_cache: true }
+              : a
           );
-        }
+          if (globalAdAccountsCache) {
+            globalAdAccountsCache.adAccounts = updated;
+          }
+          try {
+            const cached = localStorage.getItem('adscope_cached_ad_accounts');
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              parsed.adAccounts = updated;
+              localStorage.setItem('adscope_cached_ad_accounts', JSON.stringify(parsed));
+            }
+          } catch (e) {}
+          return updated;
+        });
       } else {
         setAdsError(data.error || 'تعذر جلب إعلانات هذا الحساب');
       }
@@ -606,7 +616,7 @@ export default function AdAccountsPage() {
   <div class="header-box">
     <div style="display: flex; justify-content: space-between; align-items: center;">
       <h1 class="header-title">📊 تقرير التحليل الاستراتيجي الشامل للحملة الإعلانية</h1>
-      <span class="badge badge-purple">Gemini 2.5 Pro</span>
+      <span class="badge badge-purple">Gemini 3.8 Flash</span>
     </div>
     <p style="font-size: 14pt; font-weight: 700; color: #334155; margin: 4px 0 0 0;">
       ${campaign.name || 'حملة إعلانية'}
@@ -982,11 +992,11 @@ export default function AdAccountsPage() {
 
   // Filter Active vs Excluded Accounts
   const activeApprovedAccounts = useMemo(() => {
-    return adAccounts.filter((a) => !a.is_excluded);
+    return adAccounts.filter((a) => !a.is_excluded && a.account_status === 1);
   }, [adAccounts]);
 
   const excludedAccountsList = useMemo(() => {
-    return adAccounts.filter((a) => a.is_excluded);
+    return adAccounts.filter((a) => a.is_excluded || a.account_status !== 1);
   }, [adAccounts]);
 
   // Filter Ad Accounts based on Search and Tab
@@ -1009,6 +1019,22 @@ export default function AdAccountsPage() {
       return true;
     });
   }, [activeTab, activeApprovedAccounts, excludedAccountsList, searchQuery, statusFilter]);
+
+  // Dynamic Totals strictly for visible, non-excluded, active (non-restricted) accounts
+  const visibleActiveAccountsForTotals = useMemo(() => {
+    const baseList = activeTab === 'AD_ACCOUNTS' ? filteredAccounts : activeApprovedAccounts;
+    return baseList.filter((a) => !a.is_excluded && a.account_status === 1);
+  }, [activeTab, filteredAccounts, activeApprovedAccounts]);
+
+  const liveTotalActiveCampaigns = useMemo(() => {
+    return visibleActiveAccountsForTotals.reduce((acc, a) => acc + (Number(a.active_campaigns_count) || 0), 0);
+  }, [visibleActiveAccountsForTotals]);
+
+  const liveTotalAvailableFunds = useMemo(() => {
+    return Math.round(
+      visibleActiveAccountsForTotals.reduce((acc, a) => acc + (parseFloat(a.available_funds || '0') || 0), 0)
+    );
+  }, [visibleActiveAccountsForTotals]);
 
   // Filter Businesses
   const filteredBusinesses = useMemo(() => {
@@ -1123,7 +1149,7 @@ export default function AdAccountsPage() {
     const getCost = (types: string[]) => {
       for (const t of types) {
         const match = costs.find((c: any) => c.action_type === t || c.action_type.includes(t));
-        if (match) return parseFloat(match.value).toFixed(2);
+        if (match) return Math.round(parseFloat(match.value)).toLocaleString('en-US');
       }
       return null;
     };
@@ -1131,7 +1157,7 @@ export default function AdAccountsPage() {
     const getValue = (types: string[]) => {
       for (const t of types) {
         const match = actionValues.find((v: any) => v.action_type === t || v.action_type.includes(t));
-        if (match) return parseFloat(match.value).toLocaleString('en-US', { maximumFractionDigits: 1 });
+        if (match) return Math.round(parseFloat(match.value)).toLocaleString('en-US', { maximumFractionDigits: 0 });
       }
       return null;
     };
@@ -1146,7 +1172,7 @@ export default function AdAccountsPage() {
     const purchases = getAction(['onsite_web_purchase', 'omni_purchase', 'purchase']);
     const costPerPurchase = getCost(['onsite_web_purchase', 'omni_purchase', 'purchase']);
     const purchaseValue = getValue(['onsite_web_purchase', 'omni_purchase', 'purchase']);
-    const roas = roasArr[0]?.value ? parseFloat(roasArr[0].value).toFixed(2) : null;
+    const roas = roasArr[0]?.value ? parseFloat(roasArr[0].value).toFixed(1) : null;
     const addToCart = getAction(['onsite_web_add_to_cart', 'omni_add_to_cart', 'add_to_cart']);
     const costPerAddToCart = getCost(['onsite_web_add_to_cart', 'omni_add_to_cart', 'add_to_cart']);
     const initiateCheckout = getAction(['onsite_web_initiate_checkout', 'omni_initiated_checkout', 'initiate_checkout']);
@@ -1156,7 +1182,7 @@ export default function AdAccountsPage() {
     const costPerLead = getCost(['onsite_web_lead', 'lead', 'onsite_conversion.lead']);
 
     const linkClicks = getAction(['link_click', 'landing_page_view']);
-    const costPerLinkClick = insights.cost_per_inline_link_click ? parseFloat(insights.cost_per_inline_link_click).toFixed(2) : getCost(['link_click']);
+    const costPerLinkClick = insights.cost_per_inline_link_click ? Math.round(parseFloat(insights.cost_per_inline_link_click)).toLocaleString('en-US') : getCost(['link_click']);
 
     // Determine Exact Campaign Category
     let category: 'MESSAGES' | 'SALES' | 'LEADS' | 'TRAFFIC' | 'ENGAGEMENT' = 'MESSAGES';
@@ -1209,16 +1235,16 @@ export default function AdAccountsPage() {
       category,
       categoryBadge,
       categoryColor,
-      spend: insights.spend ? parseFloat(insights.spend).toLocaleString('en-US', { maximumFractionDigits: 1 }) : '0',
+      spend: insights.spend ? Math.round(parseFloat(insights.spend)).toLocaleString('en-US', { maximumFractionDigits: 0 }) : '0',
       reach: insights.reach ? parseInt(insights.reach, 10).toLocaleString('en-US') : '0',
       impressions: insights.impressions ? parseInt(insights.impressions, 10).toLocaleString('en-US') : '0',
-      frequency: insights.frequency ? parseFloat(insights.frequency).toFixed(2) : '1.00',
-      cpm: insights.cpm ? parseFloat(insights.cpm).toFixed(2) : '0.00',
-      cpc: insights.cpc ? parseFloat(insights.cpc).toFixed(2) : '0.00',
-      ctr: insights.ctr ? parseFloat(insights.ctr).toFixed(2) : '0.00',
-      linkCtr: insights.inline_link_click_ctr ? parseFloat(insights.inline_link_click_ctr).toFixed(2) : null,
+      frequency: insights.frequency ? parseFloat(insights.frequency).toFixed(1) : '1',
+      cpm: insights.cpm ? Math.round(parseFloat(insights.cpm)).toLocaleString('en-US') : '0',
+      cpc: insights.cpc ? Math.round(parseFloat(insights.cpc)).toLocaleString('en-US') : '0',
+      ctr: insights.ctr ? parseFloat(insights.ctr).toFixed(1) : '0',
+      linkCtr: insights.inline_link_click_ctr ? parseFloat(insights.inline_link_click_ctr).toFixed(1) : null,
       msgStarted: msgStarted || msgConnections,
-      msgCost: msgCost || '0.00',
+      msgCost: msgCost || '0',
       msgReplies,
       msgReplyCost: msgReplyCost || '---',
       msgConnections,
@@ -1309,12 +1335,12 @@ export default function AdAccountsPage() {
             <Megaphone className="w-4 h-4 text-emerald-400 animate-pulse" />
           </div>
           <p className="text-2xl font-black text-emerald-400">
-            {summary ? Number(summary.totalActiveCampaigns || 0).toLocaleString('en-US') : '0'}
+            {liveTotalActiveCampaigns.toLocaleString('en-US')}
             <span className="text-xs font-normal text-slate-400 mr-1.5">حملة فعلية</span>
           </p>
           <p className="text-[11px] text-emerald-400/90 font-semibold flex items-center gap-1">
             <PlayCircle className="w-3 h-3" />
-            تعمل وتقوم بالعرض حالياً
+            تعمل وتقوم بالعرض حالياً (بدون المتوقف مؤقتاً)
           </p>
         </div>
 
@@ -1325,10 +1351,10 @@ export default function AdAccountsPage() {
             <Wallet className="w-4 h-4 text-indigo-400" />
           </div>
           <p className="text-2xl font-black text-indigo-300">
-            {summary ? Number(summary.totalAvailableFunds || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) : '0'}
+            {liveTotalAvailableFunds.toLocaleString('en-US', { maximumFractionDigits: 0 })}
             <span className="text-xs font-normal text-slate-400 mr-1.5">ج.م</span>
           </p>
-          <p className="text-[11px] text-indigo-400/80 font-semibold">رصيد مسبق الدفع متاح للإعلانات</p>
+          <p className="text-[11px] text-indigo-400/80 font-semibold">للحسابات النشطة الظاهرة فقط (بدون المستبعد أو المقيد)</p>
         </div>
 
         {/* 3. Total Active Approved Accounts */}
@@ -1452,8 +1478,8 @@ export default function AdAccountsPage() {
             {filteredAccounts.map((a) => {
               const statusInfo = getStatusBadge(a.account_status);
               const StatusIcon = statusInfo.icon;
-              const spentAmount = (parseFloat(a.amount_spent || '0') / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
-              const availableFunds = parseFloat(a.available_funds || '0').toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+              const spentAmount = Math.round(parseFloat(a.amount_spent || '0') / 100).toLocaleString('en-US', { maximumFractionDigits: 0 });
+              const availableFunds = Math.round(parseFloat(a.available_funds || '0')).toLocaleString('en-US', { maximumFractionDigits: 0 });
               const pureId = (a.account_id || a.id || '').replace(/^act_/, '');
               const firstLineNote = a.note ? a.note.split('\n')[0].trim() : '';
               const isRefreshingThisBalance = refreshingBalanceId === pureId;
@@ -1703,7 +1729,7 @@ export default function AdAccountsPage() {
                     </button>
                     <span className="text-xs text-emerald-400 font-bold flex items-center gap-1 mr-2">
                       <Wallet className="w-3 h-3" />
-                      الأموال المتوفرة: {parseFloat(inspectingAccount.available_funds || '0').toLocaleString('en-US', { minimumFractionDigits: 2 })} {inspectingAccount.currency}
+                      الأموال المتوفرة: {Math.round(parseFloat(inspectingAccount.available_funds || '0')).toLocaleString('en-US', { maximumFractionDigits: 0 })} {inspectingAccount.currency}
                     </span>
                   </div>
                 </div>
@@ -2551,7 +2577,7 @@ export default function AdAccountsPage() {
                           <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-slate-800/60 text-[11px] text-center font-bold">
                             <div className="p-1.5 rounded-lg bg-slate-900/90 text-emerald-400">
                               <span className="text-[9px] text-slate-500 block font-normal">المصروف</span>
-                              {insight?.spend ? parseFloat(insight.spend).toFixed(1) : '0'} {inspectingAccount.currency}
+                              {insight?.spend ? Math.round(parseFloat(insight.spend)).toLocaleString('en-US') : '0'} {inspectingAccount.currency}
                             </div>
                             <div className="p-1.5 rounded-lg bg-slate-900/90 text-amber-300">
                               <span className="text-[9px] text-slate-500 block font-normal">الظهور</span>
@@ -2559,7 +2585,7 @@ export default function AdAccountsPage() {
                             </div>
                             <div className="p-1.5 rounded-lg bg-slate-900/90 text-purple-300">
                               <span className="text-[9px] text-slate-500 block font-normal">CTR</span>
-                              {insight?.ctr ? `${parseFloat(insight.ctr).toFixed(2)}%` : '---'}
+                              {insight?.ctr ? `${parseFloat(insight.ctr).toFixed(1)}%` : '---'}
                             </div>
                             <div className="p-1.5 rounded-lg bg-slate-900/90 text-blue-300">
                               <span className="text-[9px] text-slate-500 block font-normal">الوصول</span>
@@ -2635,7 +2661,7 @@ export default function AdAccountsPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-black text-white text-lg sm:text-xl">تقرير الفحص والتحليل الاستراتيجي الشامل</h3>
                       <span className="text-xs px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold">
-                        Gemini 2.5 Pro
+                        Gemini 3.8 Flash
                       </span>
                     </div>
                     <p className="text-sm font-semibold text-slate-300 truncate max-w-lg mt-1">{camp.name}</p>

@@ -572,16 +572,16 @@ export class MetaGraphClient {
         return { success: false, error: data.error.message };
       }
 
-      // Calculate available funds
-      let availableFunds = '0.00';
+      // Calculate available funds (integer only, no piastres)
+      let availableFunds = '0';
       const balance = parseFloat(data.balance || '0') / 100;
       const spendCap = parseFloat(data.spend_cap || '0') / 100;
       const amountSpent = parseFloat(data.amount_spent || '0') / 100;
 
       if (spendCap > 0 && amountSpent > 0 && spendCap > amountSpent) {
-        availableFunds = (spendCap - amountSpent).toFixed(2);
+        availableFunds = Math.round(spendCap - amountSpent).toString();
       } else if (balance > 0) {
-        availableFunds = balance.toFixed(2);
+        availableFunds = Math.round(balance).toString();
       }
 
       return {
@@ -589,7 +589,7 @@ export class MetaGraphClient {
         account: {
           ...data,
           available_funds: availableFunds,
-          amount_spent_formatted: amountSpent.toFixed(2),
+          amount_spent_formatted: Math.round(amountSpent).toString(),
         },
       };
     } catch (err: any) {

@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     }
 
     const acc = result.account;
-    const availableFunds = acc.available_funds || '0.00';
+    const availableFunds = Math.round(parseFloat(acc.available_funds || '0')).toString();
     const amountSpent = acc.amount_spent || '0';
     const accountStatus = acc.account_status || 1;
 
