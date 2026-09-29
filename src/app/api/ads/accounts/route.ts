@@ -127,7 +127,14 @@ export async function GET(req: Request) {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Prefetch all existing ad account assets from DB into a map (1 fast query instead of 136)
+    const existingAssets = await prisma.metaAsset.findMany({
+      where: { assetType: 'AD_ACCOUNT' },
+    });
+    const assetMap = new Map(existingAssets.map((asset) => [asset.externalId, asset]));
+
     const enrichedAccounts: any[] = [];
+    const now = new Date();
 
     for (const a of metaAccounts) {
       const cleanId = a.account_id || a.id.replace(/^act_/, '');
@@ -145,16 +152,14 @@ export async function GET(req: Request) {
         availableFunds = Math.round(balance).toString();
       }
 
-      // Check existing note, is_excluded, and analyses
+      // Check existing note, is_excluded, and analyses from DB prefetch map
       let existingNote: string | null = null;
       let existingNoteDate: string | null = null;
       let isExcluded = accountStatus !== 1;
       let campaignAnalyses: any = null;
       let existingParsedMeta: any = {};
 
-      const existingAsset = await prisma.metaAsset.findFirst({
-        where: { externalId: formattedExternalId },
-      });
+      const existingAsset = assetMap.get(formattedExternalId);
 
       if (existingAsset?.metadataJson) {
         try {
@@ -173,25 +178,21 @@ export async function GET(req: Request) {
         } catch (e) {}
       }
 
-      // Accurate active campaigns count check (excludes paused, ended/completed, disapproved, or 0 active ads)
+      // Fast in-memory active campaigns check from nested campaigns data already returned by getAdAccounts
       let activeCampsCount = 0;
       if (accountStatus === 1 && !isExcluded) {
-        try {
-          const filterParam = encodeURIComponent(JSON.stringify([{ field: 'effective_status', operator: 'IN', value: ['ACTIVE'] }]));
-          const campsRes = await fetch(`https://graph.facebook.com/v21.0/${formattedExternalId}/campaigns?fields=id,status,effective_status,stop_time,ads.limit(10){effective_status}&filtering=${filterParam}&limit=100&access_token=${process.env.META_USER_TOKEN}`);
-          const campsData = await campsRes.json();
-          if (campsData.data && Array.isArray(campsData.data)) {
-            const now = new Date();
-            activeCampsCount = campsData.data.filter((c: any) => {
-              const isPaused = c.status === 'PAUSED' || c.effective_status === 'PAUSED' || c.effective_status === 'CAMPAIGN_PAUSED' || c.effective_status === 'ADSET_PAUSED';
-              const isEnded = c.stop_time && new Date(c.stop_time) < now;
-              const innerAds = c.ads?.data || [];
-              const hasDisapprovedAds = innerAds.some((ad: any) => ad.effective_status === 'DISAPPROVED');
-              const hasActiveAds = innerAds.length > 0 ? innerAds.some((ad: any) => ad.effective_status === 'ACTIVE') : false;
-              return !isPaused && !isEnded && !hasDisapprovedAds && hasActiveAds;
-            }).length;
-          }
-        } catch (e) {}
+        if (a.campaigns?.data && Array.isArray(a.campaigns.data)) {
+          activeCampsCount = a.campaigns.data.filter((c: any) => {
+            const isPaused = c.status === 'PAUSED' || c.effective_status === 'PAUSED' || c.effective_status === 'CAMPAIGN_PAUSED' || c.effective_status === 'ADSET_PAUSED';
+            const isEnded = c.stop_time && new Date(c.stop_time) < now;
+            const innerAds = c.ads?.data || [];
+            const hasDisapprovedAds = innerAds.some((ad: any) => ad.effective_status === 'DISAPPROVED');
+            const hasActiveAds = innerAds.length > 0 ? innerAds.some((ad: any) => ad.effective_status === 'ACTIVE') : false;
+            return !isPaused && !isEnded && !hasDisapprovedAds && hasActiveAds;
+          }).length;
+        } else if (Array.isArray(existingParsedMeta.campaigns_cache)) {
+          activeCampsCount = existingParsedMeta.campaigns_cache.filter((c: any) => c.delivery_status === 'ACTIVE').length;
+        }
       }
 
       const metaPayload = {
@@ -217,30 +218,46 @@ export async function GET(req: Request) {
         note_updated_at: existingNoteDate,
         is_excluded: isExcluded,
         campaign_analyses_count: campaignAnalyses ? Object.keys(campaignAnalyses).length : 0,
+        _formattedExternalId: formattedExternalId,
+        _metaPayload: metaPayload,
       });
+    }
 
-      try {
-        await prisma.metaAsset.upsert({
-          where: { externalId: formattedExternalId },
-          update: {
-            name: a.name,
-            isAuthorized: accountStatus === 1,
-            metadataJson: JSON.stringify(metaPayload),
-            updatedAt: new Date(),
-          },
-          create: {
-            connectionId: connection?.id,
-            assetType: 'AD_ACCOUNT',
-            externalId: formattedExternalId,
-            name: a.name,
-            category: 'Ad Account',
-            isAuthorized: accountStatus === 1,
-            metadataJson: JSON.stringify(metaPayload),
-          },
-        });
-      } catch (dbErr) {
-        console.error('[Accounts API] DB save error:', dbErr);
-      }
+    // Parallel batch upsert accounts to DB (chunks of 20)
+    for (let i = 0; i < enrichedAccounts.length; i += 20) {
+      const chunk = enrichedAccounts.slice(i, i + 20);
+      await Promise.all(
+        chunk.map(async (acc) => {
+          try {
+            await prisma.metaAsset.upsert({
+              where: { externalId: acc._formattedExternalId },
+              update: {
+                name: acc.name,
+                isAuthorized: acc.account_status === 1,
+                metadataJson: JSON.stringify(acc._metaPayload),
+                updatedAt: new Date(),
+              },
+              create: {
+                connectionId: connection?.id,
+                assetType: 'AD_ACCOUNT',
+                externalId: acc._formattedExternalId,
+                name: acc.name,
+                category: 'Ad Account',
+                isAuthorized: acc.account_status === 1,
+                metadataJson: JSON.stringify(acc._metaPayload),
+              },
+            });
+          } catch (dbErr) {
+            console.error('[Accounts API] DB save error for account:', acc._formattedExternalId, dbErr);
+          }
+        })
+      );
+    }
+
+    // Clean internal properties before returning
+    for (const acc of enrichedAccounts) {
+      delete acc._formattedExternalId;
+      delete acc._metaPayload;
     }
 
     // Sort: Active & Running first, Disabled and Excluded last
@@ -262,28 +279,31 @@ export async function GET(req: Request) {
     const activeVisibleEnriched = enrichedAccounts.filter(a => a.account_status === 1 && !a.is_excluded);
     const totalSpent = Math.round(activeVisibleEnriched.reduce((acc, a) => acc + parseFloat(a.amount_spent || '0') / 100, 0));
     const totalAvailableFunds = Math.round(activeVisibleEnriched.reduce((acc, a) => acc + parseFloat(a.available_funds || '0'), 0));
-    // Persist businesses to DB
-    for (const b of businesses) {
-      try {
-        await prisma.metaAsset.upsert({
-          where: { externalId: b.id },
-          update: {
-            name: b.name,
-            assetType: 'BUSINESS',
-            metadataJson: JSON.stringify(b),
-            updatedAt: new Date(),
-          },
-          create: {
-            connectionId: connection?.id || null,
-            externalId: b.id,
-            name: b.name,
-            assetType: 'BUSINESS',
-            isAuthorized: true,
-            metadataJson: JSON.stringify(b),
-          },
-        });
-      } catch (bErr) {}
-    }
+
+    // Parallel persist businesses to DB
+    await Promise.all(
+      businesses.map(async (b) => {
+        try {
+          await prisma.metaAsset.upsert({
+            where: { externalId: b.id },
+            update: {
+              name: b.name,
+              assetType: 'BUSINESS',
+              metadataJson: JSON.stringify(b),
+              updatedAt: new Date(),
+            },
+            create: {
+              connectionId: connection?.id || null,
+              externalId: b.id,
+              name: b.name,
+              assetType: 'BUSINESS',
+              isAuthorized: true,
+              metadataJson: JSON.stringify(b),
+            },
+          });
+        } catch (bErr) {}
+      })
+    );
 
     const totalActiveCampaigns = activeVisibleEnriched.reduce((acc, a) => acc + (a.active_campaigns_count || 0), 0);
 

@@ -67,6 +67,7 @@ let globalAdAccountsCache: any = null;
 export default function AdAccountsPage() {
   const [loading, setLoading] = useState(!globalAdAccountsCache);
   const [syncing, setSyncing] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [syncType, setSyncType] = useState<'ACTIVE_ONLY' | 'ALL'>('ACTIVE_ONLY');
   const [adAccounts, setAdAccounts] = useState<any[]>(globalAdAccountsCache?.adAccounts || []);
   const [businesses, setBusinesses] = useState<any[]>(globalAdAccountsCache?.businesses || []);
@@ -203,12 +204,24 @@ export default function AdAccountsPage() {
   };
 
   const fetchAccounts = async (forceRefresh = false, activeOnly = false) => {
-    if (forceRefresh) setSyncing(true);
-    else if (adAccounts.length === 0) setLoading(true);
+    if (forceRefresh) {
+      setSyncing(true);
+      setSyncFeedback({ type: 'info', message: 'جاري الاتصال بـ Meta وتحديث بيانات الحسابات الإعلانية...' });
+    } else if (adAccounts.length === 0) {
+      setLoading(true);
+    }
 
     try {
       const url = `/api/ads/accounts${forceRefresh ? `?refresh=true${activeOnly ? '&activeOnly=true' : ''}` : ''}`;
       const res = await fetch(url);
+      if (res.status === 401) {
+        alert('انتهت صلاحية الجلسة، برجاء تسجيل الدخول مجدداً');
+        window.location.href = '/login';
+        return;
+      }
+      if (!res.ok) {
+        throw new Error(`خطأ في السيرفر (كود ${res.status})`);
+      }
       const data = await res.json();
       if (data.success) {
         globalAdAccountsCache = data;
@@ -221,9 +234,24 @@ export default function AdAccountsPage() {
         try {
           localStorage.setItem('adscope_cached_ad_accounts_v2', JSON.stringify(data));
         } catch (e) {}
+        if (forceRefresh) {
+          setSyncFeedback({ type: 'success', message: `تم تحديث بيانات ${data.adAccounts?.length || 0} حساب إعلاني بنجاح!` });
+          setTimeout(() => setSyncFeedback(null), 4000);
+        }
+      } else {
+        throw new Error(data.error || 'تعذر تحديث الحسابات');
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error('Fetch accounts error:', err);
+      if (forceRefresh) {
+        setSyncFeedback({
+          type: 'error',
+          message: err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')
+            ? 'تعذر الاتصال بالسيرفر! يرجى التأكد من تشغيل السيرفر المحلي.'
+            : `تعذر التحديث: ${err.message || 'خطأ غير معروف'}`
+        });
+        setTimeout(() => setSyncFeedback(null), 7000);
+      }
     } finally {
       setLoading(false);
       setSyncing(false);
@@ -231,6 +259,7 @@ export default function AdAccountsPage() {
   };
 
   useEffect(() => {
+    // 1. Instant 0ms render from memory cache
     if (globalAdAccountsCache && globalAdAccountsCache.adAccounts && globalAdAccountsCache.adAccounts.length > 0) {
       setAdAccounts(globalAdAccountsCache.adAccounts);
       setBusinesses(globalAdAccountsCache.businesses || []);
@@ -239,9 +268,12 @@ export default function AdAccountsPage() {
         setAccountsLastUpdated(globalAdAccountsCache.lastUpdated);
       }
       setLoading(false);
+      // Revalidate in background from DB
+      fetchAccounts(false);
       return;
     }
 
+    // 2. Instant 0ms render from localStorage cache
     try {
       const cached = localStorage.getItem('adscope_cached_ad_accounts_v2');
       if (cached) {
@@ -255,11 +287,14 @@ export default function AdAccountsPage() {
             setAccountsLastUpdated(parsed.lastUpdated);
           }
           setLoading(false);
+          // Revalidate in background from DB
+          fetchAccounts(false);
           return;
         }
       }
     } catch (e) {}
 
+    // 3. Initial load if no cache
     fetchAccounts(false);
   }, []);
 
@@ -1307,7 +1342,21 @@ export default function AdAccountsPage() {
 
         {/* Single Refresh Action & Last Updated */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {accountsLastUpdated && (
+          {syncFeedback && (
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-all duration-300 ${
+              syncFeedback.type === 'success'
+                ? 'bg-emerald-950/90 border border-emerald-500/50 text-emerald-300'
+                : syncFeedback.type === 'error'
+                ? 'bg-rose-950/90 border border-rose-500/50 text-rose-300'
+                : 'bg-indigo-950/90 border border-indigo-500/50 text-indigo-300 animate-pulse'
+            }`}>
+              {syncFeedback.type === 'success' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+              {syncFeedback.type === 'error' && <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />}
+              {syncFeedback.type === 'info' && <RotateCw className="w-3.5 h-3.5 text-indigo-400 shrink-0 animate-spin" />}
+              <span>{syncFeedback.message}</span>
+            </div>
+          )}
+          {accountsLastUpdated && !syncFeedback && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs font-semibold text-slate-400 shadow-sm">
               <Clock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
               <span>آخر تحديث:</span>
