@@ -1608,11 +1608,15 @@ export default function AdAccountsPage() {
             </span>
             <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3" />
-              نشط: {businesses.filter(b => b.status === 'ACTIVE').length}
+              سليم ونشط: {businesses.filter(b => b.status === 'ACTIVE').length}
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" />
+              أصول مقيدة: {businesses.filter(b => b.status === 'ASSETS_RESTRICTED').length}
             </span>
             <span className="px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold flex items-center gap-1">
               <XCircle className="w-3 h-3" />
-              مقيد: {businesses.filter(b => b.status === 'RESTRICTED').length}
+              تم تقييد الحساب: {businesses.filter(b => b.status === 'RESTRICTED').length}
             </span>
             <span className="px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-300 font-bold">
               إجمالي الحسابات المربوطة: {businesses.reduce((acc, b) => acc + (b.ad_accounts?.length || 0), 0)}
@@ -1760,6 +1764,7 @@ export default function AdAccountsPage() {
                       const biz = linkedFromBiz || (a.business?.id ? (businessMap.get(String(a.business.id)) || a.business) : a.business);
                       const hasBiz = Boolean(biz && (biz.id || biz.name));
                       const isRestricted = biz?.status === 'RESTRICTED';
+                      const isAssetsRestricted = biz?.status === 'ASSETS_RESTRICTED';
 
                       return (
                         <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/70 border border-slate-800/70 text-xs">
@@ -1775,12 +1780,19 @@ export default function AdAccountsPage() {
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
                               isRestricted
                                 ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                                : isAssetsRestricted
+                                ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
                                 : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                             }`}>
                               {isRestricted ? (
                                 <>
                                   <XCircle className="w-3 h-3 text-rose-400" />
-                                  <span>مقيد 🚫</span>
+                                  <span>تم تقييده 🚫</span>
+                                </>
+                              ) : isAssetsRestricted ? (
+                                <>
+                                  <AlertTriangle className="w-3 h-3 text-amber-400" />
+                                  <span>أصول مقيدة ⚠️</span>
                                 </>
                               ) : (
                                 <>
@@ -1877,6 +1889,7 @@ export default function AdAccountsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredBusinesses.map((b) => {
               const isRestricted = b.status === 'RESTRICTED';
+              const isAssetsRestricted = b.status === 'ASSETS_RESTRICTED';
               const firstLineBizNote = b.note ? b.note.split('\n')[0].trim() : '';
 
               return (
@@ -1884,30 +1897,39 @@ export default function AdAccountsPage() {
                   key={b.id}
                   className={`p-5 rounded-2xl border space-y-3.5 shadow-sm transition-all ${
                     isRestricted
-                      ? 'bg-slate-950/80 border-rose-500/20'
+                      ? 'bg-slate-950/80 border-rose-500/30'
+                      : isAssetsRestricted
+                      ? 'bg-slate-900/90 border-amber-500/30 hover:border-amber-500/50'
                       : 'bg-slate-900/90 border-slate-800/80 hover:border-slate-700/80'
                   }`}
                 >
                   {/* Top Status & Verification Header */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5">
-                      {/* Active / Restricted Status Badge (Read-Only) */}
+                      {/* Active / Assets Restricted / Restricted Status Badge (Read-Only) */}
                       <span
                         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-sm ${
                           isRestricted
                             ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                            : isAssetsRestricted
+                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
                             : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                         }`}
                       >
                         {isRestricted ? (
                           <>
                             <XCircle className="w-3.5 h-3.5 text-rose-400" />
-                            <span>مقيد 🚫</span>
+                            <span>تم تقييد الحساب 🚫</span>
+                          </>
+                        ) : isAssetsRestricted ? (
+                          <>
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                            <span>الأصول مقيدة ⚠️</span>
                           </>
                         ) : (
                           <>
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>نشط ✅</span>
+                            <span>نشط (لا مشكلات) ✅</span>
                           </>
                         )}
                       </span>

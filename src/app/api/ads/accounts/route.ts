@@ -2,54 +2,71 @@ import { NextResponse } from 'next/server';
 import metaClient from '@/lib/meta';
 import prisma from '@/lib/db';
 
-const KNOWN_RESTRICTED_BIZ_IDS = new Set([
+// 1. Account Restricted (تم تقييد الحساب 🔴) - Portfolio blocked
+const ACCOUNT_RESTRICTED_IDS = new Set([
+  '1210752546181416', // 500 - تم تقييد الحساب
   '1161649586027995', // 2 2 - تم تقييد الحساب
-  '105312565251932',  // 3selsawy - الأصول مقيدة
-  '1244428047671482', // 1 1 - الأصول مقيدة خلال آخر 30 من الأيام
+  '397557102497998',  // 55 - تم تقييد الحساب
+  '144237258173469',  // 600 - تم تقييد الحساب
   '108827912174962',  // As1 - تم تقييد الحساب
-  '1049758890177099', // Agency sword - الأصول مقيدة
-  '1629213197444348', // bea_utyflow - الأصول مقيدة
+  '4781794928547281', // حول العالم بالدراجة - تم تقييد الحساب
+  '736051279388053',  // الرؤيا للتسويق الالكتروني - تم تقييد الحساب
+  '419270227068945',  // بيزنس فاضي 1 - تم تقييد الحساب
 ]);
 
-function computeBusinessStatus(b: any, existingMeta: any = {}): 'ACTIVE' | 'RESTRICTED' {
+// 2. Assets Restricted (الأصول مقيدة 🟠) - Business fine, but asset/page restricted
+const ASSETS_RESTRICTED_IDS = new Set([
+  '1244428047671482', // 1 1 - الأصول مقيدة خلال آخر 30 من الأيام
+  '1049758890177099', // Agency sword - الأصول مقيدة
+  '1629213197444348', // bea_utyflow - الأصول مقيدة
+  '105312565251932',  // 3selsawy - الأصول مقيدة
+]);
+
+export type BusinessHealthStatus = 'ACTIVE' | 'ASSETS_RESTRICTED' | 'RESTRICTED';
+
+function computeBusinessStatus(b: any, existingMeta: any = {}): BusinessHealthStatus {
   const bizId = String(b.id || b.externalId);
 
-  // 1. Explicit custom_status from user/system
+  // 1. Known Account Restricted (تم تقييد الحساب 🔴)
+  if (ACCOUNT_RESTRICTED_IDS.has(bizId)) {
+    return 'RESTRICTED';
+  }
+
+  // 2. Known Assets Restricted (الأصول مقيدة 🟠)
+  if (ASSETS_RESTRICTED_IDS.has(bizId)) {
+    return 'ASSETS_RESTRICTED';
+  }
+
+  // 3. Explicit custom_status from user
   if (existingMeta?.custom_status === 'RESTRICTED') return 'RESTRICTED';
+  if (existingMeta?.custom_status === 'ASSETS_RESTRICTED') return 'ASSETS_RESTRICTED';
   if (existingMeta?.custom_status === 'ACTIVE') return 'ACTIVE';
 
-  // 2. Known restricted portfolios from Meta Business Support Home
-  if (KNOWN_RESTRICTED_BIZ_IDS.has(bizId)) {
-    return 'RESTRICTED';
-  }
-
-  // 3. Inspect all associated ad accounts (both owned and client):
+  // 4. Check owned accounts: if owned account has policy violation, business portfolio is restricted
   const owned = b.owned_ad_accounts?.data || b.owned_ad_accounts || existingMeta?.owned_ad_accounts || [];
-  const client = b.client_ad_accounts?.data || b.client_ad_accounts || existingMeta?.client_ad_accounts || [];
-  const linked = b.ad_accounts || existingMeta?.ad_accounts || [];
-  const allAccounts = [
-    ...(Array.isArray(owned) ? owned : []),
-    ...(Array.isArray(client) ? client : []),
-    ...(Array.isArray(linked) ? linked : []),
-  ];
-
-  // If ANY account has a policy violation / is disabled (account_status === 2 or disable_reason > 0):
-  const hasViolation = allAccounts.some(
-    (a: any) => a.account_status === 2 || (a.disable_reason && a.disable_reason > 0)
-  );
-  if (hasViolation) {
+  const ownedList = Array.isArray(owned) ? owned : [];
+  if (ownedList.some((a: any) => a.account_status === 2 || (a.disable_reason && a.disable_reason > 0))) {
     return 'RESTRICTED';
   }
 
-  // 4. If all accounts are non-active (e.g. all closed or unsettled):
+  // 5. Check client accounts: if client account has policy violation, mark as assets restricted
+  const client = b.client_ad_accounts?.data || b.client_ad_accounts || existingMeta?.client_ad_accounts || [];
+  const clientList = Array.isArray(client) ? client : [];
+  const linked = b.ad_accounts || existingMeta?.ad_accounts || [];
+  const allAccounts = [...ownedList, ...clientList, ...(Array.isArray(linked) ? linked : [])];
+
+  if (allAccounts.some((a: any) => a.account_status === 2 || (a.disable_reason && a.disable_reason > 0))) {
+    return 'ASSETS_RESTRICTED';
+  }
+
+  // 6. If all accounts are disabled/closed
   if (allAccounts.length > 0 && allAccounts.every((a: any) => a.account_status !== 1)) {
     return 'RESTRICTED';
   }
 
-  // 5. Preserved status if was restricted
-  if (existingMeta?.status === 'RESTRICTED') {
-    return 'RESTRICTED';
-  }
+  // 7. Preserve previous status
+  if (existingMeta?.status === 'RESTRICTED') return 'RESTRICTED';
+  if (existingMeta?.status === 'ASSETS_RESTRICTED') return 'ASSETS_RESTRICTED';
 
   return 'ACTIVE';
 }
@@ -440,7 +457,7 @@ export async function GET(req: Request) {
         ad_accounts: linkedAccounts,
       }, existingBizMeta);
 
-      const customStatus = existingBizMeta.custom_status || (status === 'RESTRICTED' && KNOWN_RESTRICTED_BIZ_IDS.has(b.id) ? 'RESTRICTED' : undefined);
+      const customStatus = existingBizMeta.custom_status || status;
 
       return {
         ...b,
