@@ -493,7 +493,7 @@ export class MetaGraphClient {
     if (!activeToken) return [];
 
     let allBusinesses: any[] = [];
-    const fields = 'id,name,verification_status,primary_page{id,name,picture{url}},created_time,owned_ad_accounts{id,name,account_status},client_ad_accounts{id,name,account_status}';
+    const fields = 'id,name,verification_status,primary_page{id,name,picture{url}},created_time,owned_ad_accounts{id,name,account_status,disable_reason},client_ad_accounts{id,name,account_status,disable_reason}';
     let nextUrl: string | null = `${this.baseUrl}/${this.apiVersion}/me/businesses?fields=${encodeURIComponent(fields)}&limit=50&access_token=${activeToken}`;
 
     try {

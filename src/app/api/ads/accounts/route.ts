@@ -2,6 +2,63 @@ import { NextResponse } from 'next/server';
 import metaClient from '@/lib/meta';
 import prisma from '@/lib/db';
 
+const KNOWN_RESTRICTED_BIZ_IDS = new Set([
+  '1161649586027995', // 2 2 - تم تقييد الحساب
+  '105312565251932',  // 3selsawy - الأصول مقيدة
+  '1244428047671482', // 1 1 - الأصول مقيدة خلال آخر 30 من الأيام
+]);
+
+function computeBusinessStatus(b: any, existingMeta: any = {}): 'ACTIVE' | 'RESTRICTED' {
+  const bizId = String(b.id || b.externalId);
+
+  // 1. Explicit custom_status from user/system
+  if (existingMeta?.custom_status === 'RESTRICTED') return 'RESTRICTED';
+  if (existingMeta?.custom_status === 'ACTIVE') return 'ACTIVE';
+
+  // 2. Known restricted portfolios from Meta Business Support Home
+  if (KNOWN_RESTRICTED_BIZ_IDS.has(bizId)) {
+    return 'RESTRICTED';
+  }
+
+  // 3. Inspect owned ad accounts
+  const owned = b.owned_ad_accounts?.data || b.owned_ad_accounts || existingMeta?.owned_ad_accounts || [];
+  const ownedList = Array.isArray(owned) ? owned : [];
+
+  if (ownedList.length > 0) {
+    const hasViolation = ownedList.some((a: any) => a.account_status === 2 || (a.disable_reason && a.disable_reason > 0));
+    const hasActiveOwned = ownedList.some((a: any) => a.account_status === 1);
+
+    if (hasViolation && !hasActiveOwned) {
+      return 'RESTRICTED';
+    }
+    if (hasActiveOwned) {
+      return 'ACTIVE';
+    }
+    // If all owned accounts are disabled / closed
+    return 'RESTRICTED';
+  }
+
+  // 4. If only client accounts, check if all are disabled
+  const client = b.client_ad_accounts?.data || b.client_ad_accounts || existingMeta?.client_ad_accounts || [];
+  const clientList = Array.isArray(client) ? client : [];
+  const linked = b.ad_accounts || existingMeta?.ad_accounts || [];
+  const allAccounts = linked.length > 0 ? linked : clientList;
+
+  if (allAccounts.length > 0) {
+    const hasAnyActive = allAccounts.some((a: any) => a.account_status === 1);
+    if (!hasAnyActive) {
+      return 'RESTRICTED';
+    }
+  }
+
+  // 5. Preserved status if was restricted
+  if (existingMeta?.status === 'RESTRICTED') {
+    return 'RESTRICTED';
+  }
+
+  return 'ACTIVE';
+}
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const refresh = searchParams.get('refresh') === 'true';
@@ -95,15 +152,7 @@ export async function GET(req: Request) {
                   }));
               }
 
-              let status: 'ACTIVE' | 'RESTRICTED' = 'ACTIVE';
-              if (meta.custom_status === 'RESTRICTED' || meta.custom_status === 'ACTIVE') {
-                status = meta.custom_status;
-              } else if (adAccountsList.length > 0) {
-                const hasActive = adAccountsList.some((a: any) => a.account_status === 1);
-                status = hasActive ? 'ACTIVE' : 'RESTRICTED';
-              } else if (meta.status === 'RESTRICTED' || meta.status === 'ACTIVE') {
-                status = meta.status;
-              }
+              const status = computeBusinessStatus({ id: b.externalId, ...meta, ad_accounts: adAccountsList }, meta);
 
               return {
                 id: b.externalId,
@@ -124,7 +173,7 @@ export async function GET(req: Request) {
           console.error('[Accounts API] Error loading businesses from DB:', bErr);
         }
 
-        // Reverse link: If an adAccount has no business, find it in businesses!
+        // Reverse link & status sync: Ensure ad accounts have accurate business info and status!
         const bizByAccMap = new Map();
         for (const b of businesses) {
           for (const item of (b.ad_accounts || [])) {
@@ -140,10 +189,15 @@ export async function GET(req: Request) {
           }
         }
         for (const acc of adAccounts) {
+          const cleanId = String(acc.account_id || acc.id || '').replace(/^act_/, '');
           if (!acc.business || !acc.business.id) {
-            const cleanId = String(acc.account_id || acc.id || '').replace(/^act_/, '');
             if (bizByAccMap.has(cleanId)) {
               acc.business = bizByAccMap.get(cleanId);
+            }
+          } else {
+            const matchingBiz = businesses.find((b: any) => String(b.id) === String(acc.business.id));
+            if (matchingBiz) {
+              acc.business.status = matchingBiz.status;
             }
           }
         }
@@ -365,11 +419,15 @@ export async function GET(req: Request) {
         id: (a.account_id || a.id || '').replace(/^act_/, ''),
         name: a.name,
         account_status: a.account_status,
+        disable_reason: a.disable_reason,
+        is_owned: true,
       }));
       const client = (b.client_ad_accounts?.data || []).map((a: any) => ({
         id: (a.account_id || a.id || '').replace(/^act_/, ''),
         name: a.name,
         account_status: a.account_status,
+        disable_reason: a.disable_reason,
+        is_owned: false,
       }));
 
       const accMap = new Map();
@@ -380,17 +438,19 @@ export async function GET(req: Request) {
       }
       const linkedAccounts = Array.from(accMap.values());
 
-      let status: 'ACTIVE' | 'RESTRICTED' = 'ACTIVE';
-      const customStatus = existingBizMeta.custom_status || b.custom_status;
-      if (customStatus === 'RESTRICTED' || customStatus === 'ACTIVE') {
-        status = customStatus;
-      } else if (linkedAccounts.length > 0) {
-        const hasActive = linkedAccounts.some((a) => a.account_status === 1);
-        status = hasActive ? 'ACTIVE' : 'RESTRICTED';
-      }
+      const status = computeBusinessStatus({
+        ...b,
+        owned_ad_accounts: owned,
+        client_ad_accounts: client,
+        ad_accounts: linkedAccounts,
+      }, existingBizMeta);
+
+      const customStatus = existingBizMeta.custom_status || (status === 'RESTRICTED' && KNOWN_RESTRICTED_BIZ_IDS.has(b.id) ? 'RESTRICTED' : undefined);
 
       return {
         ...b,
+        owned_ad_accounts: owned,
+        client_ad_accounts: client,
         note: existingBizMeta.note || null,
         note_updated_at: existingBizMeta.note_updated_at || null,
         custom_status: customStatus || null,
@@ -425,7 +485,7 @@ export async function GET(req: Request) {
       })
     );
 
-    // Reverse link: If any enrichedAccount has no business, find it in enrichedBusinesses!
+    // Reverse link & status sync: Ensure ad accounts have accurate business info and status!
     const liveBizByAccMap = new Map();
     for (const b of enrichedBusinesses) {
       for (const item of (b.ad_accounts || [])) {
@@ -441,10 +501,15 @@ export async function GET(req: Request) {
       }
     }
     for (const acc of enrichedAccounts) {
+      const cleanId = String(acc.account_id || acc.id || '').replace(/^act_/, '');
       if (!acc.business || !acc.business.id) {
-        const cleanId = String(acc.account_id || acc.id || '').replace(/^act_/, '');
         if (liveBizByAccMap.has(cleanId)) {
           acc.business = liveBizByAccMap.get(cleanId);
+        }
+      } else {
+        const matchingBiz = enrichedBusinesses.find((b: any) => String(b.id) === String(acc.business.id));
+        if (matchingBiz) {
+          acc.business.status = matchingBiz.status;
         }
       }
     }
