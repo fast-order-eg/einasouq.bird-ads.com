@@ -124,6 +124,30 @@ export async function GET(req: Request) {
           console.error('[Accounts API] Error loading businesses from DB:', bErr);
         }
 
+        // Reverse link: If an adAccount has no business, find it in businesses!
+        const bizByAccMap = new Map();
+        for (const b of businesses) {
+          for (const item of (b.ad_accounts || [])) {
+            const cleanId = String(item.id || item.account_id || '').replace(/^act_/, '');
+            if (cleanId && !bizByAccMap.has(cleanId)) {
+              bizByAccMap.set(cleanId, {
+                id: b.id,
+                name: b.name,
+                verification_status: b.verification_status,
+                status: b.status,
+              });
+            }
+          }
+        }
+        for (const acc of adAccounts) {
+          if (!acc.business || !acc.business.id) {
+            const cleanId = String(acc.account_id || acc.id || '').replace(/^act_/, '');
+            if (bizByAccMap.has(cleanId)) {
+              acc.business = bizByAccMap.get(cleanId);
+            }
+          }
+        }
+
         const activeVisibleAccounts = adAccounts.filter(a => a.account_status === 1 && !a.is_excluded);
         const totalSpent = Math.round(activeVisibleAccounts.reduce((acc, a) => acc + parseFloat(a.amount_spent || '0') / 100, 0));
         const totalAvailableFunds = Math.round(activeVisibleAccounts.reduce((acc, a) => acc + parseFloat(a.available_funds || '0'), 0));
@@ -400,6 +424,30 @@ export async function GET(req: Request) {
         } catch (bErr) {}
       })
     );
+
+    // Reverse link: If any enrichedAccount has no business, find it in enrichedBusinesses!
+    const liveBizByAccMap = new Map();
+    for (const b of enrichedBusinesses) {
+      for (const item of (b.ad_accounts || [])) {
+        const cleanId = String(item.id || item.account_id || '').replace(/^act_/, '');
+        if (cleanId && !liveBizByAccMap.has(cleanId)) {
+          liveBizByAccMap.set(cleanId, {
+            id: b.id,
+            name: b.name,
+            verification_status: b.verification_status,
+            status: b.status,
+          });
+        }
+      }
+    }
+    for (const acc of enrichedAccounts) {
+      if (!acc.business || !acc.business.id) {
+        const cleanId = String(acc.account_id || acc.id || '').replace(/^act_/, '');
+        if (liveBizByAccMap.has(cleanId)) {
+          acc.business = liveBizByAccMap.get(cleanId);
+        }
+      }
+    }
 
     const totalActiveCampaigns = activeVisibleEnriched.reduce((acc, a) => acc + (a.active_campaigns_count || 0), 0);
 

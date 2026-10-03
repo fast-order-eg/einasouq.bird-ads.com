@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
+  X,
   Eye,
   DollarSign,
   Layers,
@@ -1163,6 +1164,22 @@ export default function AdAccountsPage() {
     return map;
   }, [businesses]);
 
+  // Account -> Business reverse map (links any account listed under a business's ad_accounts)
+  const accountToBusinessMap = useMemo(() => {
+    const map = new Map<string, any>();
+    businesses.forEach((b) => {
+      if (Array.isArray(b.ad_accounts)) {
+        b.ad_accounts.forEach((acc: any) => {
+          const cleanId = String(acc.id || acc.account_id || '').replace(/^act_/, '').trim();
+          if (cleanId) {
+            map.set(cleanId, b);
+          }
+        });
+      }
+    });
+    return map;
+  }, [businesses]);
+
   // Filter Businesses
   const filteredBusinesses = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
@@ -1484,10 +1501,6 @@ export default function AdAccountsPage() {
             {liveTotalActiveCampaigns.toLocaleString('en-US')}
             <span className="text-xs font-normal text-slate-400 mr-1.5">حملة فعلية</span>
           </p>
-          <p className="text-[11px] text-emerald-400/90 font-semibold flex items-center gap-1">
-            <PlayCircle className="w-3 h-3" />
-            تعمل وتقوم بالعرض حالياً (بدون المتوقف مؤقتاً)
-          </p>
         </div>
 
         {/* 2. Total Available Funds */}
@@ -1500,7 +1513,6 @@ export default function AdAccountsPage() {
             {liveTotalAvailableFunds.toLocaleString('en-US', { maximumFractionDigits: 0 })}
             <span className="text-xs font-normal text-slate-400 mr-1.5">ج.م</span>
           </p>
-          <p className="text-[11px] text-indigo-400/80 font-semibold">للحسابات النشطة الظاهرة فقط (بدون المستبعد أو المقيد)</p>
         </div>
 
         {/* 3. Total Active Approved Accounts */}
@@ -1510,7 +1522,6 @@ export default function AdAccountsPage() {
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
           </div>
           <p className="text-2xl font-black text-white">{activeApprovedAccounts.length}</p>
-          <p className="text-[11px] text-emerald-400 font-semibold">مشمولة في المزامنة اليومية</p>
         </div>
 
         {/* 4. Excluded / Restricted Accounts */}
@@ -1520,7 +1531,6 @@ export default function AdAccountsPage() {
             <Ban className="w-4 h-4 text-rose-400" />
           </div>
           <p className="text-2xl font-black text-rose-400">{excludedAccountsList.length}</p>
-          <p className="text-[11px] text-rose-400/80 font-semibold">مستبعدة لتسريع الأداء وحماية الليمت</p>
         </div>
       </div>
 
@@ -1574,8 +1584,18 @@ export default function AdAccountsPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={activeTab === 'BUSINESSES' ? 'ابحث باسم البيزنس، رقم الـ ID، الملاحظات، أو الحسابات التابعة...' : 'ابحث بالاسم، رقم الـ ID، الملاحظات، أو العملة...'}
-              className="w-full pl-4 pr-10 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500/80 transition-all"
+              className="w-full pl-9 pr-10 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500/80 transition-all"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                title="مسح البحث"
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -1736,8 +1756,9 @@ export default function AdAccountsPage() {
 
                     {/* Business Manager Info & Status */}
                     {(() => {
-                      const biz = a.business?.id ? (businessMap.get(String(a.business.id)) || a.business) : a.business;
-                      const hasBiz = Boolean(biz?.id || biz?.name);
+                      const linkedFromBiz = accountToBusinessMap.get(pureId);
+                      const biz = linkedFromBiz || (a.business?.id ? (businessMap.get(String(a.business.id)) || a.business) : a.business);
+                      const hasBiz = Boolean(biz && (biz.id || biz.name));
                       const isRestricted = biz?.status === 'RESTRICTED';
 
                       return (
@@ -1870,15 +1891,12 @@ export default function AdAccountsPage() {
                   {/* Top Status & Verification Header */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5">
-                      {/* Active / Restricted Status Button with Quick Toggle */}
-                      <button
-                        onClick={(e) => handleToggleBusinessStatus(b, e)}
-                        disabled={togglingBizId === String(b.id)}
-                        title={isRestricted ? 'انقر للتبديل إلى نشط' : 'انقر للتبديل إلى مقيد'}
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all cursor-pointer shadow-sm ${
+                      {/* Active / Restricted Status Badge (Read-Only) */}
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-sm ${
                           isRestricted
-                            ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400'
-                            : 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
+                            ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                            : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                         }`}
                       >
                         {isRestricted ? (
@@ -1892,10 +1910,7 @@ export default function AdAccountsPage() {
                             <span>نشط ✅</span>
                           </>
                         )}
-                        <span className="text-[9px] text-slate-400 font-normal mr-0.5">
-                          {togglingBizId === String(b.id) ? '...' : 'تغيير'}
-                        </span>
-                      </button>
+                      </span>
 
                       {/* Verification Status */}
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
