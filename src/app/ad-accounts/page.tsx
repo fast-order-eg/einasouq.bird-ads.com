@@ -234,7 +234,7 @@ export default function AdAccountsPage() {
           setAccountsLastUpdated(data.lastUpdated);
         }
         try {
-          localStorage.setItem('adscope_cached_ad_accounts_v2', JSON.stringify(data));
+          localStorage.setItem('adscope_cached_ad_accounts_v3', JSON.stringify(data));
         } catch (e) {}
         if (forceRefresh) {
           setSyncFeedback({ type: 'success', message: `تم تحديث بيانات ${data.adAccounts?.length || 0} حساب إعلاني بنجاح!` });
@@ -277,7 +277,7 @@ export default function AdAccountsPage() {
 
     // 2. Instant 0ms render from localStorage cache
     try {
-      const cached = localStorage.getItem('adscope_cached_ad_accounts_v2');
+      const cached = localStorage.getItem('adscope_cached_ad_accounts_v3');
       if (cached) {
         const parsed = JSON.parse(cached);
         if (parsed.adAccounts && parsed.adAccounts.length > 0) {
@@ -384,7 +384,7 @@ export default function AdAccountsPage() {
         String(b.id) === bizId ? { ...b, status: newStatus, custom_status: newStatus } : b
       );
       try {
-        localStorage.setItem('adscope_cached_ad_accounts_v2', JSON.stringify(globalAdAccountsCache));
+        localStorage.setItem('adscope_cached_ad_accounts_v3', JSON.stringify(globalAdAccountsCache));
       } catch (err) {}
     }
 
@@ -487,11 +487,11 @@ export default function AdAccountsPage() {
             globalAdAccountsCache.adAccounts = updated;
           }
           try {
-            const cached = localStorage.getItem('adscope_cached_ad_accounts_v2');
+            const cached = localStorage.getItem('adscope_cached_ad_accounts_v3');
             if (cached) {
               const parsed = JSON.parse(cached);
               parsed.adAccounts = updated;
-              localStorage.setItem('adscope_cached_ad_accounts_v2', JSON.stringify(parsed));
+              localStorage.setItem('adscope_cached_ad_accounts_v3', JSON.stringify(parsed));
             }
           } catch (e) {}
           return updated;
@@ -1091,7 +1091,7 @@ export default function AdAccountsPage() {
 
         try {
           if (globalAdAccountsCache) {
-            localStorage.setItem('adscope_cached_ad_accounts_v2', JSON.stringify(globalAdAccountsCache));
+            localStorage.setItem('adscope_cached_ad_accounts_v3', JSON.stringify(globalAdAccountsCache));
           }
         } catch (err) {}
 

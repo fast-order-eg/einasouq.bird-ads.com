@@ -87,6 +87,53 @@ export async function GET(req: Request) {
   try {
     // 1. Fetch from Database first if not refreshing
     if (!refresh) {
+      let businesses: any[] = [];
+      const businessByIdMap = new Map<string, any>();
+      const accountToBizMap = new Map<string, any>();
+
+      try {
+        const savedBusinesses = await prisma.metaAsset.findMany({
+          where: { assetType: 'BUSINESS' },
+          orderBy: { name: 'asc' },
+        });
+
+        if (savedBusinesses && savedBusinesses.length > 0) {
+          businesses = savedBusinesses.map((b) => {
+            let meta: any = {};
+            try { meta = JSON.parse(b.metadataJson || '{}'); } catch(e) {}
+            const adAccountsList = meta.ad_accounts || [];
+            const status = computeBusinessStatus({ id: b.externalId, ...meta, ad_accounts: adAccountsList }, meta);
+
+            const bizObj = {
+              id: b.externalId,
+              name: b.name,
+              note: meta.note || null,
+              note_updated_at: meta.note_updated_at || null,
+              custom_status: meta.custom_status || status,
+              ...meta,
+              status,
+              ad_accounts: adAccountsList,
+              ad_accounts_count: adAccountsList.length,
+            };
+
+            businessByIdMap.set(String(b.externalId), bizObj);
+
+            if (Array.isArray(adAccountsList)) {
+              for (const acc of adAccountsList) {
+                const cleanId = String(acc.id || acc.account_id || '').replace(/^act_/, '').trim();
+                if (cleanId) accountToBizMap.set(cleanId, bizObj);
+              }
+            }
+
+            return bizObj;
+          });
+        } else {
+          businesses = await metaClient.getBusinesses();
+        }
+      } catch (bErr) {
+        console.error('[Accounts API] Error loading businesses from DB:', bErr);
+      }
+
       const savedAccounts = await prisma.metaAsset.findMany({
         where: { assetType: 'AD_ACCOUNT' },
         orderBy: { updatedAt: 'desc' },
@@ -112,10 +159,20 @@ export async function GET(req: Request) {
           }
 
           const roundedFunds = Math.round(parseFloat(meta.available_funds || '0')).toString();
+          const cleanAccId = a.externalId.replace(/^act_/, '');
+
+          // Resolve accurate business object and its latest status
+          const resolvedBiz = accountToBizMap.get(cleanAccId) || (meta.business?.id ? businessByIdMap.get(String(meta.business.id)) : null) || meta.business || null;
+          const businessPayload = resolvedBiz ? {
+            id: resolvedBiz.id || resolvedBiz.externalId,
+            name: resolvedBiz.name,
+            status: resolvedBiz.status || 'ACTIVE',
+            verification_status: resolvedBiz.verification_status || 'not_verified'
+          } : null;
 
           return {
             id: a.externalId,
-            account_id: a.externalId.replace(/^act_/, ''),
+            account_id: cleanAccId,
             name: a.name,
             account_status: accountStatus,
             currency: meta.currency || 'EGP',
@@ -127,7 +184,7 @@ export async function GET(req: Request) {
             note_updated_at: meta.note_updated_at || null,
             is_excluded: isExcluded,
             campaign_analyses_count: meta.campaign_analyses ? Object.keys(meta.campaign_analyses).length : 0,
-            business: meta.business || null,
+            business: businessPayload,
           };
         });
 
@@ -146,52 +203,6 @@ export async function GET(req: Request) {
           if (fundsB !== fundsA) return fundsB - fundsA;
           return parseFloat(b.amount_spent || '0') - parseFloat(a.amount_spent || '0');
         });
-
-        let businesses: any[] = [];
-        try {
-          const savedBusinesses = await prisma.metaAsset.findMany({
-            where: { assetType: 'BUSINESS' },
-            orderBy: { name: 'asc' },
-          });
-          if (savedBusinesses && savedBusinesses.length > 0) {
-            businesses = savedBusinesses.map((b) => {
-              let meta: any = {};
-              try { meta = JSON.parse(b.metadataJson || '{}'); } catch(e) {}
-
-              // Fallback to link from adAccounts if not already in meta.ad_accounts
-              let adAccountsList = meta.ad_accounts || [];
-              if (!adAccountsList || adAccountsList.length === 0) {
-                adAccountsList = adAccounts
-                  .filter((a) => a.business?.id === b.externalId)
-                  .map((a) => ({
-                    id: a.account_id || a.id,
-                    name: a.name,
-                    account_status: a.account_status,
-                    amount_spent: a.amount_spent,
-                    available_funds: a.available_funds,
-                  }));
-              }
-
-              const status = computeBusinessStatus({ id: b.externalId, ...meta, ad_accounts: adAccountsList }, meta);
-
-              return {
-                id: b.externalId,
-                name: b.name,
-                note: meta.note || null,
-                note_updated_at: meta.note_updated_at || null,
-                custom_status: meta.custom_status || null,
-                ...meta,
-                status,
-                ad_accounts: adAccountsList,
-                ad_accounts_count: adAccountsList.length,
-              };
-            });
-          } else {
-            businesses = await metaClient.getBusinesses();
-          }
-        } catch (bErr) {
-          console.error('[Accounts API] Error loading businesses from DB:', bErr);
-        }
 
         // Reverse link & status sync: Ensure ad accounts have accurate business info and status!
         const bizByAccMap = new Map();
@@ -214,10 +225,14 @@ export async function GET(req: Request) {
             if (bizByAccMap.has(cleanId)) {
               acc.business = bizByAccMap.get(cleanId);
             }
-          } else {
-            const matchingBiz = businesses.find((b: any) => String(b.id) === String(acc.business.id));
+          } else if (acc.business && acc.business.id) {
+            const bizIdToMatch = String(acc.business.id);
+            const matchingBiz = businesses.find((b: any) => String(b.id) === bizIdToMatch);
             if (matchingBiz) {
-              acc.business.status = matchingBiz.status;
+              acc.business = {
+                ...acc.business,
+                status: matchingBiz.status,
+              };
             }
           }
         }
