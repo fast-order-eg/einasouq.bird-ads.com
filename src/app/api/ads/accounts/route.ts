@@ -6,6 +6,9 @@ const KNOWN_RESTRICTED_BIZ_IDS = new Set([
   '1161649586027995', // 2 2 - تم تقييد الحساب
   '105312565251932',  // 3selsawy - الأصول مقيدة
   '1244428047671482', // 1 1 - الأصول مقيدة خلال آخر 30 من الأيام
+  '108827912174962',  // As1 - تم تقييد الحساب
+  '1049758890177099', // Agency sword - الأصول مقيدة
+  '1629213197444348', // bea_utyflow - الأصول مقيدة
 ]);
 
 function computeBusinessStatus(b: any, existingMeta: any = {}): 'ACTIVE' | 'RESTRICTED' {
@@ -20,35 +23,27 @@ function computeBusinessStatus(b: any, existingMeta: any = {}): 'ACTIVE' | 'REST
     return 'RESTRICTED';
   }
 
-  // 3. Inspect owned ad accounts
+  // 3. Inspect all associated ad accounts (both owned and client):
   const owned = b.owned_ad_accounts?.data || b.owned_ad_accounts || existingMeta?.owned_ad_accounts || [];
-  const ownedList = Array.isArray(owned) ? owned : [];
+  const client = b.client_ad_accounts?.data || b.client_ad_accounts || existingMeta?.client_ad_accounts || [];
+  const linked = b.ad_accounts || existingMeta?.ad_accounts || [];
+  const allAccounts = [
+    ...(Array.isArray(owned) ? owned : []),
+    ...(Array.isArray(client) ? client : []),
+    ...(Array.isArray(linked) ? linked : []),
+  ];
 
-  if (ownedList.length > 0) {
-    const hasViolation = ownedList.some((a: any) => a.account_status === 2 || (a.disable_reason && a.disable_reason > 0));
-    const hasActiveOwned = ownedList.some((a: any) => a.account_status === 1);
-
-    if (hasViolation && !hasActiveOwned) {
-      return 'RESTRICTED';
-    }
-    if (hasActiveOwned) {
-      return 'ACTIVE';
-    }
-    // If all owned accounts are disabled / closed
+  // If ANY account has a policy violation / is disabled (account_status === 2 or disable_reason > 0):
+  const hasViolation = allAccounts.some(
+    (a: any) => a.account_status === 2 || (a.disable_reason && a.disable_reason > 0)
+  );
+  if (hasViolation) {
     return 'RESTRICTED';
   }
 
-  // 4. If only client accounts, check if all are disabled
-  const client = b.client_ad_accounts?.data || b.client_ad_accounts || existingMeta?.client_ad_accounts || [];
-  const clientList = Array.isArray(client) ? client : [];
-  const linked = b.ad_accounts || existingMeta?.ad_accounts || [];
-  const allAccounts = linked.length > 0 ? linked : clientList;
-
-  if (allAccounts.length > 0) {
-    const hasAnyActive = allAccounts.some((a: any) => a.account_status === 1);
-    if (!hasAnyActive) {
-      return 'RESTRICTED';
-    }
+  // 4. If all accounts are non-active (e.g. all closed or unsettled):
+  if (allAccounts.length > 0 && allAccounts.every((a: any) => a.account_status !== 1)) {
+    return 'RESTRICTED';
   }
 
   // 5. Preserved status if was restricted
