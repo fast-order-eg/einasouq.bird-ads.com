@@ -50,6 +50,7 @@ export async function GET(req: Request) {
             note_updated_at: meta.note_updated_at || null,
             is_excluded: isExcluded,
             campaign_analyses_count: meta.campaign_analyses ? Object.keys(meta.campaign_analyses).length : 0,
+            business: meta.business || null,
           };
         });
 
@@ -79,10 +80,41 @@ export async function GET(req: Request) {
             businesses = savedBusinesses.map((b) => {
               let meta: any = {};
               try { meta = JSON.parse(b.metadataJson || '{}'); } catch(e) {}
+
+              // Fallback to link from adAccounts if not already in meta.ad_accounts
+              let adAccountsList = meta.ad_accounts || [];
+              if (!adAccountsList || adAccountsList.length === 0) {
+                adAccountsList = adAccounts
+                  .filter((a) => a.business?.id === b.externalId)
+                  .map((a) => ({
+                    id: a.account_id || a.id,
+                    name: a.name,
+                    account_status: a.account_status,
+                    amount_spent: a.amount_spent,
+                    available_funds: a.available_funds,
+                  }));
+              }
+
+              let status: 'ACTIVE' | 'RESTRICTED' = 'ACTIVE';
+              if (meta.custom_status === 'RESTRICTED' || meta.custom_status === 'ACTIVE') {
+                status = meta.custom_status;
+              } else if (adAccountsList.length > 0) {
+                const hasActive = adAccountsList.some((a: any) => a.account_status === 1);
+                status = hasActive ? 'ACTIVE' : 'RESTRICTED';
+              } else if (meta.status === 'RESTRICTED' || meta.status === 'ACTIVE') {
+                status = meta.status;
+              }
+
               return {
                 id: b.externalId,
                 name: b.name,
+                note: meta.note || null,
+                note_updated_at: meta.note_updated_at || null,
+                custom_status: meta.custom_status || null,
                 ...meta,
+                status,
+                ad_accounts: adAccountsList,
+                ad_accounts_count: adAccountsList.length,
               };
             });
           } else {
@@ -206,6 +238,7 @@ export async function GET(req: Request) {
         note_updated_at: existingNoteDate,
         is_excluded: isExcluded,
         campaign_analyses: campaignAnalyses,
+        business: a.business || existingParsedMeta.business || null,
       };
 
       enrichedAccounts.push({
@@ -218,6 +251,7 @@ export async function GET(req: Request) {
         note_updated_at: existingNoteDate,
         is_excluded: isExcluded,
         campaign_analyses_count: campaignAnalyses ? Object.keys(campaignAnalyses).length : 0,
+        business: a.business || existingParsedMeta.business || null,
         _formattedExternalId: formattedExternalId,
         _metaPayload: metaPayload,
       });
@@ -280,9 +314,71 @@ export async function GET(req: Request) {
     const totalSpent = Math.round(activeVisibleEnriched.reduce((acc, a) => acc + parseFloat(a.amount_spent || '0') / 100, 0));
     const totalAvailableFunds = Math.round(activeVisibleEnriched.reduce((acc, a) => acc + parseFloat(a.available_funds || '0'), 0));
 
+    // Enrich businesses with accounts, notes, and status
+    const existingBizAssets = await prisma.metaAsset.findMany({
+      where: { assetType: 'BUSINESS' },
+    });
+    const bizAssetMap = new Map(existingBizAssets.map((asset) => [asset.externalId, asset]));
+
+    const enrichedBusinesses = businesses.map((b) => {
+      const existingBizAsset = bizAssetMap.get(b.id);
+      let existingBizMeta: any = {};
+      if (existingBizAsset?.metadataJson) {
+        try { existingBizMeta = JSON.parse(existingBizAsset.metadataJson); } catch (e) {}
+      }
+
+      const matchedFromAccounts = enrichedAccounts
+        .filter((a) => a.business?.id === b.id)
+        .map((a) => ({
+          id: a.account_id || a.id,
+          name: a.name,
+          account_status: a.account_status,
+          amount_spent: a.amount_spent,
+          available_funds: a.available_funds,
+        }));
+
+      const owned = (b.owned_ad_accounts?.data || []).map((a: any) => ({
+        id: (a.account_id || a.id || '').replace(/^act_/, ''),
+        name: a.name,
+        account_status: a.account_status,
+      }));
+      const client = (b.client_ad_accounts?.data || []).map((a: any) => ({
+        id: (a.account_id || a.id || '').replace(/^act_/, ''),
+        name: a.name,
+        account_status: a.account_status,
+      }));
+
+      const accMap = new Map();
+      for (const item of [...matchedFromAccounts, ...owned, ...client]) {
+        if (item.id && !accMap.has(item.id)) {
+          accMap.set(item.id, item);
+        }
+      }
+      const linkedAccounts = Array.from(accMap.values());
+
+      let status: 'ACTIVE' | 'RESTRICTED' = 'ACTIVE';
+      const customStatus = existingBizMeta.custom_status || b.custom_status;
+      if (customStatus === 'RESTRICTED' || customStatus === 'ACTIVE') {
+        status = customStatus;
+      } else if (linkedAccounts.length > 0) {
+        const hasActive = linkedAccounts.some((a) => a.account_status === 1);
+        status = hasActive ? 'ACTIVE' : 'RESTRICTED';
+      }
+
+      return {
+        ...b,
+        note: existingBizMeta.note || null,
+        note_updated_at: existingBizMeta.note_updated_at || null,
+        custom_status: customStatus || null,
+        status,
+        ad_accounts: linkedAccounts,
+        ad_accounts_count: linkedAccounts.length,
+      };
+    });
+
     // Parallel persist businesses to DB
     await Promise.all(
-      businesses.map(async (b) => {
+      enrichedBusinesses.map(async (b) => {
         try {
           await prisma.metaAsset.upsert({
             where: { externalId: b.id },
@@ -314,7 +410,7 @@ export async function GET(req: Request) {
       fromDb: false,
       lastUpdated,
       adAccounts: enrichedAccounts,
-      businesses,
+      businesses: enrichedBusinesses,
       summary: {
         totalAccounts: enrichedAccounts.length,
         activeAccounts: enrichedAccounts.filter(a => a.account_status === 1 && !a.is_excluded).length,

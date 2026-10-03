@@ -93,6 +93,7 @@ export default function AdAccountsPage() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [galleryModal, setGalleryModal] = useState<{ images: string[]; activeIndex: number; title: string } | null>(null);
   const [downloadingZip, setDownloadingZip] = useState(false);
+  const [togglingBizId, setTogglingBizId] = useState<string | null>(null);
 
   const handleDownloadAllImages = async (urls: string[], name: string) => {
     if (!urls || urls.length === 0) return;
@@ -356,6 +357,66 @@ export default function AdAccountsPage() {
       });
     } catch (err) {
       console.error('Toggle exclusion error:', err);
+    }
+  };
+
+  // Toggle Business Status (ACTIVE / RESTRICTED)
+  const handleToggleBusinessStatus = async (biz: any, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const currentStatus = biz.status || 'ACTIVE';
+    const newStatus: 'ACTIVE' | 'RESTRICTED' = currentStatus === 'ACTIVE' ? 'RESTRICTED' : 'ACTIVE';
+    const bizId = String(biz.id);
+
+    setTogglingBizId(bizId);
+
+    // Optimistic UI update
+    setBusinesses((prev) =>
+      prev.map((b) =>
+        String(b.id) === bizId
+          ? { ...b, status: newStatus, custom_status: newStatus }
+          : b
+      )
+    );
+
+    if (globalAdAccountsCache?.businesses) {
+      globalAdAccountsCache.businesses = globalAdAccountsCache.businesses.map((b: any) =>
+        String(b.id) === bizId ? { ...b, status: newStatus, custom_status: newStatus } : b
+      );
+      try {
+        localStorage.setItem('adscope_cached_ad_accounts_v2', JSON.stringify(globalAdAccountsCache));
+      } catch (err) {}
+    }
+
+    try {
+      const res = await fetch('/api/ads/toggle-business-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId: bizId, status: newStatus }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        // Revert on error
+        setBusinesses((prev) =>
+          prev.map((b) =>
+            String(b.id) === bizId
+              ? { ...b, status: currentStatus, custom_status: biz.custom_status }
+              : b
+          )
+        );
+        alert(data.error || 'تعذر تحديث حالة مدير الأعمال');
+      }
+    } catch (err: any) {
+      // Revert on error
+      setBusinesses((prev) =>
+        prev.map((b) =>
+          String(b.id) === bizId
+            ? { ...b, status: currentStatus, custom_status: biz.custom_status }
+            : b
+        )
+      );
+      alert('خطأ في الاتصال أثناء تحديث حالة البيزنس');
+    } finally {
+      setTogglingBizId(null);
     }
   };
 
@@ -992,25 +1053,47 @@ export default function AdAccountsPage() {
     setSavingNote(true);
     setNoteFeedback(null);
 
+    const targetId = String(noteModalAccount.account_id || noteModalAccount.id);
+
     try {
       const res = await fetch('/api/ads/account-note', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          accountId: noteModalAccount.account_id || noteModalAccount.id,
+          accountId: targetId,
           note: noteText,
         }),
       });
       const data = await res.json();
       if (data.success) {
         setNoteFeedback('تم حفظ الملاحظة بنجاح في قاعدة البيانات ✅');
-        setAdAccounts((prev) =>
-          prev.map((a) =>
-            (a.account_id === noteModalAccount.account_id || a.id === noteModalAccount.id)
+
+        setAdAccounts((prev) => {
+          const updated = prev.map((a) =>
+            (String(a.account_id) === targetId || String(a.id) === targetId || String(a.id).replace(/^act_/, '') === targetId)
               ? { ...a, note: data.note, note_updated_at: data.updatedAt }
               : a
-          )
-        );
+          );
+          if (globalAdAccountsCache) globalAdAccountsCache.adAccounts = updated;
+          return updated;
+        });
+
+        setBusinesses((prev) => {
+          const updated = prev.map((b) =>
+            (String(b.id) === targetId)
+              ? { ...b, note: data.note, note_updated_at: data.updatedAt }
+              : b
+          );
+          if (globalAdAccountsCache) globalAdAccountsCache.businesses = updated;
+          return updated;
+        });
+
+        try {
+          if (globalAdAccountsCache) {
+            localStorage.setItem('adscope_cached_ad_accounts_v2', JSON.stringify(globalAdAccountsCache));
+          }
+        } catch (err) {}
+
         setTimeout(() => {
           setNoteModalAccount(null);
           setNoteFeedback(null);
@@ -1071,13 +1154,27 @@ export default function AdAccountsPage() {
     );
   }, [visibleActiveAccountsForTotals]);
 
+  // Business Map for instant O(1) lookup
+  const businessMap = useMemo(() => {
+    const map = new Map<string, any>();
+    businesses.forEach((b) => {
+      if (b.id) map.set(String(b.id), b);
+    });
+    return map;
+  }, [businesses]);
+
   // Filter Businesses
   const filteredBusinesses = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return businesses;
     return businesses.filter((b) => {
-      return (
-        (b.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (b.id || '').includes(searchQuery)
+      const matchName = (b.name || '').toLowerCase().includes(q);
+      const matchId = String(b.id || '').includes(q);
+      const matchNote = (b.note || '').toLowerCase().includes(q);
+      const matchChild = Array.isArray(b.ad_accounts) && b.ad_accounts.some((acc: any) =>
+        (acc.name || '').toLowerCase().includes(q) || String(acc.id || acc.account_id || '').includes(q)
       );
+      return matchName || matchId || matchNote || matchChild;
     });
   }, [businesses, searchQuery]);
 
@@ -1476,11 +1573,32 @@ export default function AdAccountsPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ابحث بالاسم، رقم الـ ID، الملاحظات، أو العملة..."
+              placeholder={activeTab === 'BUSINESSES' ? 'ابحث باسم البيزنس، رقم الـ ID، الملاحظات، أو الحسابات التابعة...' : 'ابحث بالاسم، رقم الـ ID، الملاحظات، أو العملة...'}
               className="w-full pl-4 pr-10 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500/80 transition-all"
             />
           </div>
         </div>
+
+        {/* Sub-bar for Businesses */}
+        {activeTab === 'BUSINESSES' && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/60 text-xs">
+            <span className="text-slate-500 font-medium ml-1">ملخص مديري الأعمال:</span>
+            <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-bold">
+              الإجمالي: {businesses.length}
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" />
+              نشط: {businesses.filter(b => b.status === 'ACTIVE').length}
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold flex items-center gap-1">
+              <XCircle className="w-3 h-3" />
+              مقيد: {businesses.filter(b => b.status === 'RESTRICTED').length}
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-300 font-bold">
+              إجمالي الحسابات المربوطة: {businesses.reduce((acc, b) => acc + (b.ad_accounts?.length || 0), 0)}
+            </span>
+          </div>
+        )}
 
         {/* Sub-filters for Ad Accounts */}
         {(activeTab === 'AD_ACCOUNTS' || activeTab === 'EXCLUDED') && (
@@ -1616,6 +1734,49 @@ export default function AdAccountsPage() {
                       </div>
                     </div>
 
+                    {/* Business Manager Info & Status */}
+                    {(() => {
+                      const biz = a.business?.id ? (businessMap.get(String(a.business.id)) || a.business) : a.business;
+                      const hasBiz = Boolean(biz?.id || biz?.name);
+                      const isRestricted = biz?.status === 'RESTRICTED';
+
+                      return (
+                        <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/70 border border-slate-800/70 text-xs">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            <Building2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                            <span className="text-[11px] text-slate-500 font-sans shrink-0">مدير الأعمال:</span>
+                            <span className="font-bold text-slate-200 truncate text-[11px]" title={hasBiz ? (biz.name || biz.id) : 'حساب شخصي'}>
+                              {hasBiz ? (biz.name || `بيزنس #${biz.id}`) : 'حساب شخصي'}
+                            </span>
+                          </div>
+
+                          {hasBiz ? (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
+                              isRestricted
+                                ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                            }`}>
+                              {isRestricted ? (
+                                <>
+                                  <XCircle className="w-3 h-3 text-rose-400" />
+                                  <span>مقيد 🚫</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                  <span>نشط ✅</span>
+                                </>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800/80 border border-slate-700/80 text-slate-400 shrink-0">
+                              شخصي 👤
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                     {/* Interactive Note Box */}
                     <div
                       onClick={() => handleOpenNoteModal(a)}
@@ -1693,60 +1854,204 @@ export default function AdAccountsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredBusinesses.map((b) => (
-              <div
-                key={b.id}
-                className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 space-y-3 shadow-sm"
-              >
-                <div className="flex items-center justify-between">
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
-                    b.verification_status === 'verified'
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                      : 'bg-slate-800 border-slate-700 text-slate-400'
-                  }`}>
-                    {b.verification_status === 'verified' ? 'موثق رسمياً' : 'غير موثق'}
-                  </span>
-                  <span className="text-[10px] text-slate-500 font-mono">Business Portfolio</span>
-                </div>
+            {filteredBusinesses.map((b) => {
+              const isRestricted = b.status === 'RESTRICTED';
+              const firstLineBizNote = b.note ? b.note.split('\n')[0].trim() : '';
 
-                <div>
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-black text-slate-100 text-base line-clamp-1">{b.name}</h3>
-                    <button
-                      onClick={() => copyToClipboard(b.name, `biz-name-${b.id}`)}
-                      title="نسخ اسم مدير الأعمال"
-                      className="text-slate-500 hover:text-indigo-400 p-1 cursor-pointer"
-                    >
-                      {copiedId === `biz-name-${b.id}` ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between mt-1.5 p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 font-mono">
+              return (
+                <div
+                  key={b.id}
+                  className={`p-5 rounded-2xl border space-y-3.5 shadow-sm transition-all ${
+                    isRestricted
+                      ? 'bg-slate-950/80 border-rose-500/20'
+                      : 'bg-slate-900/90 border-slate-800/80 hover:border-slate-700/80'
+                  }`}
+                >
+                  {/* Top Status & Verification Header */}
+                  <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] text-slate-500 font-sans">معرف البيزنس (ID):</span>
-                      <span className="text-xs font-bold text-purple-300">{b.id}</span>
+                      {/* Active / Restricted Status Button with Quick Toggle */}
+                      <button
+                        onClick={(e) => handleToggleBusinessStatus(b, e)}
+                        disabled={togglingBizId === String(b.id)}
+                        title={isRestricted ? 'انقر للتبديل إلى نشط' : 'انقر للتبديل إلى مقيد'}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all cursor-pointer shadow-sm ${
+                          isRestricted
+                            ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400'
+                            : 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
+                        }`}
+                      >
+                        {isRestricted ? (
+                          <>
+                            <XCircle className="w-3.5 h-3.5 text-rose-400" />
+                            <span>مقيد 🚫</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>نشط ✅</span>
+                          </>
+                        )}
+                        <span className="text-[9px] text-slate-400 font-normal mr-0.5">
+                          {togglingBizId === String(b.id) ? '...' : 'تغيير'}
+                        </span>
+                      </button>
+
+                      {/* Verification Status */}
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        b.verification_status === 'verified'
+                          ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400'
+                          : 'bg-slate-800/80 border-slate-700/80 text-slate-400'
+                      }`}>
+                        {b.verification_status === 'verified' ? 'موثق' : 'غير موثق'}
+                      </span>
                     </div>
-                    <button
-                      onClick={() => copyToClipboard(b.id, `biz-id-${b.id}`)}
-                      title="نسخ معرف مدير الأعمال"
-                      className="text-slate-400 hover:text-indigo-400 p-0.5 flex items-center gap-1 text-[10px] cursor-pointer"
-                    >
-                      {copiedId === `biz-id-${b.id}` ? (
-                        <>
-                          <Check className="w-3 h-3 text-emerald-400" />
-                          <span className="text-emerald-400 font-sans">تم</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3 h-3" />
-                          <span className="font-sans">نسخ</span>
-                        </>
-                      )}
-                    </button>
+
+                    <span className="text-[10px] text-slate-500 font-mono">Business Portfolio</span>
+                  </div>
+
+                  {/* Business Name + Copy */}
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-black text-slate-100 text-base line-clamp-1" title={b.name}>
+                        {b.name}
+                      </h3>
+                      <button
+                        onClick={() => copyToClipboard(b.name, `biz-name-${b.id}`)}
+                        title="نسخ اسم مدير الأعمال"
+                        className="text-slate-500 hover:text-indigo-400 p-1 cursor-pointer"
+                      >
+                        {copiedId === `biz-name-${b.id}` ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+
+                    {/* Business ID + Copy */}
+                    <div className="flex items-center justify-between mt-1.5 p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 font-mono">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] text-slate-500 font-sans">معرف البيزنس (ID):</span>
+                        <span className="text-xs font-bold text-purple-300">{b.id}</span>
+                      </div>
+                      <button
+                        onClick={() => copyToClipboard(b.id, `biz-id-${b.id}`)}
+                        title="نسخ معرف مدير الأعمال"
+                        className="text-slate-400 hover:text-indigo-400 p-0.5 flex items-center gap-1 text-[10px] cursor-pointer"
+                      >
+                        {copiedId === `biz-id-${b.id}` ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-400" />
+                            <span className="text-emerald-400 font-sans">تم</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span className="font-sans">نسخ</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Interactive Note Box for Business */}
+                  <div
+                    onClick={() => handleOpenNoteModal(b)}
+                    className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                      firstLineBizNote
+                        ? 'bg-amber-500/10 border-amber-500/30 hover:border-amber-500/60 text-amber-200'
+                        : 'bg-slate-950/60 border-dashed border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 overflow-hidden flex-1">
+                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${firstLineBizNote ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-800 text-slate-400'}`}>
+                        <StickyNote className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-xs font-medium truncate">
+                        {firstLineBizNote ? firstLineBizNote : 'اضغط لإضافة ملاحظة لمدير الأعمال...'}
+                      </span>
+                    </div>
+                    <Edit3 className="w-3.5 h-3.5 shrink-0 opacity-60 hover:opacity-100" />
+                  </div>
+
+                  {/* Linked Ad Accounts List */}
+                  <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-300 flex items-center gap-1.5">
+                        <CreditCard className="w-3.5 h-3.5 text-indigo-400" />
+                        الحسابات الإعلانية التابعة
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[11px] font-bold">
+                        {b.ad_accounts?.length || 0} حساب
+                      </span>
+                    </div>
+
+                    {(!b.ad_accounts || b.ad_accounts.length === 0) ? (
+                      <div className="p-2.5 rounded-xl bg-slate-950/50 border border-slate-800/60 text-center text-slate-500 text-xs">
+                        لا توجد حسابات إعلانية تابعة مسجلة حالياً
+                      </div>
+                    ) : (
+                      <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1 divide-y divide-slate-800/40">
+                        {b.ad_accounts.map((acc: any) => {
+                          const cleanAccId = String(acc.id || acc.account_id || '').replace(/^act_/, '');
+                          const isAccActive = acc.account_status === 1;
+                          const fullAccountObj = adAccounts.find(
+                            (x) => String(x.account_id) === cleanAccId || String(x.id).replace(/^act_/, '') === cleanAccId
+                          );
+
+                          return (
+                            <div
+                              key={cleanAccId}
+                              className="pt-1.5 first:pt-0 p-2 rounded-xl bg-slate-950/70 border border-slate-800/70 hover:border-slate-700/80 transition-all flex items-center justify-between gap-2"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`w-2 h-2 rounded-full shrink-0 ${isAccActive ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                                  <span className="text-xs font-bold text-slate-200 truncate" title={acc.name}>
+                                    {acc.name || `حساب #${cleanAccId}`}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400 font-mono">
+                                  <span>ID: {cleanAccId}</span>
+                                  <button
+                                    onClick={() => copyToClipboard(cleanAccId, `biz-acc-${cleanAccId}`)}
+                                    title="نسخ رقم الحساب"
+                                    className="text-slate-500 hover:text-indigo-400 cursor-pointer"
+                                  >
+                                    {copiedId === `biz-acc-${cleanAccId}` ? (
+                                      <Check className="w-3 h-3 text-emerald-400 inline" />
+                                    ) : (
+                                      <Copy className="w-3 h-3 inline" />
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                  isAccActive
+                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                    : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                }`}>
+                                  {isAccActive ? 'نشط' : 'معطل'}
+                                </span>
+
+                                {fullAccountObj && (
+                                  <button
+                                    onClick={() => handleInspectAccount(fullAccountObj)}
+                                    title="استعراض إعلانات هذا الحساب"
+                                    className="p-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all cursor-pointer"
+                                  >
+                                    <Eye className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )
       )}
@@ -3674,7 +3979,11 @@ export default function AdAccountsPage() {
                   <StickyNote className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-white text-sm">ملاحظات الحساب الإعلاني</h3>
+                  <h3 className="font-bold text-white text-sm">
+                    {noteModalAccount.verification_status !== undefined || noteModalAccount.ad_accounts !== undefined
+                      ? 'ملاحظات مدير الأعمال (Business Manager)'
+                      : 'ملاحظات الحساب الإعلاني'}
+                  </h3>
                   <p className="text-xs text-slate-400 truncate max-w-xs">{noteModalAccount.name}</p>
                 </div>
               </div>
@@ -3688,17 +3997,23 @@ export default function AdAccountsPage() {
 
             <div className="space-y-2">
               <label className="text-xs font-semibold text-slate-300 block">
-                اكتب ملاحظاتك (السطر الأول سيظهر بجوار أيقونة النوت في كارت الحساب):
+                {noteModalAccount.verification_status !== undefined || noteModalAccount.ad_accounts !== undefined
+                  ? 'اكتب ملاحظاتك لمدير الأعمال (السطر الأول سيظهر في كارت البيزنس):'
+                  : 'اكتب ملاحظاتك (السطر الأول سيظهر بجوار أيقونة النوت في كارت الحساب):'}
               </label>
               <textarea
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
-                placeholder="مثال: حساب خاص بعميل المراتب - شغال تحويلات&#10;العميل طلب زيادة الميزانية يوم الجمعة..."
+                placeholder={
+                  noteModalAccount.verification_status !== undefined || noteModalAccount.ad_accounts !== undefined
+                    ? "مثال: بيزنس عميل العطور - تم توثيق الدومين وتأكيد الهوية\nالحسابات داخل هذا البيزنس شغالة تحويلات..."
+                    : "مثال: حساب خاص بعميل المراتب - شغال تحويلات\nالعميل طلب زيادة الميزانية يوم الجمعة..."
+                }
                 rows={5}
                 className="w-full p-3 rounded-2xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/80 transition-all leading-relaxed"
               />
               <div className="flex items-center justify-between text-[11px] text-slate-500">
-                <span>يتم الحفظ في قاعدة البيانات وربطه بالحساب دائماً</span>
+                <span>يتم الحفظ في قاعدة البيانات دائماً</span>
                 <span>{noteText.length} حرف</span>
               </div>
             </div>
