@@ -13,9 +13,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (status !== 'ACTIVE' && status !== 'RESTRICTED') {
+    if (status !== 'ACTIVE' && status !== 'ASSETS_RESTRICTED' && status !== 'RESTRICTED') {
       return NextResponse.json(
-        { success: false, error: 'الحالة يجب أن تكون إما ACTIVE أو RESTRICTED' },
+        { success: false, error: 'الحالة يجب أن تكون ACTIVE أو ASSETS_RESTRICTED أو RESTRICTED' },
         { status: 400 }
       );
     }
@@ -42,6 +42,7 @@ export async function POST(req: Request) {
     } catch (e) {}
 
     meta.custom_status = status;
+    meta.status = status;
     meta.status_updated_at = new Date().toISOString();
 
     await prisma.metaAsset.update({
