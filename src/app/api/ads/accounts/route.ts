@@ -48,7 +48,12 @@ type BusinessHealthStatus = 'ACTIVE' | 'ASSETS_RESTRICTED' | 'RESTRICTED';
 function computeBusinessStatus(b: any, existingMeta: any = {}): BusinessHealthStatus {
   const bizId = String(b.id || b.externalId);
 
-  // 1. Verified Facebook Ground Truth sets (Matches Facebook Business Support Home 100%)
+  // 1. Explicit user manual choice (Takes ABSOLUTE PRIORITY over everything!)
+  if (existingMeta?.custom_status === 'RESTRICTED') return 'RESTRICTED';
+  if (existingMeta?.custom_status === 'ASSETS_RESTRICTED') return 'ASSETS_RESTRICTED';
+  if (existingMeta?.custom_status === 'ACTIVE') return 'ACTIVE';
+
+  // 2. Verified Facebook Ground Truth sets (Matches Facebook Business Support Home 100%)
   if (ACCOUNT_RESTRICTED_IDS.has(bizId)) {
     return 'RESTRICTED';
   }
@@ -58,11 +63,6 @@ function computeBusinessStatus(b: any, existingMeta: any = {}): BusinessHealthSt
   if (ACTIVE_IDS.has(bizId)) {
     return 'ACTIVE';
   }
-
-  // 2. Explicit custom_status from user takes priority for any other businesses
-  if (existingMeta?.custom_status === 'RESTRICTED') return 'RESTRICTED';
-  if (existingMeta?.custom_status === 'ASSETS_RESTRICTED') return 'ASSETS_RESTRICTED';
-  if (existingMeta?.custom_status === 'ACTIVE') return 'ACTIVE';
 
   // 5. Check if business has owned accounts that have direct disabling violation
   const owned = b.owned_ad_accounts?.data || b.owned_ad_accounts || existingMeta?.owned_ad_accounts || [];

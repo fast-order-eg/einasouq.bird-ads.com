@@ -361,16 +361,22 @@ export default function AdAccountsPage() {
     }
   };
 
-  // Toggle Business Status (ACTIVE / RESTRICTED)
-  const handleToggleBusinessStatus = async (biz: any, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    const currentStatus = biz.status || 'ACTIVE';
-    const newStatus: 'ACTIVE' | 'RESTRICTED' = currentStatus === 'ACTIVE' ? 'RESTRICTED' : 'ACTIVE';
-    const bizId = String(biz.id);
+  // Set Business Status Manually (ACTIVE / ASSETS_RESTRICTED / RESTRICTED)
+  const handleUpdateBusinessStatus = async (
+    bizOrId: any,
+    newStatus: 'ACTIVE' | 'ASSETS_RESTRICTED' | 'RESTRICTED',
+    e?: React.MouseEvent | React.ChangeEvent
+  ) => {
+    if (e && 'stopPropagation' in e) e.stopPropagation();
+    const bizId = String(typeof bizOrId === 'object' ? (bizOrId.id || bizOrId.externalId) : bizOrId).trim();
+    if (!bizId) return;
+
+    const previousBiz = businesses.find((b) => String(b.id) === bizId);
+    const previousStatus = previousBiz?.status || 'ACTIVE';
 
     setTogglingBizId(bizId);
 
-    // Optimistic UI update
+    // Optimistic UI update: update businesses list
     setBusinesses((prev) =>
       prev.map((b) =>
         String(b.id) === bizId
@@ -379,10 +385,46 @@ export default function AdAccountsPage() {
       )
     );
 
-    if (globalAdAccountsCache?.businesses) {
-      globalAdAccountsCache.businesses = globalAdAccountsCache.businesses.map((b: any) =>
-        String(b.id) === bizId ? { ...b, status: newStatus, custom_status: newStatus } : b
-      );
+    // Optimistic UI update: update any ad accounts that belong to this business
+    setAdAccounts((prev) =>
+      prev.map((acc) => {
+        const cleanAccId = String(acc.account_id || acc.id || '').replace(/^act_/, '');
+        const isLinked = acc.business?.id === bizId || (previousBiz?.ad_accounts && previousBiz.ad_accounts.some((x: any) => String(x.id || x.account_id).replace(/^act_/, '') === cleanAccId));
+        if (isLinked && acc.business) {
+          return {
+            ...acc,
+            business: {
+              ...acc.business,
+              status: newStatus,
+            },
+          };
+        }
+        return acc;
+      })
+    );
+
+    if (globalAdAccountsCache) {
+      if (globalAdAccountsCache.businesses) {
+        globalAdAccountsCache.businesses = globalAdAccountsCache.businesses.map((b: any) =>
+          String(b.id) === bizId ? { ...b, status: newStatus, custom_status: newStatus } : b
+        );
+      }
+      if (globalAdAccountsCache.adAccounts) {
+        globalAdAccountsCache.adAccounts = globalAdAccountsCache.adAccounts.map((acc: any) => {
+          const cleanAccId = String(acc.account_id || acc.id || '').replace(/^act_/, '');
+          const isLinked = acc.business?.id === bizId || (previousBiz?.ad_accounts && previousBiz.ad_accounts.some((x: any) => String(x.id || x.account_id).replace(/^act_/, '') === cleanAccId));
+          if (isLinked && acc.business) {
+            return {
+              ...acc,
+              business: {
+                ...acc.business,
+                status: newStatus,
+              },
+            };
+          }
+          return acc;
+        });
+      }
       try {
         localStorage.setItem('adscope_cached_ad_accounts_v3', JSON.stringify(globalAdAccountsCache));
       } catch (err) {}
@@ -400,7 +442,7 @@ export default function AdAccountsPage() {
         setBusinesses((prev) =>
           prev.map((b) =>
             String(b.id) === bizId
-              ? { ...b, status: currentStatus, custom_status: biz.custom_status }
+              ? { ...b, status: previousStatus, custom_status: previousBiz?.custom_status }
               : b
           )
         );
@@ -411,7 +453,7 @@ export default function AdAccountsPage() {
       setBusinesses((prev) =>
         prev.map((b) =>
           String(b.id) === bizId
-            ? { ...b, status: currentStatus, custom_status: biz.custom_status }
+            ? { ...b, status: previousStatus, custom_status: previousBiz?.custom_status }
             : b
         )
       );
@@ -1608,7 +1650,7 @@ export default function AdAccountsPage() {
             </span>
             <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3" />
-              سليم ونشط: {businesses.filter(b => b.status === 'ACTIVE').length}
+              سليم ونشط: {businesses.filter(b => (b.status || 'ACTIVE') === 'ACTIVE').length}
             </span>
             <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold flex items-center gap-1">
               <AlertTriangle className="w-3 h-3" />
@@ -1777,30 +1819,26 @@ export default function AdAccountsPage() {
                           </div>
 
                           {hasBiz ? (
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
-                              isRestricted
-                                ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
-                                : isAssetsRestricted
-                                ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-                                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                            }`}>
-                              {isRestricted ? (
-                                <>
-                                  <XCircle className="w-3 h-3 text-rose-400" />
-                                  <span>تم تقييده 🚫</span>
-                                </>
-                              ) : isAssetsRestricted ? (
-                                <>
-                                  <AlertTriangle className="w-3 h-3 text-amber-400" />
-                                  <span>أصول مقيدة ⚠️</span>
-                                </>
-                              ) : (
-                                <>
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                                  <span>نشط ✅</span>
-                                </>
-                              )}
-                            </span>
+                            <div className="relative inline-flex items-center shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <select
+                                value={biz?.status || 'ACTIVE'}
+                                onChange={(e) => handleUpdateBusinessStatus(biz, e.target.value as any, e)}
+                                disabled={togglingBizId === String(biz?.id)}
+                                title="اضغط لاختيار وتغيير حالة مدير الأعمال يدوياً"
+                                className={`appearance-none cursor-pointer pl-5 pr-2 py-0.5 rounded-full text-[10px] font-bold border shadow-sm outline-none transition-all ${
+                                  isRestricted
+                                    ? 'bg-rose-500/20 border-rose-500/40 text-rose-300 hover:bg-rose-500/30'
+                                    : isAssetsRestricted
+                                    ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 hover:bg-amber-500/30'
+                                    : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30'
+                                }`}
+                              >
+                                <option value="ACTIVE" className="bg-slate-900 text-emerald-400 font-bold">نشط 🟢</option>
+                                <option value="ASSETS_RESTRICTED" className="bg-slate-900 text-amber-400 font-bold">أصول مقيدة 🟠</option>
+                                <option value="RESTRICTED" className="bg-slate-900 text-rose-400 font-bold">تم تقييده 🔴</option>
+                              </select>
+                              <ChevronDown className="w-2.5 h-2.5 absolute left-1 pointer-events-none opacity-60 text-slate-400" />
+                            </div>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800/80 border border-slate-700/80 text-slate-400 shrink-0">
                               شخصي 👤
@@ -1906,33 +1944,27 @@ export default function AdAccountsPage() {
                   {/* Top Status & Verification Header */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5">
-                      {/* Active / Assets Restricted / Restricted Status Badge (Read-Only) */}
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-sm ${
-                          isRestricted
-                            ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
-                            : isAssetsRestricted
-                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-                            : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                        }`}
-                      >
-                        {isRestricted ? (
-                          <>
-                            <XCircle className="w-3.5 h-3.5 text-rose-400" />
-                            <span>تم تقييد الحساب 🚫</span>
-                          </>
-                        ) : isAssetsRestricted ? (
-                          <>
-                            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                            <span>الأصول مقيدة ⚠️</span>
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>نشط (لا مشكلات) ✅</span>
-                          </>
-                        )}
-                      </span>
+                      {/* Active / Assets Restricted / Restricted Interactive Selector */}
+                      <div className="relative inline-flex items-center" onClick={(e) => e.stopPropagation()}>
+                        <select
+                          value={b.status || 'ACTIVE'}
+                          onChange={(e) => handleUpdateBusinessStatus(b, e.target.value as any, e)}
+                          disabled={togglingBizId === String(b.id)}
+                          title="اضغط لاختيار وتغيير حالة مدير الأعمال يدوياً"
+                          className={`appearance-none cursor-pointer pl-6 pr-2.5 py-1 rounded-full text-[11px] font-bold border shadow-sm outline-none transition-all ${
+                            isRestricted
+                              ? 'bg-rose-500/20 border-rose-500/40 text-rose-300 hover:bg-rose-500/30'
+                              : isAssetsRestricted
+                              ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 hover:bg-amber-500/30'
+                              : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30'
+                          }`}
+                        >
+                          <option value="ACTIVE" className="bg-slate-900 text-emerald-400 font-bold">نشط (لا مشكلات) 🟢</option>
+                          <option value="ASSETS_RESTRICTED" className="bg-slate-900 text-amber-400 font-bold">الأصول مقيدة 🟠</option>
+                          <option value="RESTRICTED" className="bg-slate-900 text-rose-400 font-bold">تم تقييد الحساب 🔴</option>
+                        </select>
+                        <ChevronDown className="w-3 h-3 absolute left-1.5 pointer-events-none opacity-60 text-slate-400" />
+                      </div>
 
                       {/* Verification Status */}
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${

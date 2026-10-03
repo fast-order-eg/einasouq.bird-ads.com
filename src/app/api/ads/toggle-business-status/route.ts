@@ -52,6 +52,38 @@ export async function POST(req: Request) {
       },
     });
 
+    // Also update all linked AD_ACCOUNT records in DB
+    try {
+      const allAccounts = await prisma.metaAsset.findMany({
+        where: { assetType: 'AD_ACCOUNT' },
+      });
+      const bizAccounts = Array.isArray(meta.ad_accounts) ? meta.ad_accounts : [];
+      for (const acc of allAccounts) {
+        if (!acc.metadataJson) continue;
+        try {
+          const accMeta = JSON.parse(acc.metadataJson);
+          const cleanAccId = acc.externalId.replace(/^act_/, '');
+          const isLinked = accMeta.business?.id === cleanId ||
+            bizAccounts.some((x: any) => String(x.id || x.account_id).replace(/^act_/, '') === cleanAccId);
+          if (isLinked) {
+            accMeta.business = {
+              ...(accMeta.business || {}),
+              id: cleanId,
+              name: existing.name,
+              status,
+              verification_status: meta.verification_status || 'not_verified',
+            };
+            await prisma.metaAsset.update({
+              where: { id: acc.id },
+              data: { metadataJson: JSON.stringify(accMeta) },
+            });
+          }
+        } catch (e) {}
+      }
+    } catch (accErr) {
+      console.error('[Toggle Business Status] Error updating linked accounts:', accErr);
+    }
+
     return NextResponse.json({
       success: true,
       businessId: cleanId,
