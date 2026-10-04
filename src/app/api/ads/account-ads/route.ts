@@ -30,6 +30,20 @@ export async function POST(req: Request) {
       if (asset && asset.metadataJson) {
         try {
           const meta = JSON.parse(asset.metadataJson);
+          // Filter out contaminated legacy Fast Order analyses from accounts that are not Fast Order
+          let cleanAnalyses = meta.campaign_analyses || {};
+          const isFastOrderAccount = (asset.name || '').toLowerCase().includes('fast');
+          if (!isFastOrderAccount && cleanAnalyses) {
+            const filtered: any = {};
+            for (const [cId, aData] of Object.entries(cleanAnalyses)) {
+              const str = JSON.stringify(aData);
+              if (!str.includes('Fast Order') && !str.includes('FastOrder') && !str.includes('المطاعم')) {
+                filtered[cId] = aData;
+              }
+            }
+            cleanAnalyses = filtered;
+          }
+
           if (meta.campaigns_cache && Array.isArray(meta.campaigns_cache) && meta.campaigns_cache.length > 0) {
             return NextResponse.json({
               success: true,
@@ -39,7 +53,7 @@ export async function POST(req: Request) {
               campaigns: meta.campaigns_cache,
               ads: meta.ads_cache || [],
               note: meta.note || null,
-              savedAnalyses: meta.campaign_analyses || {},
+              savedAnalyses: cleanAnalyses,
             });
           }
         } catch (e) {
@@ -123,7 +137,19 @@ export async function POST(req: Request) {
           } catch (e) {}
         }
 
-        savedAnalyses = meta.campaign_analyses || {};
+        let cleanAnalyses = meta.campaign_analyses || {};
+        const isFastOrderAccount = (existing.name || '').toLowerCase().includes('fast');
+        if (!isFastOrderAccount && cleanAnalyses) {
+          const filtered: any = {};
+          for (const [cId, aData] of Object.entries(cleanAnalyses)) {
+            const str = JSON.stringify(aData);
+            if (!str.includes('Fast Order') && !str.includes('FastOrder') && !str.includes('المطاعم')) {
+              filtered[cId] = aData;
+            }
+          }
+          cleanAnalyses = filtered;
+        }
+        savedAnalyses = cleanAnalyses;
 
         if (!isCustomDate) {
           meta.campaigns_cache = processedCampaigns;

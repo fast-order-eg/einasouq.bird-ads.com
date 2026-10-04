@@ -1122,7 +1122,7 @@ ${excludeSection}
         post_url: postUrl || `https://www.facebook.com/ads/manager?act=${campaign.id}`,
         thumbnail_url: thumb,
         images: Array.isArray(cr.images) && cr.images.length > 0 ? cr.images : thumb ? [thumb] : [],
-        media_type_label: isVideo ? '🎬 فيديو ريلز إعلاني (14 ثانية)' : '🖼️ منشور صور للمنتج',
+        media_type_label: isVideo ? '🎬 فيديو إعلاني' : '🖼️ منشور صور / تصميم إعلاني',
         title: cr.title || '',
         body: cr.body || ad.name || 'لا يوجد نص',
         cta_type: cr.call_to_action_type || 'LEARN_MORE',
@@ -1148,29 +1148,32 @@ ${excludeSection}
     const otherAds = sortedAds.slice(3);
 
     const prompt = `
-أنت خبير إعلانات فيسبوك أول، واستشاري ميديا باينج (Senior Meta Media Buyer & E-Commerce Strategist) في السوق المصري.
-المهمة: تحليل استراتيجي عملي متكامل بالعامية المصرية لهذه الحملة الإعلانية الخاصة ببرنامج Fast Order (سيستم إدارة المطاعم والمتاجر بنظام الاشتراك والواتساب).
-
-⚠️ تنبيهات حاسمة لفهم الأرقام وتحديد القرارات:
-1. الهدف الحقيقي الفعلي للحملة هو بدء محادثات واتساب (WhatsApp Conversations) مع أصحاب المطاعم والأنشطة التجارية لإغلاق الاشتراكات.
-2. تحقيق محادثات واتساب بسعر بين 9 إلى 11 جنيه مصري لخدمة B2B يعتبر أداءً ممتازاً وناجحاً جداً! يجب أن يعكس التقييم العام (Score) هذا النجاح (بين 7.8 إلى 8.8 من 10).
-3. الحملة تحتوي على ${formattedAdsets.length} مجموعات إعلانية (AdSets) مقسمة كاختبار A/B Testing:
-   - مجموعة Broad (مصر 25-55 سنة بدون اهتمامات)
-   - مجموعة تجارة التجزئة والشوبيفاي (Retail & Ecommerce Interests)
-   - مجموعة أصحاب البيزنس والمديرين (Business Owners, CEOs & Small Business)
-4. المطلوب منك مقارنة المجموعات الإعلانية الثلاثة، وتحديد "أوقف إيه وشغل إيه" بكل وضوح بالأرقام.
-
-بيانات الحملة الإعلانية:
+أنت خبير إعلانات فيسبوك أول، واستشاري ميديا باينج (Senior Meta Media Buyer & Performance Marketing Consultant) في السوق المصري والعربي.
+المهمة: تحليل استراتيجي عملي متكامل ومخصص 100% بالعامية المصرية لهذه الحملة الإعلانية:
 - اسم الحملة: "${campaign.name}"
+- الحساب الإعلاني: "${options?.accountName || 'حساب إعلاني'}"
 - معرف الحملة: ${campaign.id}
-- الهدف: ${campaign.objective || 'غير محدد'}
-- إجمالي المصروف: ${insights.spend || 0} ${currency}
-- إجمالي المحادثات: ${formattedAdsets.reduce((acc: number, a: any) => acc + (a.conversations || 0), 0)} محادثة واتساب
+
+⚠️ قواعد حاسمة وإلزامية للتحليل:
+1. التخصيص التام والمطلق لمجال الحملة:
+   - يجب أن تفهم وتستنتج طبيعة النشاط، والخدمة أو المنتج المعروض، والجمهور المستهدف حصراً وبدقة 100% من بيانات الحملة الفعلية (نصوص الإعلانات، عناوين الكريتيف، أسماء المجموعات الإعلانية، والجمهور المستهدف الموضح أدناه).
+   - ممنوع تماماً ومطلقاً افتراض أي نشاط مسبق، أو ذكر أي عميل أو علامة تجارية أو نظام تقني أو مجالات أخرى (مثل أنظمة مطاعم أو متاجر أو Fast Order أو غيرها) ما لم تكن مكتوبة نصاً وصراحة في بيانات هذا الإعلان.
+   - إذا كان الإعلان يتحدث عن خدمات سفر، توطين، هجرة، عقود عمل، خدمات قانونية، عقارات، كورسات، تجارة إلكترونية، أو أي مجال آخر، يجب أن يدور التحليل بالكامل، وتقييم العرض، والنصوص البديلة المقترحة، والاستهداف حول هذا المجال المحدد تحديداً وبدون أي خلط.
+
+2. تقييم الهدف والأداء بالأرقام الواقعية:
+   - هدف الحملة الفعلي المسجل: ${campaign.objective || 'غير محدد'}.
+   - إجمالي المصروف: ${insights.spend || 0} ${currency}.
+   - إجمالي النتائج المحققة: ${formattedAdsets.reduce((acc: number, a: any) => acc + (a.conversations || 0), 0)} (رسائل / نتائج).
+   - قيّم تكلفة النتيجة أو سعر المحادثة بناءً على طبيعة النشاط المعلن عنه في السوق المستهدف.
+   - الحملة تحتوي على ${formattedAdsets.length} مجموعة إعلانية فعلية، قيّم كل مجموعة بناءً على أرقامها الحقيقية الواردة أدناه:
+${formattedAdsets.map((aset: any, idx: number) => `     * مجموعة ${idx + 1}: "${aset.name}" (الاستهداف: ${aset.targeting_type_label} | المناطق: ${aset.locations} | الأعمار: ${aset.age_range} | الصرف: ${aset.spend} | النتائج: ${aset.conversations} | التكلفة: ${aset.cpa})`).join('\n')}
+
+3. المطلوب: تحديد القرارات العملية بدقة ("أوقف إيه وشغل إيه وكبّر إيه") مع خطة عملية واضحة لتوزيع الميزانية بناءً على الأرقام الحقيقية.
 
 بيانات المجموعات الإعلانية الحقيقية وأرقامها بالتفصيل (${formattedAdsets.length} مجموعات):
 ${JSON.stringify(formattedAdsets, null, 2)}
 
-أهم الإعلانات النشطة مع المجموعات التابعة لها والأرقام الفعلية:
+أهم الإعلانات مع المجموعات التابعة لها والأرقام ونصوص الكوبي الفعلية:
 ${JSON.stringify(topAdsForDeepReview.map((a: any) => ({
   ad_id: a.ad_id,
   ad_name: a.ad_name,
@@ -1187,23 +1190,23 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة:\n${JSON.stringi
 المطلوب منك إخراجه بصيغة JSON مهيكلة فقط بدون أي مقدمات أو شروحات خارج الـ JSON:
 {
   "verdict": "OPTIMIZATION_AND_SCALING",
-  "verdict_badge": "ناجحة في الرسائل 🚀 (تحتاج إيقاف المهدر وتكبير الرابح)",
-  "score": 8.4,
-  "summary_egyptian": "ملخص عام دقيق وصريح بالعامية المصرية يوضح عدد المحادثات وسعر المحادثة والفرصة المتاحة...",
+  "verdict_badge": "شارة القرار العام (مثال: أداء واعد 🚀 / تحتاج فلترة الجودة / إيقاف الهدر)",
+  "score": 8.5,
+  "summary_egyptian": "ملخص تحليلي استراتيجي بالعامية المصرية يصف أداء الحملة الحقيقي لمجالها ونشاطها المعلن، بالأرقام الدقيقة وسعر الرسالة والفرص المتاحة...",
   "metrics_evaluation": {
-    "cpa_and_results": "تقييم سعر المحادثة والمحادثات المحققة بالأرقام",
-    "roas_and_profit": "تقييم العائد المتوقع من إغلاق اشتراكات المطاعم",
-    "ctr_and_interest": "تقييم معدل النقر والتفاعل مع الفيديو",
-    "frequency_and_fatigue": "تقييم التكرار والوصول"
+    "cpa_and_results": "تقييم تكلفة النتيجة والمحادثات/النتائج المحققة بالأرقام مقارنة بطبيعة النشاط المعلن عنه",
+    "roas_and_profit": "تقييم الجدوى الاقتصادية والعائد المتوقع للنشاط أو الخدمة المعلنة",
+    "ctr_and_interest": "تقييم معدل النقر CTR والتفاعل ومؤشرات اهتمام الجمهور بمحتوى الإعلان",
+    "frequency_and_fatigue": "تقييم التكرار والوصول ومدى تشبع الجمهور"
   },
   "adsets_analysis": [
     {
       "adset_id": "${formattedAdsets[0]?.id || ''}",
       "adset_name": "${formattedAdsets[0]?.name || ''}",
-      "targeting_verdict": "تقييم هذا الاستهداف ومدى نجاحه في جلب أصحاب البيزنس",
+      "targeting_verdict": "تقييم ملاءمة هذا الجمهور والاستهداف لنوع الخدمة أو المنتج المعلن عنه في الحملة",
       "decision": "SCALE",
       "decision_badge": "🚀 زيادة الميزانية والتكبير",
-      "decision_reason": "سبب صريح بالأرقام (كم صرف وكم جاب وسعر المحادثة)",
+      "decision_reason": "سبب صريح بالأرقام الحقيقية (كم صرف وكم جاب وتكلفة النتيجة)",
       "winner_ads": ["اسم أو كود الإعلان الرابح في هذه المجموعة"],
       "loser_ads_to_stop": ["اسم أو كود الإعلانات المطلوب إيقافها في هذه المجموعة"]
     }
@@ -1216,7 +1219,7 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة:\n${JSON.stringi
         "adset_name": "اسم المجموعة",
         "wasted_spend": "المبلغ المهدر",
         "results": "النتائج الضعيفة",
-        "reason": "تفسير واضح وصريح بالعامية المصرية لماذا يجب إيقاف هذا الإعلان الآن لتوفير الميزانية"
+        "reason": "تفسير صريح بالعامية المصرية يوضح سبب إيقافه لتوفير الميزانية"
       }
     ],
     "ads_to_scale_and_boost": [
@@ -1225,23 +1228,23 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة:\n${JSON.stringi
         "ad_name": "اسم الإعلان",
         "adset_name": "اسم المجموعة",
         "spend": "المبلغ المصروف",
-        "results": "عدد المحادثات المحققة",
-        "action_plan": "خطة التكبير المحددة لهذا الإعلان"
+        "results": "النتائج المحققة",
+        "action_plan": "خطة التكبير المحددة لهذا الإعلان الرابح"
       }
     ],
-    "budget_reallocation_plan": "نصيحة وخطة عملية واضحة لكيفية نقل الميزانية من الإعلانات والمجموعات الخاسرة إلى الإعلان المتصدر لزيادة الأرباح بأقل تكلفة."
+    "budget_reallocation_plan": "نصيحة وخطة عملية واضحة لنقل الميزانية من الإعلانات والمجموعات الأقل كفاءة إلى المتصدرة لتعظيم النتائج بأقل تكلفة."
   },
   "bottlenecks": [
-    "النقطة 1 لعنق الزجاجة بالتفصيل مع الأرقام...",
+    "النقطة 1 لعنق الزجاجة ونقاط التسريب الخاصة بهذا النشاط بالتفصيل مع الأرقام...",
     "النقطة 2 لعنق الزجاجة بالتفصيل مع الأرقام..."
   ],
   "scaling_advice_points": [
-    "النقطة 1 لزيادة الميزانية والتكبير بالتفصيل...",
+    "النقطة 1 لزيادة الميزانية والتكبير للنشاط بالتفصيل...",
     "النقطة 2 للتكبير..."
   ],
   "action_steps": [
-    "الخطوة 1: بالعامية المصرية بالتفصيل...",
-    "الخطوة 2: بالعامية المصرية بالتفصيل..."
+    "الخطوة 1: خطوات عملية للتنفيذ الفوري بالعامية المصرية مخصصة لهذا النشاط...",
+    "الخطوة 2: خطوات عملية للتنفيذ..."
   ],
   "creatives_analysis": [
     {
@@ -1249,9 +1252,9 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة:\n${JSON.stringi
       "decision": "SCALE",
       "decision_badge": "🚀 تكبير وضخ ميزانية",
       "decision_reason": "سبب القرار بالأرقام",
-      "visual_hook_analysis": "تحليل أول 3 ثوانٍ وحركة المشهد بالعامية المصرية (ممنوع كلمة ثامبنيل للفيديوهات)",
-      "product_offer_clarity": "تحليل وضوح المنتج والعرض التسويقي لـ Fast Order",
-      "conversion_reality_verdict": "تفسير أداء الإعلان بالعامية المصرية وتوصية التعديل",
+      "visual_hook_analysis": "تحليل أول 3 ثوانٍ وجاذبية المشهد أو التصميم بالعامية المصرية",
+      "product_offer_clarity": "تحليل مدى وضوح الخدمة أو المنتج المعروض في هذا الإعلان وكيفية إبراز القيمة",
+      "conversion_reality_verdict": "تفسير أداء الإعلان الفعلي بالعامية المصرية وتوصيات التطوير",
       "strengths": ["نقطة قوة 1", "نقطة قوة 2"],
       "weaknesses": ["نقطة ضعف 1", "نقطة ضعف 2"],
       "creative_score": 8.5
@@ -1262,11 +1265,11 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة:\n${JSON.stringi
       "ad_id": "${topAdsForDeepReview[0]?.ad_id || ''}",
       "ad_name": "اسم الإعلان",
       "hook_analysis": "تحليل هوك النص بالعامية المصرية",
-      "body_structure_analysis": "تحليل متن النص والعرض",
-      "offer_and_cta_analysis": "تحليل الدعوة لاتخاذ إجراء",
+      "body_structure_analysis": "تحليل متن النص والعرض المقدم",
+      "offer_and_cta_analysis": "تحليل الدعوة لاتخاذ إجراء CTA",
       "copy_score": 8.0,
       "alternative_copy_suggestions": [
-        "نص إعلاني مقترح كامل جاهز للنسخ 1 لـ Fast Order..."
+        "نص إعلاني مقترح كامل وبديل جاهز للنسخ مخصص لنفس النشاط والخدمة المعلنة (يشمل هوك جذاب، متن واضح، دعوة لاتخاذ إجراء)..."
       ]
     }
   ],
@@ -1279,10 +1282,10 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة:\n${JSON.stringi
       "is_advantage_plus": true,
       "targeting_type_label": "نوع الاستهداف"
     },
-    "alignment_with_creatives": "تقييم تطابق الجمهور مع الكريتيف بالعامية المصرية",
-    "strengths": ["نقطة قوة 1", "نقطة قوة 2"],
-    "risks_and_leaks": ["نقطة خطر أو تسريب 1"],
-    "recommendations": ["توصية استهداف مقترحة 1", "توصية استهداف مقترحة 2"]
+    "alignment_with_creatives": "تقييم مدى تطابق الجمهور المختار مع محتوى الإعلان والخدمة المعلنة بالعامية المصرية",
+    "strengths": ["نقطة قوة 1 في الاستهداف", "نقطة قوة 2"],
+    "risks_and_leaks": ["نقطة خطر أو هدر في الاستهداف"],
+    "recommendations": ["توصية استهداف محددة ومطابقة لنشاط الحملة 1", "توصية 2"]
   }
 }
 `;
@@ -1352,7 +1355,7 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة:\n${JSON.stringi
             post_url: rawAd.post_url || item.post_url || '',
             thumbnail_url: rawAd.thumbnail_url || item.thumbnail_url || '',
             images: Array.isArray(rawAd.images) && rawAd.images.length > 0 ? rawAd.images : (Array.isArray(item.images) && item.images.length > 0 ? item.images : rawAd.thumbnail_url ? [rawAd.thumbnail_url] : []),
-            media_type_label: rawAd.media_type_label || item.media_type_label || (rawAd.is_video ? '🎬 فيديو ريلز إعلاني (14 ثانية)' : '🖼️ منشور صور للمنتج'),
+            media_type_label: rawAd.media_type_label || item.media_type_label || (rawAd.is_video ? '🎬 فيديو إعلاني' : '🖼️ منشور صور / تصميم إعلاني'),
             spend: rawAd.spend || item.spend || '0',
             purchases: rawAd.purchases || item.purchases || '0',
             conversations: rawAd.conversations !== undefined ? rawAd.conversations : item.conversations || 0,
@@ -1391,7 +1394,7 @@ ${otherAds.length > 0 ? `\nباقي إعلانات الحملة:\n${JSON.stringi
               decision_badge: extraAd.decision_badge || '✅ استمرار بالمراقبة',
               decision_reason: extraAd.decision_reason || '',
               visual_hook_analysis: extraAd.is_video ? 'فيديو إضافي بالحملة بمعدل إنفاق منخفض، يُنصح بمقارنته مع الكريتيف المتصدر.' : 'تصميم إضافي بالحملة، لم يحصل على الجزء الأكبر من الميزانية.',
-              product_offer_clarity: 'عرض منتج تكميلي في الحملة.',
+              product_offer_clarity: 'عرض تكميلي في الحملة.',
               conversion_reality_verdict: `صرف ${extraAd.spend} وحقق ${extraAd.conversations || extraAd.purchases} نتائج. الأولوية للتركيز على الإعلان المتصدر أولاً.`,
               strengths: ['يساعد في اختبار زوايا عرض إضافية'],
               weaknesses: ['لم يحصل على ميزانية كافية للتحويل'],

@@ -1025,8 +1025,17 @@ export default function AdAccountsPage() {
     if (!forceReAnalyze && savedAnalyses[camp.id]) {
       const raw = savedAnalyses[camp.id].analysis || savedAnalyses[camp.id];
       const parsed = typeof raw === 'string' ? (() => { try { return JSON.parse(raw); } catch(e){ return raw; } })() : raw;
-      setActiveAnalysisModal({ campaign: camp, analysis: parsed });
-      return;
+
+      // Auto-detect and discard legacy cached analyses polluted with Fast Order text
+      const rawStr = JSON.stringify(parsed || {});
+      const hasContamination = rawStr.includes('Fast Order') || rawStr.includes('FastOrder') || rawStr.includes('مطاعم');
+      const isActuallyFastOrder = (camp.name || '').toLowerCase().includes('fast') || (inspectingAccount?.name || '').toLowerCase().includes('fast');
+
+      if (!hasContamination || isActuallyFastOrder) {
+        setActiveAnalysisModal({ campaign: camp, analysis: parsed });
+        return;
+      }
+      console.warn('[handleAnalyzeCampaign] Stored analysis contains legacy Fast Order references. Auto-running fresh analysis for campaign:', camp.id);
     }
 
     setAnalyzingCampId(camp.id);
