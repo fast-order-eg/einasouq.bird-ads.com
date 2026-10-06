@@ -7,14 +7,15 @@ export function middleware(request: NextRequest) {
 
   const isAuthPage = pathname.startsWith('/login');
   const isApiAuthRoute = pathname.startsWith('/api/auth/login') || pathname.startsWith('/api/auth/logout');
+  const isExternalPartnerApi = pathname.startsWith('/api/v1/');
   const isPublicAsset =
     pathname.startsWith('/_next') ||
     pathname.startsWith('/brand-logo.png') ||
     pathname.startsWith('/favicon.ico') ||
     pathname.match(/\.(png|jpg|jpeg|svg|gif|webp|ico|css|js)$/);
 
-  // Allow static assets and public auth API routes
-  if (isPublicAsset || isApiAuthRoute) {
+  // Allow static assets, public auth API routes, and external partner APIs (which authenticate via API Key)
+  if (isPublicAsset || isApiAuthRoute || isExternalPartnerApi) {
     return NextResponse.next();
   }
 
