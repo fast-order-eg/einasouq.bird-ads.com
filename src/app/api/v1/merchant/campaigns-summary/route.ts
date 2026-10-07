@@ -19,6 +19,166 @@ function validateApiKey(req: Request): boolean {
   return Boolean(providedKey && providedKey === expectedKey.trim());
 }
 
+/**
+ * دالة مساعدة لاستخراج نوع وعدد النتائج وتكلفة النتيجة (CPA) بدقة حسب هدف الحملة
+ */
+function extractResultsAndCpa(
+  objectiveStr: string,
+  actions: any[] = [],
+  costPerActions: any[] = [],
+  spend: number,
+  clicks: number,
+  hasMessagingCta: boolean = false
+) {
+  const obj = (objectiveStr || '').toUpperCase();
+
+  const getActionValue = (types: string[]): number => {
+    for (const type of types) {
+      const match = actions.find((a) => a.action_type === type);
+      if (match && match.value) {
+        const val = parseInt(match.value, 10);
+        if (!isNaN(val) && val > 0) return val;
+      }
+    }
+    return 0;
+  };
+
+  const getCpaValue = (types: string[]): number | null => {
+    for (const type of types) {
+      const match = costPerActions.find((a) => a.action_type === type);
+      if (match && match.value) {
+        const val = parseFloat(match.value);
+        if (!isNaN(val) && val > 0) return Number(val.toFixed(2));
+      }
+    }
+    return null;
+  };
+
+  const isMessagingObjective =
+    obj === 'MESSAGES' ||
+    obj === 'OUTCOME_ENGAGEMENT' ||
+    hasMessagingCta;
+
+  const isSalesObjective =
+    obj === 'OUTCOME_SALES' ||
+    obj === 'CONVERSIONS';
+
+  const isLeadsObjective =
+    obj === 'OUTCOME_LEADS' ||
+    obj === 'LEAD_GENERATION';
+
+  let resultsCount = 0;
+  let resultType = 'click';
+  let resultLabel = 'نقرات على الرابط';
+  let cpa = 0;
+
+  if (isMessagingObjective) {
+    // 1. حملات الرسائل والواتساب
+    const msgCount = getActionValue([
+      'onsite_conversion.messaging_conversation_started_7d',
+      'onsite_conversion.total_messaging_connection',
+      'messaging_conversation_started_7d',
+      'onsite_conversion.messaging_first_reply',
+    ]);
+    const metaCpa = getCpaValue([
+      'onsite_conversion.messaging_conversation_started_7d',
+      'onsite_conversion.total_messaging_connection',
+    ]);
+
+    resultsCount = msgCount;
+    resultType = 'messages';
+    resultLabel = 'رسائل';
+    cpa = metaCpa !== null ? metaCpa : (resultsCount > 0 ? Number((spend / resultsCount).toFixed(2)) : 0);
+  } else if (isSalesObjective) {
+    // 2. حملات مبيعات المتجر (Conversions / Pixel Purchases)
+    const purchases = getActionValue([
+      'purchase',
+      'offsite_conversion.fb_pixel_purchase',
+      'omni_purchase',
+      'onsite_web_purchase',
+      'web_in_store_purchase',
+    ]);
+    const metaCpa = getCpaValue([
+      'purchase',
+      'offsite_conversion.fb_pixel_purchase',
+      'omni_purchase',
+    ]);
+
+    resultsCount = purchases;
+    resultType = 'purchase';
+    resultLabel = 'طلبات شراء (متجر)';
+    cpa = metaCpa !== null ? metaCpa : (resultsCount > 0 ? Number((spend / resultsCount).toFixed(2)) : 0);
+  } else if (isLeadsObjective) {
+    // 3. حملات بيانات العملاء المحتملين
+    const leads = getActionValue([
+      'lead',
+      'onsite_conversion.lead',
+      'onsite_conversion.lead_grouped',
+    ]);
+    const metaCpa = getCpaValue(['lead', 'onsite_conversion.lead']);
+
+    resultsCount = leads;
+    resultType = 'lead';
+    resultLabel = 'بيانات عملاء';
+    cpa = metaCpa !== null ? metaCpa : (resultsCount > 0 ? Number((spend / resultsCount).toFixed(2)) : 0);
+  } else {
+    // 4. حملات أخرى / ترافيك أو اكتشاف تلقائي
+    const purchases = getActionValue(['purchase', 'offsite_conversion.fb_pixel_purchase', 'omni_purchase']);
+    const msgCount = getActionValue(['onsite_conversion.messaging_conversation_started_7d', 'onsite_conversion.total_messaging_connection']);
+    const leads = getActionValue(['lead', 'onsite_conversion.lead']);
+
+    if (purchases > 0) {
+      resultsCount = purchases;
+      resultType = 'purchase';
+      resultLabel = 'طلبات شراء (متجر)';
+      cpa = Number((spend / resultsCount).toFixed(2));
+    } else if (msgCount > 0) {
+      resultsCount = msgCount;
+      resultType = 'messages';
+      resultLabel = 'رسائل';
+      cpa = Number((spend / resultsCount).toFixed(2));
+    } else if (leads > 0) {
+      resultsCount = leads;
+      resultType = 'lead';
+      resultLabel = 'بيانات عملاء';
+      cpa = Number((spend / resultsCount).toFixed(2));
+    } else {
+      resultsCount = clicks;
+      resultType = 'click';
+      resultLabel = 'زيارات ونقرات';
+      cpa = clicks > 0 ? Number((spend / clicks).toFixed(2)) : 0;
+    }
+  }
+
+  return { resultsCount, resultType, resultLabel, cpa };
+}
+
+/**
+ * دالة مساعدة لاستخراج رابط المنشور والمعاينة المباشر للإعلان
+ */
+function extractAdUrls(cr: any = {}) {
+  let postUrl: string | null = null;
+
+  if (cr.instagram_permalink_url) {
+    postUrl = cr.instagram_permalink_url;
+  } else if (cr.effective_object_story_id) {
+    const parts = String(cr.effective_object_story_id).split('_');
+    if (parts.length === 2) {
+      postUrl = `https://www.facebook.com/${parts[0]}/posts/${parts[1]}`;
+    } else {
+      postUrl = `https://www.facebook.com/${cr.effective_object_story_id}`;
+    }
+  }
+
+  const previewUrl = postUrl || cr.link_url || null;
+
+  return {
+    post_url: postUrl,
+    preview_url: previewUrl,
+    link_url: cr.link_url || null,
+  };
+}
+
 async function handleRequest(campaignIds: string[], datePreset: string = 'last_7d', forceRefresh: boolean = false) {
   const token = process.env.META_USER_TOKEN;
   if (!token) {
@@ -42,8 +202,8 @@ async function handleRequest(campaignIds: string[], datePreset: string = 'last_7
   const validPresets = ['today', 'yesterday', 'last_3d', 'last_7d', 'last_14d', 'last_30d', 'this_month', 'last_month', 'maximum'];
   const safePreset = validPresets.includes(datePreset) ? datePreset : 'last_7d';
 
-  // Construct Meta Graph API field query
-  const insightsSubquery = `insights.date_preset(${safePreset}){spend,impressions,reach,clicks,cpc,cpm,ctr,actions,action_values,cost_per_action_type,purchase_roas}`;
+  // Construct Meta Graph API field query with attribution windows and account attribution setting
+  const insightsSubquery = `insights.date_preset(${safePreset}).use_account_attribution_setting(true).action_attribution_windows(['7d_click','1d_view']){spend,impressions,reach,clicks,cpc,cpm,ctr,actions,action_values,cost_per_action_type,purchase_roas}`;
   const fields = [
     'id',
     'name',
@@ -55,13 +215,13 @@ async function handleRequest(campaignIds: string[], datePreset: string = 'last_7
     'start_time',
     'stop_time',
     insightsSubquery,
-    `adsets{id,name,status,effective_status,daily_budget,lifetime_budget,targeting,${insightsSubquery}}`,
-    `ads{id,name,status,effective_status,adset_id,creative{id,name,title,body,image_url,thumbnail_url,video_id,link_url,call_to_action_type},${insightsSubquery}}`,
+    `adsets{id,name,status,effective_status,daily_budget,lifetime_budget,start_time,end_time,targeting,${insightsSubquery}}`,
+    `ads{id,name,status,effective_status,adset_id,creative{id,name,title,body,image_url,thumbnail_url,video_id,link_url,call_to_action_type,effective_object_story_id,instagram_permalink_url},${insightsSubquery}}`,
   ].join(',');
 
   try {
     const url = `https://graph.facebook.com/v21.0/?ids=${cleanIds.join(',')}&fields=${encodeURIComponent(fields)}&access_token=${token}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
     const rawData = await res.json();
 
     if (rawData.error) {
@@ -91,6 +251,8 @@ async function handleRequest(campaignIds: string[], datePreset: string = 'last_7
           name: `حملة #${cId}`,
           status: 'NOT_FOUND',
           effective_status: 'NOT_FOUND',
+          start_time: null,
+          stop_time: null,
           error: 'الحملة غير موجودة أو انتهت صلاحية الوصول إليها',
         };
       }
@@ -112,13 +274,21 @@ async function handleRequest(campaignIds: string[], datePreset: string = 'last_7
         totalDailyBudget += dailyBudgetNum;
       }
 
+      // Check if primary CTA in campaign is messaging
+      const rawAds = camp.ads?.data || [];
+      const hasMessagingCta = rawAds.some((ad: any) => {
+        const cta = ad.creative?.call_to_action_type;
+        return cta === 'MESSAGE_PAGE' || cta === 'SEND_MESSAGE' || cta === 'WHATSAPP_MESSAGE';
+      });
+
       // Actions extraction
       const actions: any[] = campInsights.actions || [];
       const actionValues: any[] = campInsights.action_values || [];
+      const costPerActions: any[] = campInsights.cost_per_action_type || [];
 
-      // Purchases (Pixel / Website Orders)
+      // Purchases & Value
       const purchaseAction = actions.find(
-        (a) => a.action_type === 'purchase' || a.action_type === 'omni_purchase' || a.action_type === 'onsite_web_purchase'
+        (a) => a.action_type === 'purchase' || a.action_type === 'omni_purchase' || a.action_type === 'offsite_conversion.fb_pixel_purchase' || a.action_type === 'onsite_web_purchase'
       );
       const purchases = parseInt(purchaseAction?.value || '0', 10);
 
@@ -127,11 +297,11 @@ async function handleRequest(campaignIds: string[], datePreset: string = 'last_7
       );
       const purchaseValue = parseFloat(purchaseValAction?.value || '0');
 
-      // WhatsApp / Messenger Conversations
+      // Conversations
       const msgAction = actions.find(
         (a) =>
-          a.action_type === 'onsite_conversion.total_messaging_connection' ||
           a.action_type === 'onsite_conversion.messaging_conversation_started_7d' ||
+          a.action_type === 'onsite_conversion.total_messaging_connection' ||
           a.action_type === 'messaging_conversation_started_7d'
       );
       const conversations = parseInt(msgAction?.value || '0', 10);
@@ -140,31 +310,15 @@ async function handleRequest(campaignIds: string[], datePreset: string = 'last_7
       const leadAction = actions.find((a) => a.action_type === 'lead' || a.action_type === 'onsite_conversion.lead');
       const leads = parseInt(leadAction?.value || '0', 10);
 
-      // Determine Primary Result Metric
-      let resultsCount = 0;
-      let resultType = 'click';
-      let resultLabel = 'نقرات على الرابط';
-
-      if (purchases > 0) {
-        resultsCount = purchases;
-        resultType = 'purchase';
-        resultLabel = 'طلبات شراء (متجر)';
-      } else if (conversations > 0) {
-        resultsCount = conversations;
-        resultType = 'conversation';
-        resultLabel = 'محادثات واتساب';
-      } else if (leads > 0) {
-        resultsCount = leads;
-        resultType = 'lead';
-        resultLabel = 'بيانات عملاء';
-      } else {
-        resultsCount = clicks;
-        resultType = 'click';
-        resultLabel = 'زيارات ونقرات';
-      }
-
-      // Cost Per Result (CPA)
-      const cpa = resultsCount > 0 ? Number((spend / resultsCount).toFixed(2)) : 0;
+      // Determine Results & CPA according to objective
+      const { resultsCount, resultType, resultLabel, cpa } = extractResultsAndCpa(
+        camp.objective,
+        actions,
+        costPerActions,
+        spend,
+        clicks,
+        hasMessagingCta
+      );
 
       // Conversion Rate (Results ÷ Clicks)
       const conversionRate = clicks > 0 ? Number(((resultsCount / clicks) * 100).toFixed(2)) : 0;
@@ -187,39 +341,73 @@ async function handleRequest(campaignIds: string[], datePreset: string = 'last_7
       totalConversations += conversations;
       totalLeads += leads;
 
-      // Format AdSets
+      // Determine Stop Time from Campaign or Adsets
+      let resolvedStopTime = camp.stop_time || null;
       const rawAdsets = camp.adsets?.data || [];
+      if (!resolvedStopTime && rawAdsets.length > 0) {
+        for (const aset of rawAdsets) {
+          if (aset.end_time) {
+            resolvedStopTime = aset.end_time;
+            break;
+          }
+        }
+      }
+
+      // Format AdSets
       const adsets = rawAdsets.map((aset: any) => {
         const aInsights = aset.insights?.data?.[0] || {};
         const aSpend = parseFloat(aInsights.spend || '0');
         const aClicks = parseInt(aInsights.clicks || '0', 10);
         const aCtr = parseFloat(aInsights.ctr || '0');
         const aActions: any[] = aInsights.actions || [];
-        const aMsg = aActions.find((a) => a.action_type.includes('messaging'));
-        const aPurch = aActions.find((a) => a.action_type.includes('purchase'));
-        const aResCount = parseInt(aPurch?.value || aMsg?.value || '0', 10);
+        const aCostPerActions: any[] = aInsights.cost_per_action_type || [];
+
+        const asetRes = extractResultsAndCpa(
+          camp.objective,
+          aActions,
+          aCostPerActions,
+          aSpend,
+          aClicks,
+          hasMessagingCta
+        );
 
         return {
           id: aset.id,
           name: aset.name,
           status: aset.status,
           effective_status: aset.effective_status,
+          start_time: aset.start_time || null,
+          stop_time: aset.end_time || null,
           daily_budget: aset.daily_budget ? parseFloat(aset.daily_budget) / 100 : null,
-          spend: aSpend,
-          results: aResCount,
-          cpa: aResCount > 0 ? Number((aSpend / aResCount).toFixed(2)) : 0,
-          ctr: aCtr,
+          spend: Number(aSpend.toFixed(2)),
+          results: asetRes.resultsCount,
+          result_type: asetRes.resultType,
+          result_label: asetRes.resultLabel,
+          cpa: asetRes.cpa,
+          ctr: Number(aCtr.toFixed(2)),
         };
       });
 
       // Format Ads and Creatives
-      const rawAds = camp.ads?.data || [];
       const ads = rawAds.map((ad: any) => {
         const adInsights = ad.insights?.data?.[0] || {};
         const adSpend = parseFloat(adInsights.spend || '0');
         const adClicks = parseInt(adInsights.clicks || '0', 10);
         const adCtr = parseFloat(adInsights.ctr || '0');
+        const adActions: any[] = adInsights.actions || [];
+        const adCostPerActions: any[] = adInsights.cost_per_action_type || [];
         const cr = ad.creative || {};
+
+        const adRes = extractResultsAndCpa(
+          camp.objective,
+          adActions,
+          adCostPerActions,
+          adSpend,
+          adClicks,
+          hasMessagingCta
+        );
+
+        const urls = extractAdUrls(cr);
 
         return {
           id: ad.id,
@@ -227,9 +415,11 @@ async function handleRequest(campaignIds: string[], datePreset: string = 'last_7
           adset_id: ad.adset_id,
           status: ad.status,
           effective_status: ad.effective_status,
-          spend: adSpend,
+          spend: Number(adSpend.toFixed(2)),
           clicks: adClicks,
-          ctr: adCtr,
+          ctr: Number(adCtr.toFixed(2)),
+          results: adRes.resultsCount,
+          cpa: adRes.cpa,
           creative: {
             title: cr.title || '',
             body: cr.body || '',
@@ -238,7 +428,11 @@ async function handleRequest(campaignIds: string[], datePreset: string = 'last_7
             video_id: cr.video_id || null,
             is_video: Boolean(cr.video_id),
             cta_type: cr.call_to_action_type || 'LEARN_MORE',
-            preview_url: cr.link_url || null,
+            preview_url: urls.preview_url,
+            post_url: urls.post_url,
+            link_url: urls.link_url,
+            effective_object_story_id: cr.effective_object_story_id || null,
+            instagram_permalink_url: cr.instagram_permalink_url || null,
           },
         };
       });
@@ -249,6 +443,8 @@ async function handleRequest(campaignIds: string[], datePreset: string = 'last_7
         status: camp.status,
         effective_status: camp.effective_status,
         objective: camp.objective || 'OUTCOME_TRAFFIC',
+        start_time: camp.start_time || null,
+        stop_time: resolvedStopTime,
         budget: dailyBudgetNum > 0 ? dailyBudgetNum : lifetimeBudgetNum,
         budget_type: dailyBudgetNum > 0 ? 'DAILY' : lifetimeBudgetNum > 0 ? 'LIFETIME' : 'CAMPAIGN_BUDGET',
         spend: Number(spend.toFixed(2)),
@@ -269,7 +465,7 @@ async function handleRequest(campaignIds: string[], datePreset: string = 'last_7
 
     // Summary calculation
     const overallResults = totalPurchases > 0 ? totalPurchases : totalConversations > 0 ? totalConversations : totalLeads > 0 ? totalLeads : totalClicks;
-    const overallResultLabel = totalPurchases > 0 ? 'طلبات شراء (متجر)' : totalConversations > 0 ? 'محادثات واتساب' : totalLeads > 0 ? 'بيانات عملاء' : 'زيارات ونقرات';
+    const overallResultLabel = totalPurchases > 0 ? 'طلبات شراء (متجر)' : totalConversations > 0 ? 'رسائل' : totalLeads > 0 ? 'بيانات عملاء' : 'زيارات ونقرات';
     const overallCpa = overallResults > 0 ? Number((totalSpend / overallResults).toFixed(2)) : 0;
     const overallCtr = totalImpressions > 0 ? Number(((totalClicks / totalImpressions) * 100).toFixed(2)) : 0;
     const overallConversionRate = totalClicks > 0 ? Number(((overallResults / totalClicks) * 100).toFixed(2)) : 0;
@@ -277,11 +473,16 @@ async function handleRequest(campaignIds: string[], datePreset: string = 'last_7
 
     const payload = {
       date_preset: safePreset,
+      timezone: 'Africa/Cairo',
+      timezone_offset: '+03:00',
       currency: 'EGP',
       summary: {
         total_spend: Number(totalSpend.toFixed(2)),
         total_budget_daily: Number(totalDailyBudget.toFixed(2)),
         total_results: overallResults,
+        total_purchases: totalPurchases,
+        total_conversations: totalConversations,
+        total_leads: totalLeads,
         result_label: overallResultLabel,
         average_cpa: overallCpa,
         average_ctr: overallCtr,
