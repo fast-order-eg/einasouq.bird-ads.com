@@ -20,6 +20,44 @@ function validateApiKey(req: Request): boolean {
 }
 
 /**
+ * دالة مساعدة لجلب قائمة معرفات الحملات التابعة لحساب إعلاني معين
+ */
+async function fetchCampaignIdsForAccount(
+  accountId: string,
+  token: string,
+  statusFilter?: string,
+  search?: string
+): Promise<{ success: boolean; ids: string[]; error?: string }> {
+  try {
+    const cleanAccId = accountId.trim();
+    const formattedAccId = cleanAccId.startsWith('act_') ? cleanAccId : `act_${cleanAccId}`;
+    let url = `https://graph.facebook.com/v21.0/${formattedAccId}/campaigns?fields=id,name,status,effective_status,objective&limit=100&access_token=${token}`;
+
+    if (statusFilter && statusFilter.toUpperCase() !== 'ALL') {
+      url += `&effective_status=['${statusFilter.toUpperCase()}']`;
+    }
+
+    const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
+    const data = await res.json();
+
+    if (data.error) {
+      return { success: false, ids: [], error: data.error.message || 'فشل جلب حملات الحساب الإعلاني' };
+    }
+
+    let campaigns = data.data || [];
+    if (search && search.trim()) {
+      const q = search.trim().toLowerCase();
+      campaigns = campaigns.filter((c: any) => c.name && c.name.toLowerCase().includes(q));
+    }
+
+    const ids = campaigns.map((c: any) => c.id);
+    return { success: true, ids };
+  } catch (err: any) {
+    return { success: false, ids: [], error: err.message || 'خطأ أثناء الاتصال بميتا لجلب حملات الحساب' };
+  }
+}
+
+/**
  * دالة مساعدة لاستخراج نوع وعدد النتائج وتكلفة النتيجة (CPA) بدقة حسب هدف الحملة
  */
 function extractResultsAndCpa(
@@ -179,7 +217,12 @@ function extractAdUrls(cr: any = {}) {
   };
 }
 
-async function handleRequest(campaignIds: string[], datePreset: string = 'last_7d', forceRefresh: boolean = false) {
+async function handleRequest(
+  campaignIds: string[],
+  datePreset: string = 'last_7d',
+  forceRefresh: boolean = false,
+  extraMetadata: { account_id?: string; search?: string } = {}
+) {
   const token = process.env.META_USER_TOKEN;
   if (!token) {
     return { success: false, error: 'توكن الوصول لـ Meta Graph API غير مهيأ في الخادم', status: 500 };
@@ -476,6 +519,8 @@ async function handleRequest(campaignIds: string[], datePreset: string = 'last_7
       timezone: 'Africa/Cairo',
       timezone_offset: '+03:00',
       currency: 'EGP',
+      ...(extraMetadata.account_id ? { account_id: extraMetadata.account_id } : {}),
+      ...(extraMetadata.search ? { search_filter: extraMetadata.search } : {}),
       summary: {
         total_spend: Number(totalSpend.toFixed(2)),
         total_budget_daily: Number(totalDailyBudget.toFixed(2)),
@@ -522,16 +567,71 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { campaign_ids, date_preset, force_refresh } = body;
+    const { campaign_ids, account_id, status_filter, search, date_preset, force_refresh } = body;
 
-    if (!Array.isArray(campaign_ids) || campaign_ids.length === 0) {
+    let targetCampaignIds: string[] = [];
+    const extraMeta: { account_id?: string; search?: string } = {};
+
+    if (Array.isArray(campaign_ids) && campaign_ids.length > 0) {
+      targetCampaignIds = campaign_ids.map((id) => String(id).trim()).filter(Boolean);
+    } else if (account_id && String(account_id).trim()) {
+      const token = process.env.META_USER_TOKEN;
+      if (!token) {
+        return NextResponse.json(
+          { success: false, error: 'توكن الوصول لـ Meta Graph API غير مهيأ في الخادم' },
+          { status: 500 }
+        );
+      }
+      extraMeta.account_id = String(account_id).trim();
+      if (search && String(search).trim()) extraMeta.search = String(search).trim();
+
+      const fetchRes = await fetchCampaignIdsForAccount(account_id, token, status_filter, search);
+      if (!fetchRes.success) {
+        return NextResponse.json(
+          { success: false, error: fetchRes.error },
+          { status: 400 }
+        );
+      }
+
+      if (fetchRes.ids.length === 0) {
+        return NextResponse.json({
+          success: true,
+          account_id: extraMeta.account_id,
+          date_preset: date_preset || 'last_7d',
+          timezone: 'Africa/Cairo',
+          currency: 'EGP',
+          summary: {
+            total_spend: 0,
+            total_budget_daily: 0,
+            total_results: 0,
+            total_purchases: 0,
+            total_conversations: 0,
+            total_leads: 0,
+            result_label: 'لا توجد حملات',
+            average_cpa: 0,
+            average_ctr: 0,
+            conversion_rate: 0,
+            roas: 0,
+            total_impressions: 0,
+            total_reach: 0,
+            total_clicks: 0,
+            active_campaigns_count: 0,
+            total_campaigns_count: 0,
+          },
+          campaigns: [],
+          message: 'لم يتم العثور على أي حملات مطابقة في هذا الحساب الإعلاني',
+        });
+      }
+
+      targetCampaignIds = fetchRes.ids;
+    } else {
       return NextResponse.json(
-        { success: false, error: 'مصفوفة campaign_ids مطلوبة ويجب أن تحتوي على معرف حملة واحد على الأقل' },
+        { success: false, error: 'يجب توفير إما مصفوفة campaign_ids أو معرف الحساب الإعلاني account_id' },
         { status: 400 }
       );
     }
 
-    const result = await handleRequest(campaign_ids, date_preset, Boolean(force_refresh));
+    const result = await handleRequest(targetCampaignIds, date_preset, Boolean(force_refresh), extraMeta);
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error }, { status: result.status || 500 });
     }
@@ -555,18 +655,73 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const idsParam = searchParams.get('campaign_ids') || searchParams.get('ids') || '';
+  const accountIdParam = searchParams.get('account_id') || searchParams.get('account') || '';
+  const statusFilter = searchParams.get('status') || searchParams.get('status_filter') || '';
+  const search = searchParams.get('search') || searchParams.get('q') || '';
   const datePreset = searchParams.get('date_preset') || 'last_7d';
   const forceRefresh = searchParams.get('force_refresh') === 'true';
 
-  const campaignIds = idsParam.split(',').map((id) => id.trim()).filter(Boolean);
-  if (campaignIds.length === 0) {
+  let targetCampaignIds: string[] = idsParam.split(',').map((id) => id.trim()).filter(Boolean);
+  const extraMeta: { account_id?: string; search?: string } = {};
+
+  if (targetCampaignIds.length === 0 && accountIdParam.trim()) {
+    const token = process.env.META_USER_TOKEN;
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: 'توكن الوصول لـ Meta Graph API غير مهيأ في الخادم' },
+        { status: 500 }
+      );
+    }
+    extraMeta.account_id = accountIdParam.trim();
+    if (search.trim()) extraMeta.search = search.trim();
+
+    const fetchRes = await fetchCampaignIdsForAccount(accountIdParam, token, statusFilter, search);
+    if (!fetchRes.success) {
+      return NextResponse.json(
+        { success: false, error: fetchRes.error },
+        { status: 400 }
+      );
+    }
+
+    if (fetchRes.ids.length === 0) {
+      return NextResponse.json({
+        success: true,
+        account_id: extraMeta.account_id,
+        date_preset: datePreset,
+        timezone: 'Africa/Cairo',
+        currency: 'EGP',
+        summary: {
+          total_spend: 0,
+          total_budget_daily: 0,
+          total_results: 0,
+          total_purchases: 0,
+          total_conversations: 0,
+          total_leads: 0,
+          result_label: 'لا توجد حملات',
+          average_cpa: 0,
+          average_ctr: 0,
+          conversion_rate: 0,
+          roas: 0,
+          total_impressions: 0,
+          total_reach: 0,
+          total_clicks: 0,
+          active_campaigns_count: 0,
+          total_campaigns_count: 0,
+        },
+        campaigns: [],
+        message: 'لم يتم العثور على أي حملات مطابقة في هذا الحساب الإعلاني',
+      });
+    }
+
+    targetCampaignIds = fetchRes.ids;
+  } else if (targetCampaignIds.length === 0) {
     return NextResponse.json(
-      { success: false, error: 'المعلمة campaign_ids مطلوبة كقائمة مفصولة بفواصل في الرابط ?campaign_ids=123,456' },
+      { success: false, error: 'يجب توفير إما المعلمة campaign_ids أو account_id في الرابط' },
       { status: 400 }
     );
   }
 
-  const result = await handleRequest(campaignIds, datePreset, forceRefresh);
+  const result = await handleRequest(targetCampaignIds, datePreset, forceRefresh, extraMeta);
   if (!result.success) {
     return NextResponse.json({ success: false, error: result.error }, { status: result.status || 500 });
   }
