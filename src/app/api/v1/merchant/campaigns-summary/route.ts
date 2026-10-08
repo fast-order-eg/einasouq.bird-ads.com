@@ -33,8 +33,13 @@ async function fetchCampaignIdsForAccount(
     const formattedAccId = cleanAccId.startsWith('act_') ? cleanAccId : `act_${cleanAccId}`;
     let url = `https://graph.facebook.com/v21.0/${formattedAccId}/campaigns?fields=id,name,status,effective_status,objective&limit=100&access_token=${token}`;
 
-    if (statusFilter && statusFilter.toUpperCase() !== 'ALL') {
-      url += `&effective_status=['${statusFilter.toUpperCase()}']`;
+    if (statusFilter && statusFilter.toUpperCase() === 'ALL') {
+      // Do not filter by status
+    } else if (statusFilter && statusFilter.trim()) {
+      url += `&effective_status=['${statusFilter.trim().toUpperCase()}']`;
+    } else {
+      // Default to ACTIVE for performance and relevance
+      url += `&effective_status=['ACTIVE']`;
     }
 
     const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
@@ -50,7 +55,7 @@ async function fetchCampaignIdsForAccount(
       campaigns = campaigns.filter((c: any) => c.name && c.name.toLowerCase().includes(q));
     }
 
-    const ids = campaigns.map((c: any) => c.id);
+    const ids = campaigns.map((c: any) => c.id).slice(0, 30);
     return { success: true, ids };
   } catch (err: any) {
     return { success: false, ids: [], error: err.message || 'خطأ أثناء الاتصال بميتا لجلب حملات الحساب' };
