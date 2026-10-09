@@ -401,41 +401,6 @@ async function handleRequest(
         }
       }
 
-      // Format AdSets
-      const adsets = rawAdsets.map((aset: any) => {
-        const aInsights = aset.insights?.data?.[0] || {};
-        const aSpend = parseFloat(aInsights.spend || '0');
-        const aClicks = parseInt(aInsights.clicks || '0', 10);
-        const aCtr = parseFloat(aInsights.ctr || '0');
-        const aActions: any[] = aInsights.actions || [];
-        const aCostPerActions: any[] = aInsights.cost_per_action_type || [];
-
-        const asetRes = extractResultsAndCpa(
-          camp.objective,
-          aActions,
-          aCostPerActions,
-          aSpend,
-          aClicks,
-          hasMessagingCta
-        );
-
-        return {
-          id: aset.id,
-          name: aset.name,
-          status: aset.status,
-          effective_status: aset.effective_status,
-          start_time: aset.start_time || null,
-          stop_time: aset.end_time || null,
-          daily_budget: aset.daily_budget ? parseFloat(aset.daily_budget) / 100 : null,
-          spend: Number(aSpend.toFixed(2)),
-          results: asetRes.resultsCount,
-          result_type: asetRes.resultType,
-          result_label: asetRes.resultLabel,
-          cpa: asetRes.cpa,
-          ctr: Number(aCtr.toFixed(2)),
-        };
-      });
-
       // Format Ads and Creatives
       const ads = rawAds.map((ad: any) => {
         const adInsights = ad.insights?.data?.[0] || {};
@@ -482,6 +447,45 @@ async function handleRequest(
             effective_object_story_id: cr.effective_object_story_id || null,
             instagram_permalink_url: cr.instagram_permalink_url || null,
           },
+        };
+      });
+
+      // Format AdSets (including their respective ads)
+      const adsets = rawAdsets.map((aset: any) => {
+        const aInsights = aset.insights?.data?.[0] || {};
+        const aSpend = parseFloat(aInsights.spend || '0');
+        const aClicks = parseInt(aInsights.clicks || '0', 10);
+        const aCtr = parseFloat(aInsights.ctr || '0');
+        const aActions: any[] = aInsights.actions || [];
+        const aCostPerActions: any[] = aInsights.cost_per_action_type || [];
+
+        const asetRes = extractResultsAndCpa(
+          camp.objective,
+          aActions,
+          aCostPerActions,
+          aSpend,
+          aClicks,
+          hasMessagingCta
+        );
+
+        const adsetAds = ads.filter((a: any) => a.adset_id === aset.id);
+
+        return {
+          id: aset.id,
+          name: aset.name,
+          status: aset.status,
+          effective_status: aset.effective_status,
+          start_time: aset.start_time || null,
+          stop_time: aset.end_time || null,
+          daily_budget: aset.daily_budget ? parseFloat(aset.daily_budget) / 100 : null,
+          spend: Number(aSpend.toFixed(2)),
+          results: asetRes.resultsCount,
+          result_type: asetRes.resultType,
+          result_label: asetRes.resultLabel,
+          cpa: asetRes.cpa,
+          ctr: Number(aCtr.toFixed(2)),
+          ads_count: adsetAds.length,
+          ads: adsetAds,
         };
       });
 
