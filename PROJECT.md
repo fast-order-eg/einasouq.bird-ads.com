@@ -92,6 +92,13 @@ JWT_SECRET="adscope_super_secure_jwt_secret_2026"
 5. **الهيكل الهرمي وروابط المنشورات:**
    - كل حملة `campaign` تحتوي على `adsets`، وبداخل كل `adset` مصفوفة إعلاناتها `ads`.
    - كل إعلان يحتوي على `creative.post_url` (رابط منشور فيسبوك أو إنستغرام الفعلي القابل للنقر)، و `preview_url`، و `image_url`، والمقاييس المالية المنفصلة.
+6. **رصيد الحساب الإعلاني للدفع المسبق (Prepaid Account Balance):**
+   - يجلب تلقائياً الرصيد المتبقي المتاح للصرف في حساب الدفع المسبق ويرجعه في:
+     - `summary.account_balance` (رقم بالجنيه مثلاً `498.44`)
+     - `summary.account_balance_formatted` (نص مع العملة مثلاً `"498.44 EGP"`)
+     - `summary.account_name` (اسم الحساب الإعلاني)
+     - كائن `account: { id, name, balance, balance_formatted, currency, is_prepay_account }`
+     - وداخل كل حملة: `campaign.account_balance`.
 
 ---
 
