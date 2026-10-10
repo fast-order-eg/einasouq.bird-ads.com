@@ -63,6 +63,63 @@ async function fetchCampaignIdsForAccount(
 }
 
 /**
+ * دالة مساعدة لجلب رصيد الحساب الإعلاني (للدفع المسبق والرصيد المتاح)
+ */
+async function fetchAccountBalanceInfo(accountId: string, token: string): Promise<{
+  account_id: string;
+  account_name: string;
+  account_status: number;
+  currency: string;
+  balance: number;
+  balance_formatted: string;
+  is_prepay: boolean;
+  spend_cap: number;
+  amount_spent: number;
+} | null> {
+  try {
+    const cleanAccId = accountId.trim();
+    const formattedId = cleanAccId.startsWith('act_') ? cleanAccId : `act_${cleanAccId}`;
+    const fields = 'id,name,account_id,account_status,currency,amount_spent,balance,spend_cap,is_prepay_account,funding_source_details{display_string}';
+    const url = `https://graph.facebook.com/v21.0/${formattedId}?fields=${encodeURIComponent(fields)}&access_token=${token}`;
+
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const data = await res.json();
+
+    if (data.error || !data.id) {
+      return null;
+    }
+
+    const spendCap = parseFloat(data.spend_cap || '0') / 100;
+    const amountSpent = parseFloat(data.amount_spent || '0') / 100;
+    const rawBalance = parseFloat(data.balance || '0') / 100;
+
+    let availableBalance = 0;
+    if (spendCap > 0 && spendCap >= amountSpent) {
+      availableBalance = Number((spendCap - amountSpent).toFixed(2));
+    } else if (rawBalance > 0) {
+      availableBalance = Number(rawBalance.toFixed(2));
+    }
+
+    const currency = data.currency || 'EGP';
+
+    return {
+      account_id: data.account_id || cleanAccId.replace('act_', ''),
+      account_name: data.name || '',
+      account_status: data.account_status,
+      currency,
+      balance: availableBalance,
+      balance_formatted: `${availableBalance} ${currency}`,
+      is_prepay: Boolean(data.is_prepay_account),
+      spend_cap: spendCap,
+      amount_spent: amountSpent,
+    };
+  } catch (err: any) {
+    console.error('[Fetch Account Balance Error]:', err.message);
+    return null;
+  }
+}
+
+/**
  * دالة مساعدة لاستخراج نوع وعدد النتائج وتكلفة النتيجة (CPA) بدقة حسب هدف الحملة
  */
 function extractResultsAndCpa(
@@ -255,6 +312,7 @@ async function handleRequest(
   const fields = [
     'id',
     'name',
+    'account_id',
     'status',
     'effective_status',
     'objective',
@@ -278,6 +336,22 @@ async function handleRequest(
         error: rawData.error.message || 'خطأ في جلب بيانات الحملات من فيسبوك',
         status: 502,
       };
+    }
+
+    // Resolve Account ID and fetch fresh balance info
+    let resolvedAccountId = extraMetadata.account_id || null;
+    if (!resolvedAccountId) {
+      for (const cId of cleanIds) {
+        if (rawData[cId]?.account_id) {
+          resolvedAccountId = rawData[cId].account_id;
+          break;
+        }
+      }
+    }
+
+    let accountInfo: any = null;
+    if (resolvedAccountId) {
+      accountInfo = await fetchAccountBalanceInfo(resolvedAccountId, token);
     }
 
     let totalSpend = 0;
@@ -492,6 +566,10 @@ async function handleRequest(
       return {
         id: camp.id,
         name: camp.name,
+        account_id: camp.account_id || resolvedAccountId || null,
+        account_name: accountInfo?.account_name || null,
+        account_balance: accountInfo?.balance ?? null,
+        account_balance_formatted: accountInfo?.balance_formatted ?? null,
         status: camp.status,
         effective_status: camp.effective_status,
         objective: camp.objective || 'OUTCOME_TRAFFIC',
@@ -527,10 +605,24 @@ async function handleRequest(
       date_preset: safePreset,
       timezone: 'Africa/Cairo',
       timezone_offset: '+03:00',
-      currency: 'EGP',
-      ...(extraMetadata.account_id ? { account_id: extraMetadata.account_id } : {}),
+      currency: accountInfo?.currency || 'EGP',
+      ...(resolvedAccountId ? { account_id: resolvedAccountId } : {}),
       ...(extraMetadata.search ? { search_filter: extraMetadata.search } : {}),
+      account: accountInfo ? {
+        id: accountInfo.account_id,
+        name: accountInfo.account_name,
+        status: accountInfo.account_status,
+        balance: accountInfo.balance,
+        balance_formatted: accountInfo.balance_formatted,
+        currency: accountInfo.currency,
+        is_prepay_account: accountInfo.is_prepay,
+      } : null,
       summary: {
+        account_id: resolvedAccountId || null,
+        account_name: accountInfo?.account_name || null,
+        account_balance: accountInfo?.balance ?? null,
+        account_balance_formatted: accountInfo?.balance_formatted ?? null,
+        is_prepay_account: accountInfo?.is_prepay ?? false,
         total_spend: Number(totalSpend.toFixed(2)),
         total_budget_daily: Number(totalDailyBudget.toFixed(2)),
         total_results: overallResults,
@@ -603,13 +695,28 @@ export async function POST(req: Request) {
       }
 
       if (fetchRes.ids.length === 0) {
+        const emptyAccInfo = await fetchAccountBalanceInfo(account_id, token);
         return NextResponse.json({
           success: true,
           account_id: extraMeta.account_id,
           date_preset: date_preset || 'last_7d',
           timezone: 'Africa/Cairo',
-          currency: 'EGP',
+          currency: emptyAccInfo?.currency || 'EGP',
+          account: emptyAccInfo ? {
+            id: emptyAccInfo.account_id,
+            name: emptyAccInfo.account_name,
+            status: emptyAccInfo.account_status,
+            balance: emptyAccInfo.balance,
+            balance_formatted: emptyAccInfo.balance_formatted,
+            currency: emptyAccInfo.currency,
+            is_prepay_account: emptyAccInfo.is_prepay,
+          } : null,
           summary: {
+            account_id: extraMeta.account_id,
+            account_name: emptyAccInfo?.account_name || null,
+            account_balance: emptyAccInfo?.balance ?? null,
+            account_balance_formatted: emptyAccInfo?.balance_formatted ?? null,
+            is_prepay_account: emptyAccInfo?.is_prepay ?? false,
             total_spend: 0,
             total_budget_daily: 0,
             total_results: 0,
@@ -693,13 +800,28 @@ export async function GET(req: Request) {
     }
 
     if (fetchRes.ids.length === 0) {
+      const emptyAccInfo = await fetchAccountBalanceInfo(accountIdParam, token);
       return NextResponse.json({
         success: true,
         account_id: extraMeta.account_id,
         date_preset: datePreset,
         timezone: 'Africa/Cairo',
-        currency: 'EGP',
+        currency: emptyAccInfo?.currency || 'EGP',
+        account: emptyAccInfo ? {
+          id: emptyAccInfo.account_id,
+          name: emptyAccInfo.account_name,
+          status: emptyAccInfo.account_status,
+          balance: emptyAccInfo.balance,
+          balance_formatted: emptyAccInfo.balance_formatted,
+          currency: emptyAccInfo.currency,
+          is_prepay_account: emptyAccInfo.is_prepay,
+        } : null,
         summary: {
+          account_id: extraMeta.account_id,
+          account_name: emptyAccInfo?.account_name || null,
+          account_balance: emptyAccInfo?.balance ?? null,
+          account_balance_formatted: emptyAccInfo?.balance_formatted ?? null,
+          is_prepay_account: emptyAccInfo?.is_prepay ?? false,
           total_spend: 0,
           total_budget_daily: 0,
           total_results: 0,
