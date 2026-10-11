@@ -310,39 +310,62 @@ function extractResultsAndCpa(
 }
 
 /**
- * دالة مساعدة لاستخراج رابط المنشور والمعاينة المباشر للإعلان
+ * دالة مساعدة لاستخراج رابط المنشور والمعاينة المباشر للإعلان وتحديد المنصة الأصلية بدقة
  */
-function extractAdUrls(cr: any = {}) {
-  let postUrl: string | null = null;
-  let platform: 'INSTAGRAM' | 'FACEBOOK' | 'META' = 'META';
-  let platformLabel = 'ميتا';
-  let postUrlLabel = 'رابط المنشور';
+function extractAdUrls(cr: any = {}, campaignName: string = '') {
   let instagramUrl: string | null = null;
   let facebookUrl: string | null = null;
 
+  // 1. استخراج رابط إنستغرام لو موجود
   if (cr.instagram_permalink_url) {
-    postUrl = cr.instagram_permalink_url;
     instagramUrl = cr.instagram_permalink_url;
-    platform = 'INSTAGRAM';
-    platformLabel = 'إنستغرام';
-    postUrlLabel = 'رابط المنشور (إنستغرام)';
   }
 
-  if (cr.effective_object_story_id) {
-    const parts = String(cr.effective_object_story_id).split('_');
+  // 2. استخراج رابط فيسبوك لو المنشور منشور على صفحة فيسبوك
+  const fbStoryId = cr.object_story_id || cr.effective_object_story_id;
+  if (fbStoryId) {
+    const parts = String(fbStoryId).split('_');
     if (parts.length === 2) {
       facebookUrl = `https://www.facebook.com/${parts[0]}/posts/${parts[1]}`;
     } else {
-      facebookUrl = `https://www.facebook.com/${cr.effective_object_story_id}`;
-    }
-
-    if (!postUrl) {
-      postUrl = facebookUrl;
-      platform = 'FACEBOOK';
-      platformLabel = 'فيسبوك';
-      postUrlLabel = 'رابط المنشور (فيسبوك)';
+      facebookUrl = `https://www.facebook.com/${fbStoryId}`;
     }
   }
+
+  // 3. تحديد المنصة الأصلية الأساسية (Facebook vs Instagram)
+  // القواعد:
+  // - لو source_instagram_media_id موجود: يبقى الإعلان أُنشئ على إنستغرام وتم ترويجه منه مباشرة.
+  // - لو object_story_id موجود ومفيش source_instagram_media_id: يبقى ده منشور صفحة فيسبوك أصلي مؤكد.
+  // - لو اسم الحملة فيه "انستا": يبقى أولوية لإنستغرام لو رابط إنستا متوفر.
+  // - لو اسم الحملة فيه "فيس" أو منشور صفحة: يبقى أولوية لفيسبوك.
+  const hasSourceInsta = Boolean(cr.source_instagram_media_id);
+  const hasOriginalFbPost = Boolean(cr.object_story_id);
+  const campNameLower = (campaignName || '').toLowerCase();
+  const isInstaNamed = campNameLower.includes('انستا') || campNameLower.includes('insta') || campNameLower.includes('instagram');
+  const isFbNamed = campNameLower.includes('فيس') || campNameLower.includes('فيسبوك') || campNameLower.includes('facebook') || campNameLower.includes('fb');
+
+  let isInstagramPrimary = false;
+
+  if (hasSourceInsta) {
+    // منشور إنستغرام أصلي مؤكد
+    isInstagramPrimary = true;
+  } else if (hasOriginalFbPost) {
+    // منشور صفحة فيسبوك أصلي مؤكد
+    isInstagramPrimary = false;
+  } else if (isInstaNamed && instagramUrl) {
+    isInstagramPrimary = true;
+  } else if (isFbNamed && facebookUrl) {
+    isInstagramPrimary = false;
+  } else if (facebookUrl) {
+    isInstagramPrimary = false;
+  } else if (instagramUrl) {
+    isInstagramPrimary = true;
+  }
+
+  const platform: 'INSTAGRAM' | 'FACEBOOK' = isInstagramPrimary ? 'INSTAGRAM' : 'FACEBOOK';
+  const platformLabel = isInstagramPrimary ? 'إنستغرام' : 'فيسبوك';
+  const postUrl = isInstagramPrimary ? (instagramUrl || facebookUrl) : (facebookUrl || instagramUrl);
+  const postUrlLabel = isInstagramPrimary ? 'رابط المنشور (إنستغرام)' : 'رابط المنشور (فيسبوك)';
 
   const previewUrl = postUrl || cr.link_url || null;
 
@@ -355,6 +378,7 @@ function extractAdUrls(cr: any = {}) {
     platform,
     platform_label: platformLabel,
     post_url_label: postUrlLabel,
+    has_both: Boolean(facebookUrl && instagramUrl),
   };
 }
 
@@ -398,7 +422,7 @@ async function handleRequest(
     'stop_time',
     insightsSubquery,
     `adsets{id,name,status,effective_status,daily_budget,lifetime_budget,start_time,end_time,targeting,${insightsSubquery}}`,
-    `ads{id,name,status,effective_status,adset_id,creative{id,name,title,body,image_url,thumbnail_url,video_id,link_url,call_to_action_type,effective_object_story_id,instagram_permalink_url},${insightsSubquery}}`,
+    `ads{id,name,status,effective_status,adset_id,creative{id,name,title,body,image_url,thumbnail_url,video_id,link_url,call_to_action_type,object_story_id,source_instagram_media_id,effective_object_story_id,instagram_permalink_url},${insightsSubquery}}`,
   ].join(',');
 
   try {
@@ -570,7 +594,7 @@ async function handleRequest(
           hasMessagingCta
         );
 
-        const urls = extractAdUrls(cr);
+        const urls = extractAdUrls(cr, camp.name);
 
         return {
           id: ad.id,
@@ -651,7 +675,7 @@ async function handleRequest(
 
       // Primary / Active ad resolution
       const activeAd = ads.find((a: any) => a.effective_status === 'ACTIVE') || ads[0] || null;
-      const primaryUrls = activeAd ? extractAdUrls(rawAds.find((r: any) => r.id === activeAd.id)?.creative) : null;
+      const primaryUrls = activeAd ? extractAdUrls(rawAds.find((r: any) => r.id === activeAd.id)?.creative, camp.name) : null;
       const isInstagram = primaryUrls?.platform === 'INSTAGRAM' || Boolean(primaryUrls?.instagram_url);
 
       let statusLabel = 'غير معروف';
