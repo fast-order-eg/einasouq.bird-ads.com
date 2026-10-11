@@ -20,6 +20,52 @@ function validateApiKey(req: Request): boolean {
 }
 
 /**
+ * تطبيع النصوص العربية لتحسين دقة البحث (يوحد الألف والياء والتاء المربوطة ويزيل التشكيل)
+ */
+function normalizeArabicText(text: string): string {
+  if (!text) return '';
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .replace(/[\u064B-\u065F]/g, '');
+}
+
+/**
+ * تطبيع المدخلات الزمنية لدعم الكلمات العربية والإنجليزية لميتا Graph API
+ */
+function normalizeDatePreset(preset?: string): string {
+  if (!preset) return 'last_7d';
+  const p = preset.trim().toLowerCase();
+  if (['الكل', 'كل الفترات', 'الإجمالي', 'الاجمالي', 'all', 'all_time', 'maximum'].includes(p)) return 'maximum';
+  if (['اليوم', 'today'].includes(p)) return 'today';
+  if (['امس', 'أمس', 'yesterday'].includes(p)) return 'yesterday';
+  if (['اخر 3 ايام', 'آخر 3 أيام', 'last_3d'].includes(p)) return 'last_3d';
+  if (['اخر 7 ايام', 'آخر 7 أيام', 'last_7d'].includes(p)) return 'last_7d';
+  if (['اخر 14 يوم', 'آخر 14 يوم', 'last_14d'].includes(p)) return 'last_14d';
+  if (['اخر 30 يوم', 'آخر 30 يوم', 'last_30d'].includes(p)) return 'last_30d';
+  if (['هذا الشهر', 'الشهر الحالي', 'this_month'].includes(p)) return 'this_month';
+  if (['الشهر الماضي', 'اخر شهر', 'آخر شهر', 'last_month'].includes(p)) return 'last_month';
+
+  const validPresets = ['today', 'yesterday', 'last_3d', 'last_7d', 'last_14d', 'last_30d', 'this_month', 'last_month', 'maximum'];
+  return validPresets.includes(p) ? p : 'last_7d';
+}
+
+/**
+ * تطبيع فلتر الحالة المدخل لدعم العربية والإنجليزية
+ */
+function normalizeStatusFilter(filter?: string): string {
+  if (!filter) return 'ACTIVE';
+  const f = filter.trim().toUpperCase();
+  if (['ACTIVE', 'نشطة', 'نشط', 'شغالة', 'شغال'].includes(f)) return 'ACTIVE';
+  if (['PAUSED', 'متوقفة', 'متوقف', 'موقوفة'].includes(f)) return 'PAUSED';
+  if (['ALL', 'الكل', 'جميع', 'كافة'].includes(f)) return 'ALL';
+  return f;
+}
+
+/**
  * دالة مساعدة لجلب قائمة معرفات الحملات التابعة لحساب إعلاني معين
  */
 async function fetchCampaignIdsForAccount(
@@ -31,15 +77,14 @@ async function fetchCampaignIdsForAccount(
   try {
     const cleanAccId = accountId.trim();
     const formattedAccId = cleanAccId.startsWith('act_') ? cleanAccId : `act_${cleanAccId}`;
-    let url = `https://graph.facebook.com/v21.0/${formattedAccId}/campaigns?fields=id,name,status,effective_status,objective&limit=100&access_token=${token}`;
+    const cleanStatus = normalizeStatusFilter(statusFilter);
 
-    if (statusFilter && statusFilter.toUpperCase() === 'ALL') {
+    let url = `https://graph.facebook.com/v21.0/${formattedAccId}/campaigns?fields=id,name,status,effective_status,objective,updated_time,start_time,created_time&limit=100&access_token=${token}`;
+
+    if (cleanStatus === 'ALL') {
       // Do not filter by status
-    } else if (statusFilter && statusFilter.trim()) {
-      url += `&effective_status=['${statusFilter.trim().toUpperCase()}']`;
     } else {
-      // Default to ACTIVE for performance and relevance
-      url += `&effective_status=['ACTIVE']`;
+      url += `&effective_status=['${cleanStatus}']`;
     }
 
     const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
@@ -50,9 +95,20 @@ async function fetchCampaignIdsForAccount(
     }
 
     let campaigns = data.data || [];
+
+    // الترتيب حسب الأحدث تنازلياً دائماً
+    campaigns.sort((a: any, b: any) => {
+      const timeA = new Date(a.updated_time || a.start_time || a.created_time || 0).getTime();
+      const timeB = new Date(b.updated_time || b.start_time || b.created_time || 0).getTime();
+      return timeB - timeA;
+    });
+
     if (search && search.trim()) {
-      const q = search.trim().toLowerCase();
-      campaigns = campaigns.filter((c: any) => c.name && c.name.toLowerCase().includes(q));
+      const qNorm = normalizeArabicText(search);
+      campaigns = campaigns.filter((c: any) => {
+        if (!c.name) return false;
+        return normalizeArabicText(c.name).includes(qNorm);
+      });
     }
 
     const ids = campaigns.map((c: any) => c.id).slice(0, 30);
@@ -258,15 +314,33 @@ function extractResultsAndCpa(
  */
 function extractAdUrls(cr: any = {}) {
   let postUrl: string | null = null;
+  let platform: 'INSTAGRAM' | 'FACEBOOK' | 'META' = 'META';
+  let platformLabel = 'ميتا';
+  let postUrlLabel = 'رابط المنشور';
+  let instagramUrl: string | null = null;
+  let facebookUrl: string | null = null;
 
   if (cr.instagram_permalink_url) {
     postUrl = cr.instagram_permalink_url;
-  } else if (cr.effective_object_story_id) {
+    instagramUrl = cr.instagram_permalink_url;
+    platform = 'INSTAGRAM';
+    platformLabel = 'إنستغرام';
+    postUrlLabel = 'رابط المنشور (إنستغرام)';
+  }
+
+  if (cr.effective_object_story_id) {
     const parts = String(cr.effective_object_story_id).split('_');
     if (parts.length === 2) {
-      postUrl = `https://www.facebook.com/${parts[0]}/posts/${parts[1]}`;
+      facebookUrl = `https://www.facebook.com/${parts[0]}/posts/${parts[1]}`;
     } else {
-      postUrl = `https://www.facebook.com/${cr.effective_object_story_id}`;
+      facebookUrl = `https://www.facebook.com/${cr.effective_object_story_id}`;
+    }
+
+    if (!postUrl) {
+      postUrl = facebookUrl;
+      platform = 'FACEBOOK';
+      platformLabel = 'فيسبوك';
+      postUrlLabel = 'رابط المنشور (فيسبوك)';
     }
   }
 
@@ -276,6 +350,11 @@ function extractAdUrls(cr: any = {}) {
     post_url: postUrl,
     preview_url: previewUrl,
     link_url: cr.link_url || null,
+    instagram_url: instagramUrl,
+    facebook_url: facebookUrl,
+    platform,
+    platform_label: platformLabel,
+    post_url_label: postUrlLabel,
   };
 }
 
@@ -295,17 +374,14 @@ async function handleRequest(
     return { success: false, error: 'قائمة معرفات الحملات (campaign_ids) مطلوبة وفارغة', status: 400 };
   }
 
-  const cacheKey = `merchant_${cleanIds.slice().sort().join('_')}_${datePreset}`;
+  const safePreset = normalizeDatePreset(datePreset);
+  const cacheKey = `merchant_${cleanIds.slice().sort().join('_')}_${safePreset}`;
   if (!forceRefresh) {
     const cached = memoryCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
       return { success: true, data: { ...cached.data, from_cache: true } };
     }
   }
-
-  // Preset mapping and sanitization
-  const validPresets = ['today', 'yesterday', 'last_3d', 'last_7d', 'last_14d', 'last_30d', 'this_month', 'last_month', 'maximum'];
-  const safePreset = validPresets.includes(datePreset) ? datePreset : 'last_7d';
 
   // Construct Meta Graph API field query with attribution windows and account attribution setting
   const insightsSubquery = `insights.date_preset(${safePreset}).use_account_attribution_setting(true).action_attribution_windows(['7d_click','1d_view']){spend,impressions,reach,clicks,cpc,cpm,ctr,actions,action_values,cost_per_action_type,purchase_roas}`;
@@ -507,6 +583,12 @@ async function handleRequest(
           ctr: Number(adCtr.toFixed(2)),
           results: adRes.resultsCount,
           cpa: adRes.cpa,
+          post_url: urls.post_url,
+          post_url_label: urls.post_url_label,
+          platform: urls.platform,
+          platform_label: urls.platform_label,
+          instagram_url: urls.instagram_url,
+          facebook_url: urls.facebook_url,
           creative: {
             title: cr.title || '',
             body: cr.body || '',
@@ -517,9 +599,13 @@ async function handleRequest(
             cta_type: cr.call_to_action_type || 'LEARN_MORE',
             preview_url: urls.preview_url,
             post_url: urls.post_url,
+            post_url_label: urls.post_url_label,
+            platform: urls.platform,
+            platform_label: urls.platform_label,
             link_url: urls.link_url,
             effective_object_story_id: cr.effective_object_story_id || null,
-            instagram_permalink_url: cr.instagram_permalink_url || null,
+            instagram_permalink_url: cr.instagram_permalink_url || urls.instagram_url || null,
+            facebook_post_url: urls.facebook_url,
           },
         };
       });
@@ -563,6 +649,28 @@ async function handleRequest(
         };
       });
 
+      // Primary / Active ad resolution
+      const activeAd = ads.find((a: any) => a.effective_status === 'ACTIVE') || ads[0] || null;
+      const primaryUrls = activeAd ? extractAdUrls(rawAds.find((r: any) => r.id === activeAd.id)?.creative) : null;
+      const isInstagram = primaryUrls?.platform === 'INSTAGRAM' || Boolean(primaryUrls?.instagram_url);
+
+      let statusLabel = 'غير معروف';
+      if (camp.status === 'ACTIVE' && camp.effective_status === 'ACTIVE') {
+        if (activeAd && (activeAd.effective_status === 'DISAPPROVED' || activeAd.status === 'DISAPPROVED')) {
+          statusLabel = '❌ إعلان مرفوض';
+        } else if (activeAd && activeAd.effective_status === 'WITH_ISSUES') {
+          statusLabel = '⚠️ إعلان به مشاكل';
+        } else {
+          statusLabel = '🟢 نشطة';
+        }
+      } else if (camp.status === 'PAUSED' || camp.effective_status === 'PAUSED') {
+        statusLabel = '⏸️ متوقفة';
+      } else if (camp.status === 'ARCHIVED' || camp.effective_status === 'ARCHIVED') {
+        statusLabel = '📁 مؤرشفة';
+      } else {
+        statusLabel = camp.effective_status || camp.status || 'غير نشطة';
+      }
+
       return {
         id: camp.id,
         name: camp.name,
@@ -572,6 +680,8 @@ async function handleRequest(
         account_balance_formatted: accountInfo?.balance_formatted ?? null,
         status: camp.status,
         effective_status: camp.effective_status,
+        status_label: statusLabel,
+        is_active: isActive,
         objective: camp.objective || 'OUTCOME_TRAFFIC',
         start_time: camp.start_time || null,
         stop_time: resolvedStopTime,
@@ -588,6 +698,26 @@ async function handleRequest(
         impressions: impressions,
         reach: reach,
         clicks: clicks,
+        // روابط ومنصة الحملة المباشرة لتسهيل قراءتها للبوتات والـ AI
+        post_url: primaryUrls?.post_url || null,
+        post_url_label: primaryUrls?.post_url_label || (isInstagram ? 'رابط المنشور (إنستغرام)' : 'رابط المنشور (فيسبوك)'),
+        platform: primaryUrls?.platform || (isInstagram ? 'INSTAGRAM' : 'FACEBOOK'),
+        platform_label: primaryUrls?.platform_label || (isInstagram ? 'إنستغرام' : 'فيسبوك'),
+        instagram_url: primaryUrls?.instagram_url || null,
+        facebook_url: primaryUrls?.facebook_url || null,
+        primary_ad: activeAd ? {
+          id: activeAd.id,
+          name: activeAd.name,
+          status: activeAd.status,
+          effective_status: activeAd.effective_status,
+          post_url: primaryUrls?.post_url || null,
+          post_url_label: primaryUrls?.post_url_label || null,
+          platform: primaryUrls?.platform || null,
+          platform_label: primaryUrls?.platform_label || null,
+          instagram_permalink_url: primaryUrls?.instagram_url || null,
+          preview_url: primaryUrls?.preview_url || null,
+          image_url: activeAd.creative?.image_url || null,
+        } : null,
         adsets: adsets,
         ads: ads,
       };
@@ -699,7 +829,7 @@ export async function POST(req: Request) {
         return NextResponse.json({
           success: true,
           account_id: extraMeta.account_id,
-          date_preset: date_preset || 'last_7d',
+          date_preset: normalizeDatePreset(date_preset),
           timezone: 'Africa/Cairo',
           currency: emptyAccInfo?.currency || 'EGP',
           account: emptyAccInfo ? {
@@ -804,7 +934,7 @@ export async function GET(req: Request) {
       return NextResponse.json({
         success: true,
         account_id: extraMeta.account_id,
-        date_preset: datePreset,
+        date_preset: normalizeDatePreset(datePreset),
         timezone: 'Africa/Cairo',
         currency: emptyAccInfo?.currency || 'EGP',
         account: emptyAccInfo ? {
