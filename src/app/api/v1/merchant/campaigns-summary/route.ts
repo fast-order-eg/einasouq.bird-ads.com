@@ -426,22 +426,64 @@ async function handleRequest(
   ].join(',');
 
   try {
-    const url = `https://graph.facebook.com/v21.0/?ids=${cleanIds.join(',')}&fields=${encodeURIComponent(fields)}&access_token=${token}`;
+    let effectiveIds = [...cleanIds];
+    const url = `https://graph.facebook.com/v21.0/?ids=${effectiveIds.join(',')}&fields=${encodeURIComponent(fields)}&access_token=${token}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
-    const rawData = await res.json();
+    let rawData: any = await res.json();
 
+    // If batch fails (e.g. one ID is an Ad ID / AdSet ID lacking 'objective', or a deleted ID),
+    // automatically resolve any Ad/AdSet IDs to their parent campaign_id and fetch individually
     if (rawData.error) {
-      return {
-        success: false,
-        error: rawData.error.message || 'خطأ في جلب بيانات الحملات من فيسبوك',
-        status: 502,
-      };
+      const recoveredData: Record<string, any> = {};
+      const resolvedIds: string[] = [];
+
+      await Promise.all(
+        effectiveIds.map(async (id) => {
+          try {
+            let targetCampaignId = id;
+            // Check if this ID is an Ad or AdSet that has a parent campaign_id
+            const probeRes = await fetch(
+              `https://graph.facebook.com/v21.0/${id}?fields=id,campaign_id&access_token=${token}`,
+              { signal: AbortSignal.timeout(8000) }
+            );
+            const probeJson = await probeRes.json();
+            if (probeJson?.campaign_id) {
+              targetCampaignId = String(probeJson.campaign_id);
+            }
+
+            const singleRes = await fetch(
+              `https://graph.facebook.com/v21.0/${targetCampaignId}?fields=${encodeURIComponent(fields)}&access_token=${token}`,
+              { signal: AbortSignal.timeout(12000) }
+            );
+            const singleJson = await singleRes.json();
+            if (singleJson && !singleJson.error && singleJson.id) {
+              recoveredData[targetCampaignId] = singleJson;
+              resolvedIds.push(targetCampaignId);
+            } else {
+              resolvedIds.push(id);
+            }
+          } catch {
+            resolvedIds.push(id);
+          }
+        })
+      );
+
+      if (Object.keys(recoveredData).length > 0) {
+        rawData = recoveredData;
+        effectiveIds = Array.from(new Set(resolvedIds));
+      } else {
+        return {
+          success: false,
+          error: rawData.error.message || 'خطأ في جلب بيانات الحملات من فيسبوك',
+          status: 200,
+        };
+      }
     }
 
     // Resolve Account ID and fetch fresh balance info
     let resolvedAccountId = extraMetadata.account_id || null;
     if (!resolvedAccountId) {
-      for (const cId of cleanIds) {
+      for (const cId of effectiveIds) {
         if (rawData[cId]?.account_id) {
           resolvedAccountId = rawData[cId].account_id;
           break;
@@ -465,7 +507,7 @@ async function handleRequest(
     let totalClicks = 0;
     let activeCampaignsCount = 0;
 
-    const formattedCampaigns = cleanIds.map((cId) => {
+    const formattedCampaigns = effectiveIds.map((cId) => {
       const camp = rawData[cId];
       if (!camp) {
         return {
