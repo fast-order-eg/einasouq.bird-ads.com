@@ -100,6 +100,57 @@ JWT_SECRET="adscope_super_secure_jwt_secret_2026"
      - كائن `account: { id, name, balance, balance_formatted, currency, is_prepay_account }`
      - وداخل كل حملة: `campaign.account_balance`.
 
+### 🚀 الواجهات الجديدة لمكتبة الإعلانات والمنافسين (Ad Library & Competitor Intelligence):
+
+#### 1. مسار اقتراح الكلمات المفتاحية (`/api/v1/merchant/suggest-keywords`):
+- **الرابط:** `POST https://einasouq.bird-ads.com/api/v1/merchant/suggest-keywords` (أو `GET`).
+- **الوظيفة:** توليد الكلمات المفتاحية الأكثر فاعلية لمراقبة إعلانات المنافسين باستخدام الذكاء الاصطناعي (Google Vertex AI) مع توليد رابط مخصص لكل كلمة.
+- **المدخلات (Request):**
+  ```json
+  {
+    "prompt": "ملابس حريمي كاجوال",
+    "country": "EG",
+    "force_refresh": false
+  }
+  ```
+- **المخرجات (Response):**
+  - `suggested_keywords`: مصفوفة كائنات تحتوي على `keyword` و `search_url` المباشر لمكتبة الإعلانات.
+  - `keywords_list`: مصفوفة نصوص مباشرة بالكلمات المقترحة.
+  - `angles`: زوايا الإعلانات المقترحة (Hooks).
+  - `explanation`: شرح واستراتيجية استهداف الجمهور.
+  - `formatted_message`: نص جاهز ومنسق بالرموز التعبيرية مخصص للإرسال المباشر للعميل عبر الواتساب.
+
+#### 2. مسار استكشاف إعلانات المنافسين الحية والتقسيم على دفعات (`/api/v1/merchant/competitor-ads`):
+- **الرابط:** `POST https://einasouq.bird-ads.com/api/v1/merchant/competitor-ads` (أو `GET`).
+- **الوظيفة:** سحب إعلانات المنافسين الحية من مكتبة إعلانات فيسبوك (Meta Ad Library) مع دعم الـ Pagination (سحب 5 إعلانات ثم 5 للمزيد) وإرجاع كافة تفاصيل الإعلان.
+- **المدخلات (Request):**
+  ```json
+  {
+    "query": "سويت شيرت",
+    "country": "EG",
+    "limit": 5,
+    "page": 1,
+    "media_type": "ALL",
+    "status": "ACTIVE",
+    "force_refresh": false
+  }
+  ```
+- **المخرجات (Response):**
+  - `search_url`: الرابط المباشر للبحث في مكتبة الإعلانات بالكلمة والدولة.
+  - `meta_estimated_total`: التقدير الإجمالي لعدد إعلانات المنافسين على فيسبوك.
+  - `pagination`: يحتوي على `current_page` و `limit` و `has_more` و `next_page` و `total_cached_ads`.
+  - `ads`: مصفوفة الإعلانات الخمسة، كل إعلان يحتوي على:
+    - `ad_library_id` و `ad_library_url` (رابط الإعلان المباشر بالمكتبة).
+    - `page_name` و `page_profile_url`.
+    - `primary_text`: المحتوى النصي الكامل للإعلان.
+    - `start_date` و `days_active` و `duration_text` (مثال: "شغال بقاله 5 أيام 🔥").
+    - `status` و `status_label` ("🟢 نشط حالياً").
+    - `cta_type` و `cta_label` (الهدف بالعربي: رسائل واتساب 💬، طلب شراء 🛒، إلخ).
+    - `phone_numbers`: استخراج أرقام الهواتف والواتساب المذكورة في نص الإعلان.
+    - `media_type` و `media_type_label` و `image_url` و `images` و `video_url`.
+    - `publisher_platforms` و `platforms_label` (فيسبوك وإنستغرام).
+  - `formatted_message`: رسالة واتساب جاهزة ومصاغة باحترافية للـ 5 إعلانات مع توجيه لطلب "المزيد" للدفعات التالية.
+
 ---
 
 ## 🔄 5. خادم الإنتاج ونظام النشر السلس (Zero Downtime Deployment)
