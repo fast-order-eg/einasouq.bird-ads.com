@@ -49,13 +49,15 @@ export function exportPostAnalysisPdf(post: any, analysis: any) {
     .join('');
 
   const interestsBadges = (analysis.targeting_suggestions?.detailed_interests || [])
-    .map(
-      (int: string) => `
-      <span style="display: inline-block; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; padding: 3px 8px; border-radius: 6px; font-size: 11px; margin: 2px 4px 2px 0; font-weight: 600;">
-        🎯 ${int}
+    .map((item: any) => {
+      const name = typeof item === 'object' && item?.interest ? item.interest : String(item);
+      const reason = typeof item === 'object' && item?.reason ? ` (${item.reason})` : '';
+      return `
+      <span style="display: inline-block; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; padding: 4px 10px; border-radius: 6px; font-size: 11px; margin: 3px 5px 3px 0; font-weight: 600;">
+        🎯 <strong>${name}</strong>${reason ? `<span style="color: #4b5563; font-weight: normal;">${reason}</span>` : ''}
       </span>
-    `
-    )
+    `;
+    })
     .join('');
 
   const htmlContent = `<!DOCTYPE html>

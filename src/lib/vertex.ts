@@ -39,44 +39,56 @@ export interface CreativeAnalysisSchema {
   strategic_recommendations: string[];
 }
 
+export interface DetailedInterestItem {
+  interest: string;
+  reason: string;
+}
+
 export interface PaidCampaignPostAnalysis {
   observed_score: number; // 1 to 10 (التقييم العام)
   copy_score: number; // 1 to 10 (تقييم الكوبي والمحتوى الكتابي)
   visual_score: number; // 1 to 10 (تقييم الفيديو / التصميم البصري)
   verdict: {
     is_suitable: boolean;
-    rating: 'ممتاز' | 'جيد جداً' | 'جيد' | 'ضعيف' | 'سيء جداً';
+    rating?: 'ممتاز' | 'جيد جداً' | 'جيد' | 'ضعيف' | 'سيء جداً';
+    decision_label?: string; // 🟢 جاهز للتمويل فوراً / 🟡 جاهز بعد تعديل بسيط / 🔴 غير مناسب لإعلان ممول
     status_label: string;
     summary: string;
   };
   creative_analysis: {
     format_detected: string;
-    visual_hooks: string;
-    strengths: string[];
-    weaknesses: string[];
-    actionable_recommendations: string[];
+    visual_hooks: string; // الهوك البصري أول 3 ثواني
+    primary_strength?: string; // نقطة القوة الأساسية
+    strengths?: string[];
+    weaknesses?: string[];
+    actionable_recommendations: string[]; // التعديل المطلوب فوراً
   };
   copy_analysis: {
-    hook_evaluation: string;
-    offer_evaluation: string;
-    cta_evaluation: string;
-    ready_to_use_variations: string[];
+    hook_and_offer_evaluation?: string; // قوة الهوك والعرض
+    hook_evaluation?: string;
+    offer_evaluation?: string;
+    cta_evaluation: string; // التوجيه Call To Action
+    ready_to_use_variations?: string[];
   };
   targeting_suggestions: {
     age_range: string;
-    gender: 'الجميع (رجال ونساء)' | 'رجال فقط' | 'نساء فقط';
-    detailed_interests: string[];
-    behaviors_and_placements: string[];
+    gender: string;
+    detailed_interests: Array<DetailedInterestItem | string>;
+    behaviors?: string;
+    placements?: string;
+    behaviors_and_placements?: string[];
   };
   campaign_strategy: {
-    ad_set_structure: string;
-    pair_another_post_recommendation: {
+    recommended_objective: string;
+    daily_test_budget?: string;
+    budget_type?: string;
+    media_buyer_golden_tip: string;
+    ad_set_structure?: string;
+    pair_another_post_recommendation?: {
       should_pair: boolean;
       recommendation_reason: string;
       paired_concept_idea: string;
     };
-    recommended_objective: string;
-    media_buyer_golden_tip: string;
     scaling_and_testing_plan?: string;
   };
 }
@@ -556,8 +568,8 @@ ${adText}
 `;
 
     const prompt = `
-أنت خبير واستشاري تسويق رقمي ومدير حملات ميديا باينج (Senior Performance Marketing Director & Creative Strategist) ذو خبرة تفوق 10 سنوات في إعلانات فيسبوك وإنستغرام الممولة بالسوق المصري والعربي.
-المهمة: فحص وتحليل هذا المنشور المباشر من صفحة العميل، وتقييم مدى جاهزيته وصلاحيته لإطلاق حملة إعلانية ممولة (Paid Ad Campaign) تحقق أعلى مبيعات وأقل تكلفة للعميل وتتفادى حرق الميزانية.
+أنت "عين السوق" 🦅، خبير الميديا باينج والتسويق الرقمي الأول في مصر والوطن العربي، المتخصص في التحليل الإعلاني التكتيكي السريع لبوستات وريلز فيسبوك وإنستجرام.
+أسلوبك: بالعامية المصرية البيزنس، مختصر، ذكي، وسريع وبدون أي حشو أو كلام نظري.
 
 بيانات المنشور:
 - اسم الصفحة: ${options.pageName || 'صفحة تابعة للعميل'}
@@ -569,19 +581,12 @@ ${options.postText || 'لا يوجد نص مكتوب'}
 """
 ${mediaDirective}
 
-المطلوب بدقة متناهية:
-1. إعطاء ثلاثة تقييمات رقمية دقيقة من 10:
-   - التقييم الكلي العام (observed_score) من 10.
-   - تقييم المحتوى والنص الإعلاني (copy_score) من 10.
-   - تقييم الفيديو أو التصميم البصري (visual_score) من 10.
-2. تقييم صريح وحاسم بالعامية المصرية حول جدوى تمويل البوست.
-3. فحص تفصيلي للكريتيف (سواء فيديو أو تصميم) ونقاط قوته ونواقصه مع خطوات تحسين عملية بالملي.
-4. فحص المحتوى الكتابي (الهوك، العرض، الدعوة للإجراء) مع كتابة 3 صيغ إعلانية بديلة كاملة بالعامية المصرية جاهزة للنسخ فوراً بين تنصيص "...".
-5. الاستهدافات المقترحة في مدير الإعلانات (Facebook Ads Manager): السن، النوع، الاهتمامات التفصيلية الدقيقة، والسلوكيات ومواضع الظهور.
-6. استراتيجية الحملة والمجموعات الإعلانية (Campaign & Ad Set Strategy):
-   - هل الأفضل إعلان فردي أم توزيعه على مجموعات إعلانية متعددة (Multiple Ad Sets)؟
-   - هل يفضل تشغيل هذا البوست منفرداً، أم إضافة بوست ثاني إبداعي معه في نفس الـ Ad Set (A/B Test / منع الـ Creative Fatigue)؟ مع اقتراح فكرة وزاوية البوست الثاني بدقة.
-   - هدف الحملة المقترح، وخطة التكبير والتطوير، ونصيحة ميديا باير ذهبية لتوفير التكلفة.
+══════════════════════════════════════
+🛑 قواعد صارمة لا يمكن مخالفتها:
+1. ❌ ممنوع منعاً باتاً كتابة أي نصوص أو صيغ إعلانية بديلة (ممنوع اقتراح كوبي بديل). التركيز فقط على تقييم البوست الحالي.
+2. ❌ ممنوع ذكر مراحل التكبير النظرية (Scaling phases) أو شرح مصطلحات الكتب النظرية.
+3. ❌ ممنوع تكرار نفس الملاحظة أو النصيحة في أكثر من مكان داخل التقرير.
+4. ⭐ الاهتمامات التفصيلية (Detailed Interests) هي الجزء الأهم في التقرير: يجب كتابة 4 إلى 6 اهتمامات دقيقة باللغة الإنجليزية كما تظهر في Meta Ads Manager مع شرح سبب كل اهتمام باختصار شديد، وتحديد السن، النوع، والسلوكيات والمواضع بدقة.
 
 يجب أن يكون الرد JSON فقط مطابقاً للهيكل التالي 100%:
 {
@@ -590,60 +595,52 @@ ${mediaDirective}
   "visual_score": 8.8,
   "verdict": {
     "is_suitable": true,
-    "rating": "ممتاز",
-    "status_label": "جاهز للحملة فوراً 🚀",
-    "summary": "تقييم صريح ومباشر بالعامية المصرية يوضح هل يصرف عليه إعلان ممول ولا لأ وليه بالضبط"
+    "decision_label": "🟢 جاهز للتمويل فوراً",
+    "status_label": "🟢 جاهز للتمويل فوراً",
+    "summary": "تقييم مباشر وصريح وموجز في سطرين عن الجدوى الإعلانية"
   },
   "creative_analysis": {
-    "format_detected": "${isVideo ? 'فيديو ريلز رأسي (9:16)' : 'تصميم إعلاني للمنتج'}",
-    "visual_hooks": "فحص قوة أول انطباع بصري وحركي وهل يوقف العميل عن التمرير",
-    "strengths": [
-      "نقطة قوة بصرية 1",
-      "نقطة قوة بصرية 2"
-    ],
-    "weaknesses": [
-      "نقطة ضعف أو نقص 1",
-      "نقطة ضعف أو نقص 2"
-    ],
+    "format_detected": "${isVideo ? 'فيديو / ريلز' : (hasImage ? 'صورة / تصميم' : 'نص فقط')}",
+    "visual_hooks": "تقييم مباشر للهوك البصري أول 3 ثواني في سطر واحد",
+    "primary_strength": "أقوى ميزة بصرية تشد العميل في سطر واحد",
     "actionable_recommendations": [
-      "تعديل محدد 1 بالملي",
-      "تعديل محدد 2 بالملي"
+      "تعديل عملي محدد رقم 1 فقط",
+      "تعديل عملي محدد رقم 2 (اختياري)"
     ]
   },
   "copy_analysis": {
-    "hook_evaluation": "تقييم السطر الأول ومدى جذبه لانتباه الجمهور",
-    "offer_evaluation": "تقييم وضوح العرض والقيمة المقدمة للعميل",
-    "cta_evaluation": "تقييم الدعوة لاتخاذ إجراء ومدى وضوح طريقة التواصل",
-    "ready_to_use_variations": [
-      "صيغة إعلانية بديلة 1 كاملة بالعامية المصرية جاهزة للنسخ...",
-      "صيغة إعلانية بديلة 2 كاملة بالعامية المصرية جاهزة للنسخ...",
-      "صيغة إعلانية بديلة 3 كاملة بالعامية المصرية جاهزة للنسخ..."
-    ]
+    "hook_and_offer_evaluation": "تقييم مباشر للهوك وقوة العرض المالي/التجاري في سطرين",
+    "cta_evaluation": "تقييم زر التحويل ورابط البوست بوضوح في سطر واحد"
   },
   "targeting_suggestions": {
     "age_range": "24 - 45 سنة",
-    "gender": "الجميع (رجال ونساء)",
+    "gender": "الجميع",
     "detailed_interests": [
-      "اهتمام فيسبوك دقيق 1",
-      "اهتمام فيسبوك دقيق 2",
-      "اهتمام فيسبوك دقيق 3",
-      "اهتمام فيسبوك دقيق 4"
+      {
+        "interest": "Interest Name in English",
+        "reason": "سبب اختيار هذا الاهتمام باختصار"
+      },
+      {
+        "interest": "Interest Name in English",
+        "reason": "سبب اختيار هذا الاهتمام باختصار"
+      },
+      {
+        "interest": "Interest Name in English",
+        "reason": "سبب اختيار هذا الاهتمام باختصار"
+      },
+      {
+        "interest": "Interest Name in English",
+        "reason": "سبب اختيار هذا الاهتمام باختصار"
+      }
     ],
-    "behaviors_and_placements": [
-      "سلوك أو موضع إعلاني مقترح 1",
-      "سلوك أو موضع إعلاني مقترح 2"
-    ]
+    "behaviors": "مثل: Engaged Shoppers أو Facebook Page Admins",
+    "placements": "مثل: Reels & Stories فقط أو Feeds"
   },
   "campaign_strategy": {
-    "ad_set_structure": "توصية هيكل الحملة وعدد المجموعات الإعلانية مع التبرير",
-    "pair_another_post_recommendation": {
-      "should_pair": true,
-      "recommendation_reason": "هل يفضل تشغيل البوست لوحده أم إضافة بوست بديل معه في نفس الـ Ad Set ولماذا",
-      "paired_concept_idea": "فكرة وزاوية البوست الثاني المقترح إضافته للاختبار A/B Test"
-    },
-    "recommended_objective": "رسائل واتساب / مبيعات / تفاعل",
-    "media_buyer_golden_tip": "نصيحة الميديا باير الذهبية لتحقيق أعلى مبيعات وتفادي حرق الميزانية",
-    "scaling_and_testing_plan": "خطة عملية لزيادة الميزانية والتكبير بأمان مقسمة لخطوات واضحة تبدأ بأرقام (1. ... 2. ... 3. ... 4. ...)"
+    "recommended_objective": "رسائل واتساب / Leads / مبيعات متجر",
+    "daily_test_budget": "250 - 350 جنيه مصري يومياً",
+    "budget_type": "ABO لاختبار الجماهير",
+    "media_buyer_golden_tip": "نصيحة تكتيكية واحدة ذهبية تخص هذا البوست تحديداً لتحقيق أعلى عائد وأقل تكلفة رسالة/طلب"
   }
 }
 `;

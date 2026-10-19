@@ -953,15 +953,24 @@ export default function DashboardPage() {
                             </span>
                           </div>
 
-                          <div className="flex flex-wrap gap-2">
-                            {paidAnalysis.targeting_suggestions.detailed_interests.map((interest: string, idx: number) => (
-                              <span
-                                key={idx}
-                                className="px-3 py-1.5 rounded-xl bg-blue-950/50 border border-blue-800/60 text-blue-300 text-xs sm:text-sm font-semibold shadow-sm"
-                              >
-                                🎯 {interest}
-                              </span>
-                            ))}
+                          <div className="flex flex-wrap gap-2.5">
+                            {paidAnalysis.targeting_suggestions.detailed_interests.map((item: any, idx: number) => {
+                              const interestName = typeof item === 'object' && item?.interest ? item.interest : String(item);
+                              const interestReason = typeof item === 'object' && item?.reason ? item.reason : null;
+                              return (
+                                <div
+                                  key={idx}
+                                  className="px-3.5 py-2 rounded-xl bg-blue-950/50 border border-blue-800/60 text-blue-200 text-xs sm:text-sm font-semibold shadow-sm flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-2"
+                                >
+                                  <span className="text-white font-bold tracking-wide">🎯 {interestName}</span>
+                                  {interestReason && (
+                                    <span className="text-[11.5px] text-blue-300/80 font-normal border-r sm:border-r-0 border-blue-700/50 pr-1.5 sm:pr-0">
+                                      — {interestReason}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
 
                           {/* Media Buyer Tactical Tip on Interests */}

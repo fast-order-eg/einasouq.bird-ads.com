@@ -23,111 +23,99 @@ function formatPostAnalysisForWhatsApp(
   post: any,
   analysis: PaidCampaignPostAnalysis
 ): { fullMessage: string; parts: string[] } {
-  const verdictEmoji = analysis.verdict.is_suitable ? '🚀' : '⚠️';
-  const postSnippet = (post.message || '').replace(/\s+/g, ' ').slice(0, 120);
+  // Post Snippet: first two lines
+  const rawMessage = (post.message || '').trim();
+  const rawLines = rawMessage.split('\n').map((l: string) => l.trim()).filter(Boolean);
+  const snippet = rawLines.slice(0, 2).join(' ') || rawMessage.slice(0, 100) || 'بدون نص';
 
-  // ── Part 1: التقييم العام وفحص المحتوى والكريتيف ──
+  // Format type
+  let formatLabel = 'صورة';
+  if (post.mediaType === 'VIDEO') formatLabel = 'فيديو / ريلز';
+  else if (post.mediaType === 'CAROUSEL') formatLabel = 'كاروسيل';
+  else if (post.mediaType === 'IMAGE') formatLabel = 'صورة';
+  else if (post.mediaType === 'TEXT') formatLabel = 'نص فقط';
+
+  // Decision label
+  let decision = analysis.verdict?.decision_label || analysis.verdict?.status_label;
+  if (!decision) {
+    decision = analysis.verdict?.is_suitable ? '🟢 جاهز للتمويل فوراً' : '🟡 جاهز بعد تعديل بسيط';
+  }
+  decision = decision.replace(/^\[|\]$/g, '').trim();
+
+  // ── الجزء الأول: فحص الكريتيف والكوبي ──
   let part1 = `🎯 *تقرير التحليل الإعلاني للبوست* 📊\n`;
   part1 += `📌 *الصفحة:* ${post.pageName || 'صفحة تابعة للعميل'}\n`;
-  part1 += `🎬 *نوع المحتوى:* ${post.mediaType === 'VIDEO' ? 'فيديو / ريلز 🎥' : post.mediaType === 'CAROUSEL' ? 'ألبوم صور (كاروسيل) 🎠' : 'تصميم / صورة 🖼️'}\n`;
+  part1 += `🎬 *نوع المحتوى:* ${formatLabel}\n`;
   part1 += `📊 *التفاعلات المرصودة:* 👍 ${post.metrics?.reactions || 0} | 💬 ${post.metrics?.comments || 0} | 🔄 ${post.metrics?.shares || 0}\n`;
-  part1 += `🔗 *رابط المنشور:* ${post.permalinkUrl || 'غير متوفر'}\n`;
-  if (postSnippet) {
-    part1 += `📝 *مقتطف الكوبي:* "${postSnippet}..."\n`;
-  }
+  part1 += `📝 *مقتطف الكوبي:* "${snippet}"\n`;
   part1 += `══════════════════════════\n`;
-  part1 += `🏆 *التقييمات الرقمية (من 10):*\n`;
-  part1 += `⭐ *التقييم الكلي العام:* *${analysis.observed_score} / 10*\n`;
-  part1 += `✍️ *قوة المحتوى والكوبي:* *${analysis.copy_score} / 10*\n`;
-  part1 += `🎨 *التصميم والعنصر البصري:* *${analysis.visual_score} / 10*\n\n`;
+  part1 += `🏆 *التقييم الرقمي السريع:*\n`;
+  part1 += `⭐ *التقييم العام:* [${analysis.observed_score} / 10] | ✍️ *الكوبي:* [${analysis.copy_score} / 10] | 🎨 *البصري:* [${analysis.visual_score} / 10]\n`;
+  part1 += `⚖️ *القرار:* [${decision}]\n\n`;
 
-  part1 += `⚖️ *حكم الجاهزية للحملة الممولة:*\n`;
-  part1 += `${verdictEmoji} *الحالة:* ${analysis.verdict.status_label} (تصنيف: ${analysis.verdict.rating})\n`;
-  part1 += `💬 *رأي الخبير:* ${analysis.verdict.summary}\n`;
-  part1 += `══════════════════════════\n`;
+  part1 += `👁️ *فحص الكريتيف البصري (نقاط سريعة):*\n`;
+  part1 += `• *الهوك البصري أول 3 ثواني:* ${analysis.creative_analysis?.visual_hooks || 'جيد ومناسب'}.\n`;
+  part1 += `• *نقطة القوة الأساسية:* ${analysis.creative_analysis?.primary_strength || analysis.creative_analysis?.strengths?.[0] || 'وضوح الفكرة وطريقة العرض'}.\n`;
 
-  part1 += `🎬 *تحليل الكريتيف البصري:*\n`;
-  part1 += `• *الهوك البصري:* ${analysis.creative_analysis?.visual_hooks || 'غير محدد'}\n`;
-  if (analysis.creative_analysis?.strengths?.length) {
-    part1 += `• *نقاط القوة البصرية:*\n`;
-    analysis.creative_analysis.strengths.forEach((s) => {
-      part1 += `  ✅ ${s}\n`;
-    });
-  }
-  if (analysis.creative_analysis?.weaknesses?.length) {
-    part1 += `• *نقاط الضعف الملاحظة:*\n`;
-    analysis.creative_analysis.weaknesses.forEach((w) => {
-      part1 += `  ⚠️ ${w}\n`;
-    });
-  }
-  if (analysis.creative_analysis?.actionable_recommendations?.length) {
-    part1 += `• *التعديلات المطلوبة فوراً:*\n`;
-    analysis.creative_analysis.actionable_recommendations.forEach((r) => {
-      part1 += `  🛠️ ${r}\n`;
-    });
-  }
-  part1 += `══════════════════════════\n`;
-
-  part1 += `✍️ *تحليل النص الإعلاني (الكوبي):*\n`;
-  part1 += `• *تقييم الهوك الأول:* ${analysis.copy_analysis?.hook_evaluation || 'غير محدد'}\n`;
-  part1 += `• *تقييم العرض:* ${analysis.copy_analysis?.offer_evaluation || 'غير محدد'}\n`;
-  part1 += `• *تقييم الـ CTA:* ${analysis.copy_analysis?.cta_evaluation || 'غير محدد'}\n\n`;
-
-  if (analysis.copy_analysis?.ready_to_use_variations?.length) {
-    part1 += `💡 *صيغ إعلانية بديلة جاهزة للنسخ والاستخدام:*\n`;
-    analysis.copy_analysis.ready_to_use_variations.forEach((v, idx) => {
-      part1 += `\n${idx + 1}️⃣ "${v.trim()}"\n`;
-    });
+  const recs = analysis.creative_analysis?.actionable_recommendations || [];
+  if (recs.length > 0) {
+    part1 += `• *التعديل المطلوب فوراً:* ${recs.slice(0, 2).join(' و ')}.\n\n`;
+  } else {
+    part1 += `• *التعديل المطلوب فوراً:* لا يوجد تعديل إلزامي، البوست جاهز للإطلاق.\n\n`;
   }
 
-  // ── Part 2: الاستهداف المقترح واستراتيجية الحملة ──
-  let part2 = `🎯 *خطة الاستهداف واستراتيجية الميديا باينج* 🚀\n`;
+  part1 += `✍️ *تقييم النص الإعلاني (الكوبي):*\n`;
+  const hookAndOffer =
+    analysis.copy_analysis?.hook_and_offer_evaluation ||
+    `${analysis.copy_analysis?.hook_evaluation || ''} ${analysis.copy_analysis?.offer_evaluation || ''}`.trim() ||
+    'الهوك والعرض مباشر ومفهوم للجمهور المستهدف.';
+  part1 += `• *قوة الهوك والعرض:* ${hookAndOffer}\n`;
+  part1 += `• *التوجيه (Call To Action):* ${analysis.copy_analysis?.cta_evaluation || 'واضح ومباشر للتواصل.'}`;
+
+  // ── الجزء الثاني: خطة الميديا باينج والاستهداف ──
+  let part2 = `🎯 *خطة الاستهداف واستراتيجية الميديا باير* 🚀\n`;
   part2 += `══════════════════════════\n`;
-  part2 += `👥 *الجمهور والاستهداف المقترح:*\n`;
-  part2 += `• *السن المقترح:* ${analysis.targeting_suggestions?.age_range || 'الجمهور النشط'}\n`;
-  part2 += `• *النوع:* ${analysis.targeting_suggestions?.gender || 'الجميع'}\n`;
+  part2 += `👥 *الجمهور والاستهداف الدقيق (الأهم):*\n`;
+  part2 += `• *السن المقترح:* [${analysis.targeting_suggestions?.age_range || '24 - 45 سنة'}]\n`;
+  part2 += `• *النوع:* [${analysis.targeting_suggestions?.gender || 'الجميع'}]\n`;
+  part2 += `• *الاهتمامات الدقيقة المباشرة (Meta Ads Interests):*\n`;
 
-  if (analysis.targeting_suggestions?.detailed_interests?.length) {
-    part2 += `• *الاهتمامات الدقيقة (Detailed Interests):*\n`;
-    analysis.targeting_suggestions.detailed_interests.forEach((interest) => {
-      part2 += `  🎯 ${interest}\n`;
+  const interests = analysis.targeting_suggestions?.detailed_interests || [];
+  if (Array.isArray(interests) && interests.length > 0) {
+    interests.forEach((item: any) => {
+      if (typeof item === 'object' && item !== null && item.interest) {
+        part2 += `  🎯 [${item.interest}] - ${item.reason || ''}\n`;
+      } else {
+        part2 += `  🎯 [${String(item)}]\n`;
+      }
     });
+  } else {
+    part2 += `  🎯 [Online shopping] - استهداف مباشر للجمهور الأكثر شراءً وتفاعلاً\n`;
   }
 
-  if (analysis.targeting_suggestions?.behaviors_and_placements?.length) {
-    part2 += `• *المواضع والسلوكيات المقترحة:*\n`;
-    analysis.targeting_suggestions.behaviors_and_placements.forEach((b) => {
-      part2 += `  📱 ${b}\n`;
-    });
-  }
+  const behaviors = analysis.targeting_suggestions?.behaviors || 'Engaged Shoppers';
+  const placements = analysis.targeting_suggestions?.placements || 'Reels & Stories فقط';
+  part2 += `• *السلوكيات والمواضع (Behaviors & Placements):*\n`;
+  part2 += `  📱 السلوكيات: [${behaviors}]\n`;
+  part2 += `  📱 المواضع الفعالة: [${placements}]\n`;
   part2 += `══════════════════════════\n`;
 
-  part2 += `💼 *استراتيجية الحملة والميزانية:*\n`;
-  part2 += `• *الهدف الموصى به:* ${analysis.campaign_strategy?.recommended_objective || 'رسائل واتساب / مبيعات'}\n`;
-  part2 += `• *هيكل المجموعات الإعلانية:* ${analysis.campaign_strategy?.ad_set_structure || 'مجموعة إعلانية واحدة للاختبار'}\n`;
+  const objective = analysis.campaign_strategy?.recommended_objective || 'رسائل واتساب';
+  const dailyBudget = analysis.campaign_strategy?.daily_test_budget || '250 - 350 جنيه مصري يومياً';
+  const budgetType = analysis.campaign_strategy?.budget_type || 'ABO لاختبار الجماهير';
+  const goldenTip =
+    analysis.campaign_strategy?.media_buyer_golden_tip ||
+    'ركز على سرعة الرد اللحظي على الرسائل لرفع معدل التحويل وخفض تكلفة الطلب.';
 
-  if (analysis.campaign_strategy?.pair_another_post_recommendation) {
-    const pair = analysis.campaign_strategy.pair_another_post_recommendation;
-    part2 += `• *إضافة بوست آخر (A/B Test):* ${pair.should_pair ? 'نعم موصى به ✅' : 'لا، يفضل منفرداً'}\n`;
-    if (pair.recommendation_reason) {
-      part2 += `  📝 ${pair.recommendation_reason}\n`;
-    }
-    if (pair.paired_concept_idea) {
-      part2 += `  💡 *فكرة البوست البديل:* ${pair.paired_concept_idea}\n`;
-    }
-  }
+  part2 += `💼 *إعدادات الحملة والميزانية:*\n`;
+  part2 += `• *الهدف الإعلاني (Objective):* [${objective}]\n`;
+  part2 += `• *الميزانية اليومية للاختبار:* [${dailyBudget}]\n`;
+  part2 += `• *نوع الميزانية:* [${budgetType}]\n\n`;
 
-  if (analysis.campaign_strategy?.scaling_and_testing_plan) {
-    part2 += `\n📈 *خطة التكبير والتطوير (Scaling):*\n`;
-    part2 += `${analysis.campaign_strategy.scaling_and_testing_plan}\n`;
-  }
+  part2 += `🌟 *الزتونة ونصيحة الميديا باير:*\n`;
+  part2 += `"${goldenTip}"`;
 
-  if (analysis.campaign_strategy?.media_buyer_golden_tip) {
-    part2 += `\n🌟 *نصيحة الميديا باير الذهبية:*\n`;
-    part2 += `"${analysis.campaign_strategy.media_buyer_golden_tip}"\n`;
-  }
-
-  const fullMessage = `${part1}\n${part2}`;
+  const fullMessage = `${part1}\n\n══════════════════════════════\n\n${part2}`;
   return { fullMessage, parts: [part1.trim(), part2.trim()] };
 }
 
