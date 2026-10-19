@@ -29,7 +29,7 @@ export async function POST(req: Request) {
         if (asset?.auditReport) {
           return NextResponse.json({
             success: true,
-            modelUsed: 'gemini-2.5-pro (محفوظ من قاعدة البيانات)',
+            modelUsed: 'gemini-3.8-flash (محفوظ من قاعدة البيانات)',
             report: asset.auditReport,
             generatedAt: asset.auditReportDate ? asset.auditReportDate.toISOString() : new Date().toISOString(),
             fromDb: true,
@@ -90,7 +90,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      modelUsed: 'gemini-2.5-pro',
+      modelUsed: 'gemini-3.8-flash',
       report: reportMarkdown,
       generatedAt: new Date().toISOString(),
       fromDb: false,

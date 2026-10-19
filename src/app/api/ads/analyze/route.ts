@@ -131,7 +131,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      modelUsed: 'gemini-2.5',
+      modelUsed: 'gemini-3.8-flash',
       analysis,
     });
   } catch (error: any) {

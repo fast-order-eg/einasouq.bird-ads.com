@@ -139,17 +139,44 @@ JWT_SECRET="adscope_super_secure_jwt_secret_2026"
   - `search_url`: الرابط المباشر للبحث في مكتبة الإعلانات بالكلمة والدولة.
   - `meta_estimated_total`: التقدير الإجمالي لعدد إعلانات المنافسين على فيسبوك.
   - `pagination`: يحتوي على `current_page` و `limit` و `has_more` و `next_page` و `total_cached_ads`.
-  - `ads`: مصفوفة الإعلانات الخمسة، كل إعلان يحتوي على:
-    - `ad_library_id` و `ad_library_url` (رابط الإعلان المباشر بالمكتبة).
-    - `page_name` و `page_profile_url`.
-    - `primary_text`: المحتوى النصي الكامل للإعلان.
-    - `start_date` و `days_active` و `duration_text` (مثال: "شغال بقاله 5 أيام 🔥").
-    - `status` و `status_label` ("🟢 نشط حالياً").
-    - `cta_type` و `cta_label` (الهدف بالعربي: رسائل واتساب 💬، طلب شراء 🛒، إلخ).
-    - `phone_numbers`: استخراج أرقام الهواتف والواتساب المذكورة في نص الإعلان.
-    - `media_type` و `media_type_label` و `image_url` و `images` و `video_url`.
-    - `publisher_platforms` و `platforms_label` (فيسبوك وإنستغرام).
+  - `ads`: مصفوفة الإعلانات الخمسة، كل إعلان يحتوي على تفاصيل كاملة وأرقام الهواتف والوسائط.
   - `formatted_message`: رسالة واتساب جاهزة ومصاغة باحترافية للـ 5 إعلانات مع توجيه لطلب "المزيد" للدفعات التالية.
+
+### 4.3. مسار تحليل البوست الممول الاستراتيجي (`/api/v1/merchant/analyze-post`)
+- **الوظيفة:** تحليل شامل لمنشور فيسبوك منشور في صفحة مدارة أو مصرح بها، وتقييم مدى صلاحيته لإطلاق حملة إعلانية ممولة عبر نموذج الذكاء الاصطناعي الاقتصادي والسريع `gemini-3.8-flash`.
+- **المدخلات (Request):**
+  ```json
+  {
+    "post_url": "https://www.facebook.com/412820148573855/posts/1773654063859330",
+    "force_refresh": false
+  }
+  ```
+- **المخرجات (Response):**
+  - `model_used`: "gemini-3.8-flash"
+  - `from_cache`: هل تم الجلب من الكاش لتوفير التكلفة والوقت أم تحليل جديد.
+  - `post`: بيانات المنشور من Graph API والتفاعلات ووسائط الفيديو/الصور.
+  - `analysis`: كائن التحليل الكامل المماثل للأداة (observed_score, copy_score, visual_score, verdict, creative_analysis, copy_analysis مع 3 صيغ إعلانية بديلة، targeting_suggestions, campaign_strategy).
+  - `formatted_message`: رسالة واتساب متكاملة منسقة.
+  - `formatted_message_parts`: مصفوفة مجزأة `[part1, part2]` لإرسالها بالترتيب في الواتساب بدون تجاوز حدود طول الرسائل.
+
+### 4.4. مسار فحص والجاهزية الإعلانية للصفحة (`/api/v1/merchant/analyze-page`)
+- **الوظيفة:** إجراء فحص شامل وجذري لصفحة العميل (Page Readiness Audit) لتقييم بنيتها التحتية، قنوات التواصل، الدليل الاجتماعي، والمحتوى قبل استقبال ترافيك مدفوع عبر `gemini-3.8-flash`.
+- **المدخلات (Request):**
+  ```json
+  {
+    "page_id": "412820148573855",
+    "force_refresh": false
+  }
+  ```
+- **المخرجات (Response):**
+  - `model_used`: "gemini-3.8-flash"
+  - `page_info`: تفاصيل الصفحة (المتابعين، اللوجو، الغلاف، أرقام الواتساب، الموقع).
+  - `report_markdown`: التقرير التدقيقي الشامل الكامل بصيغة Markdown.
+  - `formatted_message`: الملخص الإداري المنسق للواتساب.
+  - `formatted_message_parts`: مصفوفة مقسمة `[part1, part2, part3]` لإرسالها تدريجياً عبر الواتساب.
+
+### 4.5. المسار الموحد الذكي (`/api/v1/merchant/analyze`)
+- يوجه الطلب تلقائياً إلى `analyze-post` إذا احتوى الطلب على `post_url`، أو إلى `analyze-page` إذا احتوى على `page_id`.
 
 ---
 
