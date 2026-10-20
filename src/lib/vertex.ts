@@ -44,10 +44,21 @@ export interface DetailedInterestItem {
   reason: string;
 }
 
+export interface AlternativeTargetingPlan {
+  angle_name: string; // اسم الزاوية البديلة
+  angle_rationale: string; // سبب وفكرة هذه الزاوية
+  age_range: string;
+  gender: string;
+  detailed_interests: Array<DetailedInterestItem | string>;
+  behaviors: string;
+  placements: string;
+}
+
 export interface PaidCampaignPostAnalysis {
   observed_score: number; // 1 to 10 (التقييم العام)
-  copy_score: number; // 1 to 10 (تقييم الكوبي والمحتوى الكتابي)
-  visual_score: number; // 1 to 10 (تقييم الفيديو / التصميم البصري)
+  copy_score: number; // 1 to 10 (تقييم المحتوى الإعلاني)
+  visual_score: number; // 1 to 10 (تقييم الفيديو / التصميم)
+  visual_score_label?: string; // "الفيديو" أو "التصميم"
   verdict: {
     is_suitable: boolean;
     rating?: 'ممتاز' | 'جيد جداً' | 'جيد' | 'ضعيف' | 'سيء جداً';
@@ -61,7 +72,7 @@ export interface PaidCampaignPostAnalysis {
     primary_strength?: string; // نقطة القوة الأساسية
     strengths?: string[];
     weaknesses?: string[];
-    actionable_recommendations: string[]; // التعديل المطلوب فوراً
+    actionable_recommendations: string[]; // التعديل المطلوب فوراً (نقاط مرقمة 1، 2، 3)
   };
   copy_analysis: {
     hook_and_offer_evaluation?: string; // قوة الهوك والعرض
@@ -78,11 +89,12 @@ export interface PaidCampaignPostAnalysis {
     placements?: string;
     behaviors_and_placements?: string[];
   };
+  alternative_targeting?: AlternativeTargetingPlan;
   campaign_strategy: {
     recommended_objective: string;
+    media_buyer_golden_tip: string;
     daily_test_budget?: string;
     budget_type?: string;
-    media_buyer_golden_tip: string;
     ad_set_structure?: string;
     pair_another_post_recommendation?: {
       should_pair: boolean;
@@ -575,7 +587,7 @@ ${adText}
 - اسم الصفحة: ${options.pageName || 'صفحة تابعة للعميل'}
 - نوع المحتوى: ${isVideo ? 'فيديو ريلز (Reel/Video)' : (options.mediaType || (hasImage ? 'تصميم/صور' : 'نص فقط'))}
 ${metricsSummary}
-- نص المنشور (Copy):
+- نص المنشور (المحتوى الإعلاني):
 """
 ${options.postText || 'لا يوجد نص مكتوب'}
 """
@@ -585,14 +597,19 @@ ${mediaDirective}
 🛑 قواعد صارمة لا يمكن مخالفتها:
 1. ❌ ممنوع منعاً باتاً كتابة أي نصوص أو صيغ إعلانية بديلة (ممنوع اقتراح كوبي بديل). التركيز فقط على تقييم البوست الحالي.
 2. ❌ ممنوع ذكر مراحل التكبير النظرية (Scaling phases) أو شرح مصطلحات الكتب النظرية.
-3. ❌ ممنوع تكرار نفس الملاحظة أو النصيحة في أكثر من مكان داخل التقرير.
-4. ⭐ الاهتمامات التفصيلية (Detailed Interests) هي الجزء الأهم في التقرير: يجب كتابة 4 إلى 6 اهتمامات دقيقة باللغة الإنجليزية كما تظهر في Meta Ads Manager مع شرح سبب كل اهتمام باختصار شديد، وتحديد السن، النوع، والسلوكيات والمواضع بدقة.
+3. ❌ ممنوع اقتراح ميزانيات يومية رقمية أو تحديد نوع ميزانية ABO/CBO (التركيز فقط على الهدف الإعلاني المناسب ونصيحة الميديا باير).
+4. ❌ ممنوع تكرار نفس الملاحظة أو النصيحة في أكثر من مكان داخل التقرير.
+5. ⭐ الاهتمامات التفصيلية (Detailed Interests) هي الجزء الأهم في التقرير: يجب كتابة 4 إلى 6 اهتمامات دقيقة باللغة الإنجليزية كما تظهر في Meta Ads Manager مع شرح سبب كل اهتمام باختصار شديد، وتحديد السن والنوع بدقة.
+6. ⭐ افصل السلوكيات (Behaviors) عن مواضع الظهور (Placements) بشكل مستقل تماماً. وفي المواضع، لا تستبعد مواضع الفيد (Feeds) إذا كانت مناسبة، واذكر أفضل المواضع المربحة للمحتوى (مثل: Instagram Reels, Facebook Reels, Feeds).
+7. ⭐ التعديل المطلوب فوراً: اكتب التعديلات العملية في نقاط مرقمة بوضوح (1، 2...).
+8. ⭐ زاوية استهداف بديلة (Alternative Targeting): قدم زاوية استهداف بديلة كاملة مختلفة تماماً عن الأساسية (مثل زاوية مشاكل العميل Pain Point، أو زاوية أصحاب المشاريع B2B، أو زاوية توفير الفلوس) مع اهتماماتها بالإنجليزية لتمكين الميديا باير من اختبار A/B Test.
 
 يجب أن يكون الرد JSON فقط مطابقاً للهيكل التالي 100%:
 {
   "observed_score": 8.5,
   "copy_score": 8.0,
   "visual_score": 8.8,
+  "visual_score_label": "${isVideo ? 'الفيديو' : 'التصميم'}",
   "verdict": {
     "is_suitable": true,
     "decision_label": "🟢 جاهز للتمويل فوراً",
@@ -601,16 +618,16 @@ ${mediaDirective}
   },
   "creative_analysis": {
     "format_detected": "${isVideo ? 'فيديو / ريلز' : (hasImage ? 'صورة / تصميم' : 'نص فقط')}",
-    "visual_hooks": "تقييم مباشر للهوك البصري أول 3 ثواني في سطر واحد",
-    "primary_strength": "أقوى ميزة بصرية تشد العميل في سطر واحد",
+    "visual_hooks": "تقييم مباشر للهوك في أول 3 ثواني في سطر واحد",
+    "primary_strength": "أقوى ميزة تشد العميل في سطر واحد",
     "actionable_recommendations": [
-      "تعديل عملي محدد رقم 1 فقط",
+      "تعديل عملي محدد رقم 1",
       "تعديل عملي محدد رقم 2 (اختياري)"
     ]
   },
   "copy_analysis": {
     "hook_and_offer_evaluation": "تقييم مباشر للهوك وقوة العرض المالي/التجاري في سطرين",
-    "cta_evaluation": "تقييم زر التحويل ورابط البوست بوضوح في سطر واحد"
+    "cta_evaluation": "تقييم زر التحويل وطريقة التواصل بوضوح في سطر واحد"
   },
   "targeting_suggestions": {
     "age_range": "24 - 45 سنة",
@@ -633,13 +650,33 @@ ${mediaDirective}
         "reason": "سبب اختيار هذا الاهتمام باختصار"
       }
     ],
-    "behaviors": "مثل: Engaged Shoppers أو Facebook Page Admins",
-    "placements": "مثل: Reels & Stories فقط أو Feeds"
+    "behaviors": "السلوكيات المقترحة مثل Engaged Shoppers أو Facebook Page Admins",
+    "placements": "مواضع الظهور الفعالة مع ذكر لماذا (مثل: Feeds + Reels & Stories)"
+  },
+  "alternative_targeting": {
+    "angle_name": "اسم الزاوية البديلة (مثال: زاوية المشاكل والشكاوى Pain Point أو زاوية B2B)",
+    "angle_rationale": "شرح فكرة هذه الزاوية البديلة ولماذا تفيد في الـ A/B Testing",
+    "age_range": "26 - 50 سنة",
+    "gender": "الجميع",
+    "detailed_interests": [
+      {
+        "interest": "Alternative Interest in English",
+        "reason": "سبب اختيار هذا الاهتمام للزاوية البديلة"
+      },
+      {
+        "interest": "Alternative Interest in English",
+        "reason": "سبب اختيار هذا الاهتمام للزاوية البديلة"
+      },
+      {
+        "interest": "Alternative Interest in English",
+        "reason": "سبب اختيار هذا الاهتمام للزاوية البديلة"
+      }
+    ],
+    "behaviors": "السلوكيات المناسبة للزاوية البديلة",
+    "placements": "المواضع المناسبة للزاوية البديلة"
   },
   "campaign_strategy": {
     "recommended_objective": "رسائل واتساب / Leads / مبيعات متجر",
-    "daily_test_budget": "250 - 350 جنيه مصري يومياً",
-    "budget_type": "ABO لاختبار الجماهير",
     "media_buyer_golden_tip": "نصيحة تكتيكية واحدة ذهبية تخص هذا البوست تحديداً لتحقيق أعلى عائد وأقل تكلفة رسالة/طلب"
   }
 }

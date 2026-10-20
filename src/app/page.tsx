@@ -728,7 +728,7 @@ export default function DashboardPage() {
                       {/* 2. Copywriting Score */}
                       <div className="p-4 rounded-2xl bg-gradient-to-b from-purple-950/60 to-slate-950 border border-purple-500/40 text-center space-y-1 shadow-inner">
                         <span className="text-xs sm:text-[13px] font-bold text-purple-300 block">
-                          تقييم المحتوى والكوبي
+                          تقييم المحتوى الإعلاني
                         </span>
                         <div className="text-2xl sm:text-3xl font-black text-white flex items-center justify-center gap-1">
                           <span>✍️ {copyScore}</span>
@@ -984,6 +984,69 @@ export default function DashboardPage() {
                         </div>
                       )}
                     </div>
+
+                    {/* 3.5. Alternative Targeting Angle (A/B Testing) */}
+                    {paidAnalysis.alternative_targeting && (
+                      <div className="p-5 rounded-2xl bg-slate-950 border border-purple-500/40 space-y-4">
+                        <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-800/80 pb-3">
+                          <div className="text-sm sm:text-base font-extrabold text-purple-400 flex items-center gap-2">
+                            <Sparkle className="w-5 h-5 text-purple-400" />
+                            <span>زاوية استهداف بديلة للاختبار (Alternative Angle - A/B Test):</span>
+                          </div>
+                          <span className="text-xs font-bold px-3 py-1 rounded-full bg-purple-950/80 border border-purple-600/60 text-purple-200">
+                            {paidAnalysis.alternative_targeting.angle_name || 'زاوية بديلة'}
+                          </span>
+                        </div>
+
+                        {paidAnalysis.alternative_targeting.angle_rationale && (
+                          <div className="text-xs sm:text-sm text-slate-200 bg-purple-950/30 p-3 rounded-xl border border-purple-900/40 leading-relaxed">
+                            💡 <strong className="text-purple-300">الفكرة والسبب:</strong> {paidAnalysis.alternative_targeting.angle_rationale}
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs sm:text-sm">
+                          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                            <span className="text-slate-400 text-xs block">السن المقترح:</span>
+                            <span className="font-bold text-white block">{paidAnalysis.alternative_targeting.age_range || '24 - 45 سنة'}</span>
+                          </div>
+                          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                            <span className="text-slate-400 text-xs block">النوع:</span>
+                            <span className="font-bold text-white block">{paidAnalysis.alternative_targeting.gender || 'الجميع'}</span>
+                          </div>
+                          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                            <span className="text-slate-400 text-xs block">المواضع الفعالة:</span>
+                            <span className="font-bold text-slate-200 block">{paidAnalysis.alternative_targeting.placements || 'Reels & Feeds'}</span>
+                          </div>
+                        </div>
+
+                        {paidAnalysis.alternative_targeting.detailed_interests && paidAnalysis.alternative_targeting.detailed_interests.length > 0 && (
+                          <div className="space-y-2">
+                            <span className="text-xs sm:text-[13px] font-bold text-purple-300 block">
+                              اهتمامات الزاوية البديلة المقترحة (Detailed Interests):
+                            </span>
+                            <div className="flex flex-wrap gap-2">
+                              {paidAnalysis.alternative_targeting.detailed_interests.map((item: any, idx: number) => {
+                                const name = typeof item === 'object' && item?.interest ? item.interest : String(item);
+                                const reason = typeof item === 'object' && item?.reason ? item.reason : null;
+                                return (
+                                  <div
+                                    key={idx}
+                                    className="px-3.5 py-2 rounded-xl bg-purple-950/50 border border-purple-800/60 text-purple-200 text-xs sm:text-sm font-semibold flex items-center gap-2"
+                                  >
+                                    <span className="text-white font-bold">🎯 {name}</span>
+                                    {reason && (
+                                      <span className="text-purple-300/80 font-normal text-[11.5px] border-r border-purple-700/50 pr-2">
+                                        {reason}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* 4. Campaign & Ad Sets Strategy */}
                     <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">

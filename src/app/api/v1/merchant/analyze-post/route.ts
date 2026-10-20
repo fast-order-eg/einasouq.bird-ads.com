@@ -23,16 +23,15 @@ function formatPostAnalysisForWhatsApp(
   post: any,
   analysis: PaidCampaignPostAnalysis
 ): { fullMessage: string; parts: string[] } {
-  // Post Snippet: first two lines
-  const rawMessage = (post.message || '').trim();
-  const rawLines = rawMessage.split('\n').map((l: string) => l.trim()).filter(Boolean);
-  const snippet = rawLines.slice(0, 2).join(' ') || rawMessage.slice(0, 100) || 'بدون نص';
+  // Determine media & dynamic visual label (الفيديو أو التصميم)
+  const isVideo =
+    post.mediaType === 'VIDEO' ||
+    analysis.creative_analysis?.format_detected?.includes('فيديو') ||
+    Boolean(post.media?.videoUrl);
+  const visualTypeLabel = analysis.visual_score_label || (isVideo ? 'الفيديو' : 'التصميم');
 
-  // Format type
-  let formatLabel = 'صورة';
-  if (post.mediaType === 'VIDEO') formatLabel = 'فيديو / ريلز';
-  else if (post.mediaType === 'CAROUSEL') formatLabel = 'كاروسيل';
-  else if (post.mediaType === 'IMAGE') formatLabel = 'صورة';
+  let formatLabel = isVideo ? 'فيديو / ريلز' : 'صورة / تصميم';
+  if (post.mediaType === 'CAROUSEL') formatLabel = 'كاروسيل';
   else if (post.mediaType === 'TEXT') formatLabel = 'نص فقط';
 
   // Decision label
@@ -42,29 +41,33 @@ function formatPostAnalysisForWhatsApp(
   }
   decision = decision.replace(/^\[|\]$/g, '').trim();
 
-  // ── الجزء الأول: فحص الكريتيف والكوبي ──
+  // ── الجزء الأول: فحص الكريتيف والمحتوى ──
   let part1 = `🎯 *تقرير التحليل الإعلاني للبوست* 📊\n`;
   part1 += `📌 *الصفحة:* ${post.pageName || 'صفحة تابعة للعميل'}\n`;
   part1 += `🎬 *نوع المحتوى:* ${formatLabel}\n`;
   part1 += `📊 *التفاعلات المرصودة:* 👍 ${post.metrics?.reactions || 0} | 💬 ${post.metrics?.comments || 0} | 🔄 ${post.metrics?.shares || 0}\n`;
-  part1 += `📝 *مقتطف الكوبي:* "${snippet}"\n`;
   part1 += `══════════════════════════\n`;
   part1 += `🏆 *التقييم الرقمي السريع:*\n`;
-  part1 += `⭐ *التقييم العام:* [${analysis.observed_score} / 10] | ✍️ *الكوبي:* [${analysis.copy_score} / 10] | 🎨 *البصري:* [${analysis.visual_score} / 10]\n`;
+  part1 += `⭐ *التقييم العام:* [${analysis.observed_score} / 10] | ✍️ *المحتوى:* [${analysis.copy_score} / 10] | 🎨 *${visualTypeLabel}:* [${analysis.visual_score} / 10]\n`;
   part1 += `⚖️ *القرار:* [${decision}]\n\n`;
 
-  part1 += `👁️ *فحص الكريتيف البصري (نقاط سريعة):*\n`;
-  part1 += `• *الهوك البصري أول 3 ثواني:* ${analysis.creative_analysis?.visual_hooks || 'جيد ومناسب'}.\n`;
+  part1 += `👁️ *فحص الكريتيف (${visualTypeLabel}):*\n`;
+  part1 += `• *الهوك في أول 3 ثواني:* ${analysis.creative_analysis?.visual_hooks || 'جيد ومناسب'}.\n`;
   part1 += `• *نقطة القوة الأساسية:* ${analysis.creative_analysis?.primary_strength || analysis.creative_analysis?.strengths?.[0] || 'وضوح الفكرة وطريقة العرض'}.\n`;
 
   const recs = analysis.creative_analysis?.actionable_recommendations || [];
   if (recs.length > 0) {
-    part1 += `• *التعديل المطلوب فوراً:* ${recs.slice(0, 2).join(' و ')}.\n\n`;
+    part1 += `• *التعديل المطلوب فوراً:*\n`;
+    recs.forEach((rec: string, idx: number) => {
+      const cleanRec = rec.replace(/^(\d+[\.\-\)]|\d+️⃣|\•|\-)\s*/, '').trim();
+      part1 += `  ${idx + 1}️⃣ ${cleanRec}\n`;
+    });
+    part1 += `\n`;
   } else {
-    part1 += `• *التعديل المطلوب فوراً:* لا يوجد تعديل إلزامي، البوست جاهز للإطلاق.\n\n`;
+    part1 += `• *التعديل المطلوب فوراً:* لا يوجد تعديل إلزامي، البوست جاهز للإطلاق فوراً.\n\n`;
   }
 
-  part1 += `✍️ *تقييم النص الإعلاني (الكوبي):*\n`;
+  part1 += `✍️ *تقييم المحتوى الإعلاني:*\n`;
   const hookAndOffer =
     analysis.copy_analysis?.hook_and_offer_evaluation ||
     `${analysis.copy_analysis?.hook_evaluation || ''} ${analysis.copy_analysis?.offer_evaluation || ''}`.trim() ||
@@ -94,29 +97,72 @@ function formatPostAnalysisForWhatsApp(
   }
 
   const behaviors = analysis.targeting_suggestions?.behaviors || 'Engaged Shoppers';
-  const placements = analysis.targeting_suggestions?.placements || 'Reels & Stories فقط';
-  part2 += `• *السلوكيات والمواضع (Behaviors & Placements):*\n`;
-  part2 += `  📱 السلوكيات: [${behaviors}]\n`;
-  part2 += `  📱 المواضع الفعالة: [${placements}]\n`;
+  const placements =
+    analysis.targeting_suggestions?.placements ||
+    (isVideo ? 'Instagram Reels, Facebook Reels, Feeds' : 'Feeds, Facebook Reels, Instagram Stories');
+  part2 += `• *السلوكيات (Behaviors):* [${behaviors}]\n`;
+  part2 += `• *مواضع الظهور الفعالة (Placements):* [${placements}]\n`;
   part2 += `══════════════════════════\n`;
 
-  const objective = analysis.campaign_strategy?.recommended_objective || 'رسائل واتساب';
-  const dailyBudget = analysis.campaign_strategy?.daily_test_budget || '250 - 350 جنيه مصري يومياً';
-  const budgetType = analysis.campaign_strategy?.budget_type || 'ABO لاختبار الجماهير';
+  const objective = analysis.campaign_strategy?.recommended_objective || 'رسائل واتساب / Leads';
   const goldenTip =
     analysis.campaign_strategy?.media_buyer_golden_tip ||
     'ركز على سرعة الرد اللحظي على الرسائل لرفع معدل التحويل وخفض تكلفة الطلب.';
 
-  part2 += `💼 *إعدادات الحملة والميزانية:*\n`;
-  part2 += `• *الهدف الإعلاني (Objective):* [${objective}]\n`;
-  part2 += `• *الميزانية اليومية للاختبار:* [${dailyBudget}]\n`;
-  part2 += `• *نوع الميزانية:* [${budgetType}]\n\n`;
+  part2 += `💼 *إعدادات الحملة المقترحة:*\n`;
+  part2 += `• *الهدف الإعلاني (Objective):* [${objective}]\n\n`;
 
   part2 += `🌟 *الزتونة ونصيحة الميديا باير:*\n`;
-  part2 += `"${goldenTip}"`;
+  part2 += `"${goldenTip}"\n\n`;
+  part2 += `══════════════════════════\n`;
+  part2 += `💡 *تريد تجربة زاوية أخرى؟* اكتب "استهداف بديل" لعرض جمهور بديل للاختبار (A/B Test).`;
 
-  const fullMessage = `${part1}\n\n══════════════════════════════\n\n${part2}`;
-  return { fullMessage, parts: [part1.trim(), part2.trim()] };
+  // ── الجزء الثالث: زاوية الاستهداف البديلة (A/B Test) ──
+  let part3 = '';
+  if (analysis.alternative_targeting) {
+    const alt = analysis.alternative_targeting;
+    part3 += `🎯 *زاوية استهداف بديلة (A/B Testing)* 🔄\n`;
+    part3 += `💡 *الزاوية:* ${alt.angle_name || 'زاوية تسويقية بديلة'}\n`;
+    if (alt.angle_rationale) {
+      part3 += `📌 *الفكرة والسبب:* ${alt.angle_rationale}\n`;
+    }
+    part3 += `══════════════════════════\n`;
+    part3 += `👥 *الجمهور المقترح:*\n`;
+    part3 += `• *السن المقترح:* [${alt.age_range || '24 - 45 سنة'}]\n`;
+    part3 += `• *النوع:* [${alt.gender || 'الجميع'}]\n`;
+    part3 += `• *الاهتمامات البديلة (Meta Ads Interests):*\n`;
+
+    const altInterests = alt.detailed_interests || [];
+    if (Array.isArray(altInterests) && altInterests.length > 0) {
+      altInterests.forEach((item: any) => {
+        if (typeof item === 'object' && item !== null && item.interest) {
+          part3 += `  🎯 [${item.interest}] - ${item.reason || ''}\n`;
+        } else {
+          part3 += `  🎯 [${String(item)}]\n`;
+        }
+      });
+    } else {
+      part3 += `  🎯 [Online shopping] - استهداف بديل للشراء والتفاعل\n`;
+    }
+
+    if (alt.behaviors) {
+      part3 += `• *السلوكيات المقترحة:* [${alt.behaviors}]\n`;
+    }
+    if (alt.placements) {
+      part3 += `• *المواضع الفعالة:* [${alt.placements}]\n`;
+    }
+    part3 += `══════════════════════════\n`;
+    part3 += `🌟 *نصيحة الاختبار:* قم بتشغيل هذا الاستهداف في مجموعة إعلانية (Ad Set) مستقلة لمقارنة تكلفة الرسالة ومعدل التحويل مع الاستهداف الأساسي.`;
+    part3 = part3.trim();
+  }
+
+  const parts = [part1.trim(), part2.trim()];
+  if (part3) {
+    parts.push(part3);
+  }
+
+  const fullMessage = parts.join('\n\n══════════════════════════════\n\n');
+  return { fullMessage, parts };
 }
 
 export async function POST(req: Request) {
@@ -270,6 +316,9 @@ export async function POST(req: Request) {
 
     // Step 4: Build WhatsApp message formats
     const { fullMessage, parts } = formatPostAnalysisForWhatsApp(post, analysis);
+    const requestedAngle = String(body.angle || body.view || '').toLowerCase().trim();
+    const isAltAngle = requestedAngle === 'alternative' || requestedAngle === 'alt' || requestedAngle.includes('بديل');
+    const activeFormattedMessage = isAltAngle && parts[2] ? parts[2] : fullMessage;
 
     return NextResponse.json({
       success: true,
@@ -287,7 +336,7 @@ export async function POST(req: Request) {
         metrics: post.metrics,
       },
       analysis,
-      formatted_message: fullMessage,
+      formatted_message: activeFormattedMessage,
       formatted_message_parts: parts,
       created_at: new Date().toISOString(),
     });
@@ -313,6 +362,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const postUrl = url.searchParams.get('post_url') || url.searchParams.get('url') || url.searchParams.get('postId') || '';
     const forceRefresh = url.searchParams.get('force_refresh') === 'true' || url.searchParams.get('refresh') === 'true';
+    const angle = url.searchParams.get('angle') || url.searchParams.get('view') || '';
 
     if (!postUrl) {
       return NextResponse.json(
@@ -324,7 +374,7 @@ export async function GET(req: Request) {
     const forwardReq = new Request(req.url, {
       method: 'POST',
       headers: req.headers,
-      body: JSON.stringify({ post_url: postUrl, force_refresh: forceRefresh }),
+      body: JSON.stringify({ post_url: postUrl, force_refresh: forceRefresh, angle }),
     });
 
     return await POST(forwardReq);
