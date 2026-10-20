@@ -566,6 +566,41 @@
       "key": "digital_activities_team",
       "en": "Digital Activities Team",
       "ar": "فريق الأنشطة الرقمية"
+    },
+    {
+      "key": "high_value_goods_egypt",
+      "en": "High-value goods preference in Egypt",
+      "ar": "تفضيل السلع ذات القيمة العالية في مصر (Class A)"
+    },
+    {
+      "key": "mid_high_value_goods_egypt",
+      "en": "Mid-and-high-value goods preference in Egypt",
+      "ar": "تفضيل السلع المتوسطة والعالية في مصر (Class B+ / A-)"
+    },
+    {
+      "key": "returned_from_travel_1w",
+      "en": "Returned from trip 1 week ago",
+      "ar": "العائدون من السفر مؤخراً (خلال أسبوع)"
+    },
+    {
+      "key": "credit_card_users",
+      "en": "Credit card users",
+      "ar": "مستخدمو البطاقات الائتمانية والدفع البنكي"
+    },
+    {
+      "key": "retail_page_admins",
+      "en": "Retail page admins",
+      "ar": "مسؤولو صفحات التجزئة والمتاجر"
+    },
+    {
+      "key": "business_page_admins",
+      "en": "Business page admins",
+      "ar": "مسؤولو صفحات الأعمال والشركات"
+    },
+    {
+      "key": "mobile_device_ios",
+      "en": "Apple (iOS) devices",
+      "ar": "مستخدمو أجهزة آبل (آيفون وآيباد)"
     }
   ],
   "interests": [
@@ -1818,6 +1853,721 @@
       "key": "fish",
       "en": "Fish",
       "ar": "سمك"
+    },
+    {
+      "key": "e_commerce",
+      "en": "E-commerce",
+      "ar": "التجارة الإلكترونية"
+    },
+    {
+      "key": "shopify",
+      "en": "Shopify",
+      "ar": "شوبيفاي"
+    },
+    {
+      "key": "woocommerce",
+      "en": "WooCommerce",
+      "ar": "ووكومرس"
+    },
+    {
+      "key": "drop_shipping",
+      "en": "Drop shipping",
+      "ar": "الدروب شيبنج"
+    },
+    {
+      "key": "wholesale",
+      "en": "Wholesale",
+      "ar": "تجارة الجملة"
+    },
+    {
+      "key": "business_to_business",
+      "en": "Business-to-business",
+      "ar": "المعاملات بين الشركات B2B"
+    },
+    {
+      "key": "startups",
+      "en": "Startups",
+      "ar": "الشركات الناشئة"
+    },
+    {
+      "key": "inventory_management",
+      "en": "Inventory management",
+      "ar": "إدارة المخازن والمخزون"
+    },
+    {
+      "key": "point_of_sale",
+      "en": "Point of sale",
+      "ar": "نقاط البيع والكاشير (POS)"
+    },
+    {
+      "key": "order_fulfillment",
+      "en": "Order fulfillment",
+      "ar": "تجهيز وشحن الطلبات"
+    },
+    {
+      "key": "payment_gateway",
+      "en": "Payment gateway",
+      "ar": "بوابات الدفع الإلكتروني"
+    },
+    {
+      "key": "freelancer",
+      "en": "Freelancer",
+      "ar": "العمل الحر (الفريلانسرز)"
+    },
+    {
+      "key": "logistics",
+      "en": "Logistics",
+      "ar": "الخدمات اللوجستية والشحن"
+    },
+    {
+      "key": "packaging_and_labeling",
+      "en": "Packaging and labeling",
+      "ar": "التعبئة والتغليف والطباعة"
+    },
+    {
+      "key": "import_and_export",
+      "en": "Import and export",
+      "ar": "الاستيراد والتصدير"
+    },
+    {
+      "key": "franchising",
+      "en": "Franchising",
+      "ar": "الفرنشايز وحقوق الامتياز التجاري"
+    },
+    {
+      "key": "real_estate",
+      "en": "Real estate",
+      "ar": "العقارات"
+    },
+    {
+      "key": "real_estate_investing",
+      "en": "Real estate investing",
+      "ar": "الاستثمار العقاري"
+    },
+    {
+      "key": "real_estate_development",
+      "en": "Real estate development",
+      "ar": "التطوير العقاري والمشاريع"
+    },
+    {
+      "key": "luxury_real_estate",
+      "en": "Luxury real estate",
+      "ar": "العقارات الفاخرة"
+    },
+    {
+      "key": "commercial_property",
+      "en": "Commercial property",
+      "ar": "العقارات والمحلات التجارية"
+    },
+    {
+      "key": "apartment",
+      "en": "Apartment",
+      "ar": "الشقق السكنية"
+    },
+    {
+      "key": "villa",
+      "en": "Villa",
+      "ar": "الفلل والقصور"
+    },
+    {
+      "key": "interior_design",
+      "en": "Interior design",
+      "ar": "التصميم الداخلي والديكور"
+    },
+    {
+      "key": "home_improvement",
+      "en": "Home improvement",
+      "ar": "تشطيبات وتحسينات المنازل"
+    },
+    {
+      "key": "architecture",
+      "en": "Architecture",
+      "ar": "الهندسة المعمارية"
+    },
+    {
+      "key": "landscape_architecture",
+      "en": "Landscape architecture",
+      "ar": "اللاندسكيب وتنسيق الحدائق"
+    },
+    {
+      "key": "flooring",
+      "en": "Flooring",
+      "ar": "الأرضيات والسيراميك والباركيه"
+    },
+    {
+      "key": "kitchen_cabinet",
+      "en": "Kitchen cabinet",
+      "ar": "مطابخ ودواليب المطابخ"
+    },
+    {
+      "key": "lighting",
+      "en": "Lighting",
+      "ar": "الإضاءة والنجف والليد"
+    },
+    {
+      "key": "curtain",
+      "en": "Curtain",
+      "ar": "الستائر والمفروشات"
+    },
+    {
+      "key": "bedroom",
+      "en": "Bedroom",
+      "ar": "غرف النوم"
+    },
+    {
+      "key": "living_room",
+      "en": "Living room",
+      "ar": "غرف المعيشة والأنتريهات"
+    },
+    {
+      "key": "building_materials",
+      "en": "Building materials",
+      "ar": "مواد البناء والتشييد"
+    },
+    {
+      "key": "carpets",
+      "en": "Carpet",
+      "ar": "السجاد والموكيت"
+    },
+    {
+      "key": "home_textiles",
+      "en": "Home textiles",
+      "ar": "المفروشات والمنسوجات المنزلية"
+    },
+    {
+      "key": "kitchenware",
+      "en": "Cookware and bakeware",
+      "ar": "أدوات المطبخ والطهي والأجهزة"
+    },
+    {
+      "key": "childrens_clothing",
+      "en": "Children's clothing",
+      "ar": "ملابس الأطفال"
+    },
+    {
+      "key": "mens_clothing",
+      "en": "Men's clothing",
+      "ar": "ملابس رجالية"
+    },
+    {
+      "key": "womens_clothing",
+      "en": "Women's clothing",
+      "ar": "ملابس نسائية"
+    },
+    {
+      "key": "evening_gown",
+      "en": "Evening gown",
+      "ar": "فساتين السهرة والخطوبة"
+    },
+    {
+      "key": "plus_size_clothing",
+      "en": "Plus-size clothing",
+      "ar": "ملابس المقاسات الكبيرة والخاصة"
+    },
+    {
+      "key": "watches",
+      "en": "Watches",
+      "ar": "الساعات"
+    },
+    {
+      "key": "luxury_goods",
+      "en": "Luxury goods",
+      "ar": "السلع والماركات الفاخرة"
+    },
+    {
+      "key": "gold",
+      "en": "Gold",
+      "ar": "الذهب والمشغولات الذهبية"
+    },
+    {
+      "key": "diamonds",
+      "en": "Diamonds",
+      "ar": "الألماس والمجوهرات"
+    },
+    {
+      "key": "silver",
+      "en": "Silver",
+      "ar": "الفضة والمشغولات الفضية"
+    },
+    {
+      "key": "sneakers",
+      "en": "Sneakers",
+      "ar": "الأحذية الرياضية والسنيكرز"
+    },
+    {
+      "key": "high_heeled_footwear",
+      "en": "High-heeled footwear",
+      "ar": "الأحذية ذات الكعب العالي"
+    },
+    {
+      "key": "modest_fashion",
+      "en": "Modest fashion",
+      "ar": "أزياء المحجبات والمحتشمة"
+    },
+    {
+      "key": "abaya",
+      "en": "Abaya",
+      "ar": "العبايات والقفاطين"
+    },
+    {
+      "key": "suits",
+      "en": "Suits",
+      "ar": "البدل الرجالي والملابس الرسمية"
+    },
+    {
+      "key": "sportswear",
+      "en": "Sportswear",
+      "ar": "الملابس والأطقم الرياضية"
+    },
+    {
+      "key": "outerwear",
+      "en": "Outerwear",
+      "ar": "الجواكت والملابس الشتوية"
+    },
+    {
+      "key": "leather",
+      "en": "Leather",
+      "ar": "الجلود والمنتجات الجلدية"
+    },
+    {
+      "key": "lingerie",
+      "en": "Lingerie",
+      "ar": "اللانجري والملابس المنزلية الحريرية"
+    },
+    {
+      "key": "jeans",
+      "en": "Jeans",
+      "ar": "البنطلونات الجينز والدنيم"
+    },
+    {
+      "key": "scarf",
+      "en": "Scarf",
+      "ar": "الطرح والإيشاربات والشيلان"
+    },
+    {
+      "key": "tailor",
+      "en": "Tailor",
+      "ar": "التفصيل والخياطة والأقمشة"
+    },
+    {
+      "key": "glasses_optics",
+      "en": "Glasses",
+      "ar": "نظارات النظر والنظارات الطبية"
+    },
+    {
+      "key": "skin_care",
+      "en": "Skin care",
+      "ar": "العناية بالبشرة"
+    },
+    {
+      "key": "hair_care",
+      "en": "Hair care",
+      "ar": "العناية بالشعر"
+    },
+    {
+      "key": "beauty_salon",
+      "en": "Beauty salon",
+      "ar": "صالونات ومراكز التجميل"
+    },
+    {
+      "key": "anti_aging_cream",
+      "en": "Anti-aging cream",
+      "ar": "مستحضرات مكافحة الشيخوخة"
+    },
+    {
+      "key": "sunscreen",
+      "en": "Sunscreen",
+      "ar": "واقي الشمس ومستحضرات الحماية"
+    },
+    {
+      "key": "hairstyling",
+      "en": "Hairstyling",
+      "ar": "تصفيف وتسريح الشعر"
+    },
+    {
+      "key": "hair_coloring",
+      "en": "Hair coloring",
+      "ar": "صبغات وألوان الشعر"
+    },
+    {
+      "key": "nail_salon",
+      "en": "Nail salon",
+      "ar": "العناية بالأظافر والمناكير"
+    },
+    {
+      "key": "spa_wellness",
+      "en": "Spa",
+      "ar": "السبا ومراكز الاسترخاء"
+    },
+    {
+      "key": "dermatology",
+      "en": "Dermatology",
+      "ar": "طب الأمراض الجلدية والليزر"
+    },
+    {
+      "key": "plastic_surgery",
+      "en": "Plastic surgery",
+      "ar": "جراحة التجميل ونحت القوام"
+    },
+    {
+      "key": "dentistry",
+      "en": "Dentistry",
+      "ar": "طب وتجميل الأسنان والهوليوود سمايل"
+    },
+    {
+      "key": "natural_skin_care",
+      "en": "Natural skin care",
+      "ar": "العناية بالبشرة بالمنتجات الطبيعية"
+    },
+    {
+      "key": "clinic",
+      "en": "Clinic",
+      "ar": "العيادات الطبية والمراكز التخصصية"
+    },
+    {
+      "key": "pharmacy",
+      "en": "Pharmacy",
+      "ar": "الصيدليات والأدوية ومستحضرات العناية"
+    },
+    {
+      "key": "wedding_dress",
+      "en": "Wedding dress",
+      "ar": "فساتين الزفاف والعرائس"
+    },
+    {
+      "key": "wedding_reception",
+      "en": "Wedding reception",
+      "ar": "قاعات واحتفالات الزفاف"
+    },
+    {
+      "key": "wedding_photography",
+      "en": "Wedding photography",
+      "ar": "تصوير الأفراح والمناسبات"
+    },
+    {
+      "key": "wedding_invitation",
+      "en": "Wedding invitation",
+      "ar": "دعوات وكروت الأفراح"
+    },
+    {
+      "key": "bridal_shower",
+      "en": "Bridal shower",
+      "ar": "حفلات تجهيز العروسة وتوديع العزوبية"
+    },
+    {
+      "key": "event_planning",
+      "en": "Event planning",
+      "ar": "تنظيم وإدارة الحفلات والمؤتمرات"
+    },
+    {
+      "key": "catering",
+      "en": "Catering",
+      "ar": "خدمات البوفيه وتجهيز طعام الحفلات"
+    },
+    {
+      "key": "engagement_ring",
+      "en": "Engagement ring",
+      "ar": "دبل وخواتم الخطوبة"
+    },
+    {
+      "key": "floristry",
+      "en": "Floristry",
+      "ar": "تنسيق وتوصيل الزهور والورود"
+    },
+    {
+      "key": "party_favor",
+      "en": "Party favor",
+      "ar": "توزيعات وهدايا المناسبات والسبوع"
+    },
+    {
+      "key": "baby_products",
+      "en": "Baby products",
+      "ar": "منتجات ومستلزمات الأطفال والرضع"
+    },
+    {
+      "key": "maternity_clothing",
+      "en": "Maternity clothing",
+      "ar": "ملابس الحمل والأمومة"
+    },
+    {
+      "key": "diaper",
+      "en": "Diaper",
+      "ar": "حفاضات الأطفال"
+    },
+    {
+      "key": "baby_transport",
+      "en": "Baby transport",
+      "ar": "عربات وكراسي الأطفال (Strollers)"
+    },
+    {
+      "key": "baby_shower",
+      "en": "Baby shower",
+      "ar": "احتفالات استقبال المواليد والسبوع"
+    },
+    {
+      "key": "educational_toy",
+      "en": "Educational toy",
+      "ar": "الألعاب التعليمية والذكاء للأطفال"
+    },
+    {
+      "key": "infant_clothing",
+      "en": "Infant clothing",
+      "ar": "ملابس المواليد والحديثي الولادة"
+    },
+    {
+      "key": "baby_food",
+      "en": "Baby food",
+      "ar": "أغذية وسيريلاك الأطفال"
+    },
+    {
+      "key": "food_delivery",
+      "en": "Food delivery",
+      "ar": "توصيل الطعام والوجبات"
+    },
+    {
+      "key": "fast_casual_restaurant",
+      "en": "Fast casual restaurant",
+      "ar": "مطاعم الخدمة السريعة العصرية"
+    },
+    {
+      "key": "seafood_restaurant",
+      "en": "Seafood restaurant",
+      "ar": "مطاعم المأكولات البحرية والأسماك"
+    },
+    {
+      "key": "bakery",
+      "en": "Bakery",
+      "ar": "المخابز والمخبوزات الطازجة"
+    },
+    {
+      "key": "pastry",
+      "en": "Pastry",
+      "ar": "الحلويات الشرقية والغربية والتورت"
+    },
+    {
+      "key": "specialty_coffee",
+      "en": "Specialty coffee",
+      "ar": "القهوة المختصة والإسبريسو"
+    },
+    {
+      "key": "buffet",
+      "en": "Buffet",
+      "ar": "بوفيهات المطاعم المفتوحة"
+    },
+    {
+      "key": "health_food",
+      "en": "Health food",
+      "ar": "الأكل الصحي والدايت"
+    },
+    {
+      "key": "catering_service",
+      "en": "Catering service",
+      "ar": "خدمات الكيترينج وتجهيز الولائم"
+    },
+    {
+      "key": "pizza_delivery",
+      "en": "Pizza delivery",
+      "ar": "توصيل البيتزا والأكلات الإيطالية"
+    },
+    {
+      "key": "ice_cream",
+      "en": "Ice cream",
+      "ar": "الآيس كريم والجيلاتي والوافل"
+    },
+    {
+      "key": "gym",
+      "en": "Gym",
+      "ar": "صالات الجيم والنوادي الرياضية"
+    },
+    {
+      "key": "weight_loss",
+      "en": "Weight loss",
+      "ar": "التخسيس وإنقاص الوزن"
+    },
+    {
+      "key": "personal_trainer",
+      "en": "Personal trainer",
+      "ar": "المدرب الشخصي وخطط التدريب"
+    },
+    {
+      "key": "dietary_supplement",
+      "en": "Dietary supplement",
+      "ar": "المكملات الغذائية والبروتين"
+    },
+    {
+      "key": "aerobics",
+      "en": "Aerobics",
+      "ar": "تمارين الأيروبكس والفتنس"
+    },
+    {
+      "key": "nutrition",
+      "en": "Nutrition",
+      "ar": "التغذية العلاجية والأنظمة الغذائية"
+    },
+    {
+      "key": "crossfit",
+      "en": "CrossFit",
+      "ar": "رياضة الكروس فيت واللياقة البدنية العالية"
+    },
+    {
+      "key": "automotive_industry",
+      "en": "Automotive industry",
+      "ar": "صناعة وتجارة السيارات"
+    },
+    {
+      "key": "used_car",
+      "en": "Used car",
+      "ar": "السيارات المستعملة وسوق المستعمل"
+    },
+    {
+      "key": "car_rental",
+      "en": "Car rental",
+      "ar": "تأجير السيارات والليموزين"
+    },
+    {
+      "key": "auto_detailing",
+      "en": "Auto detailing",
+      "ar": "تلميع وحماية السيارات (نانو سيراميك)"
+    },
+    {
+      "key": "auto_repair_shop",
+      "en": "Auto repair shop",
+      "ar": "مراكز صيانة وتصليح السيارات"
+    },
+    {
+      "key": "tire",
+      "en": "Tire",
+      "ar": "إطارات وبطاريات السيارات"
+    },
+    {
+      "key": "car_tuning",
+      "en": "Car tuning",
+      "ar": "تعديل وإكسسوارات السيارات"
+    },
+    {
+      "key": "sport_utility_vehicle",
+      "en": "Sport utility vehicle",
+      "ar": "سيارات الدفع الرباعي (SUV)"
+    },
+    {
+      "key": "resort",
+      "en": "Resort",
+      "ar": "المنتجعات السياحية والقرى الساحلية"
+    },
+    {
+      "key": "vacation_rental",
+      "en": "Vacation rental",
+      "ar": "تأجير الشاليهات والمصايف"
+    },
+    {
+      "key": "airline",
+      "en": "Airline",
+      "ar": "تذاكر وحجوزات الطيران"
+    },
+    {
+      "key": "travel_agency",
+      "en": "Travel agency",
+      "ar": "شركات ووكالات السياحة والسفر"
+    },
+    {
+      "key": "religious_tourism",
+      "en": "Religious tourism",
+      "ar": "السياحة الدينية ورحلات الحج والعمرة"
+    },
+    {
+      "key": "honeymoon",
+      "en": "Honeymoon",
+      "ar": "رحلات شهر العسل"
+    },
+    {
+      "key": "domestic_tourism",
+      "en": "Domestic tourism",
+      "ar": "السياحة الداخلية والرحلات اليومية"
+    },
+    {
+      "key": "e_learning",
+      "en": "E-learning",
+      "ar": "التعليم الإلكتروني والمنصات التعليمية"
+    },
+    {
+      "key": "language_school",
+      "en": "Language school",
+      "ar": "معاهد ومراكز تعليم اللغات"
+    },
+    {
+      "key": "english_language",
+      "en": "English language",
+      "ar": "تعلم وإتقان اللغة الإنجليزية"
+    },
+    {
+      "key": "vocational_education",
+      "en": "Vocational education",
+      "ar": "التعليم المهني والكورسات الحرفية"
+    },
+    {
+      "key": "private_school",
+      "en": "Private school",
+      "ar": "المدارس الخاصة والدولية"
+    },
+    {
+      "key": "computer_programming",
+      "en": "Computer programming",
+      "ar": "البرمجة وتطوير المواقع والتطبيقات"
+    },
+    {
+      "key": "video_editing",
+      "en": "Video editing",
+      "ar": "المونتاج وصناعة محتوى الفيديو"
+    },
+    {
+      "key": "smartphone",
+      "en": "Smartphone",
+      "ar": "الهواتف الذكية والموبايلات"
+    },
+    {
+      "key": "laptop",
+      "en": "Laptop",
+      "ar": "أجهزة اللابتوب والكمبيوتر المحمول"
+    },
+    {
+      "key": "tablet_computer",
+      "en": "Tablet computer",
+      "ar": "أجهزة التابلت والآيباد"
+    },
+    {
+      "key": "smartwatch",
+      "en": "Smartwatch",
+      "ar": "الساعات الذكية والأجهزة القابلة للارتداء"
+    },
+    {
+      "key": "headphones",
+      "en": "Headphones",
+      "ar": "سماعات الرأس والإيربودز"
+    },
+    {
+      "key": "camera",
+      "en": "Camera",
+      "ar": "الكاميرات ومعدات التصوير الفوتوغرافي"
+    },
+    {
+      "key": "air_conditioning",
+      "en": "Air conditioning",
+      "ar": "التكييفات والتبريد"
+    },
+    {
+      "key": "pet_supplies",
+      "en": "Pet supplies",
+      "ar": "مستلزمات وأطعمة الحيوانات الأليفة (Pet Shop)"
+    },
+    {
+      "key": "veterinarian",
+      "en": "Veterinarian",
+      "ar": "العيادات البيطرية ورعاية الحيوانات"
+    },
+    {
+      "key": "cleaning_services",
+      "en": "Commercial cleaning",
+      "ar": "شركات النظافة ومكافحة الحشرات"
     }
   ]
 }
