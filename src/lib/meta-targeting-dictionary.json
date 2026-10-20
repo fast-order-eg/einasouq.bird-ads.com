@@ -1,0 +1,1823 @@
+{
+  "demographics": [
+    {
+      "key": "status_1",
+      "en": "Parents (up to 12 months)",
+      "ar": "والدان (حتى 12 شهرًا)"
+    },
+    {
+      "key": "status_2",
+      "en": "Parents with infants (1 to 2 years)",
+      "ar": "الوالدان اللذان لديهم أطفال رضّع (من عام إلى عامين)"
+    },
+    {
+      "key": "status_3",
+      "en": "Parents with preschoolers (3 to 5 years)",
+      "ar": "والدان لديهما أطفال في مرحلة ما قبل المدرسة (من 3 إلى 5 سنوات)"
+    },
+    {
+      "key": "status_4",
+      "en": "Parents with young school-age children (6 to 8 years)",
+      "ar": "الوالدان الذين لديهم أطفال في المراحل الدراسية المبكرة (من 6 إلى 8 أعوام)"
+    },
+    {
+      "key": "status_5",
+      "en": "Parents with teenagers (13 to 17 years)",
+      "ar": "الوالدان الذين لديهم أطفال في سن المراهقة (من 13 إلى 17 عامًا)"
+    },
+    {
+      "key": "status_6",
+      "en": "Parents with adult children (18 to 26 years)",
+      "ar": "الوالدان اللذان لديهم أطفال كبار (من 18 إلى 26 عامًا)"
+    },
+    {
+      "key": "status_7",
+      "en": "Parents with preteens (9 to 12 years)",
+      "ar": "الوالدان اللذان لديهم أطفال في مرحلة ما قبل سن المراهقة (من 09 إلى 12 عامًا)"
+    },
+    {
+      "key": "status_8",
+      "en": "Veterans (US)",
+      "ar": "المحاربون القدامى (الولايات المتحدة)"
+    },
+    {
+      "key": "status_9",
+      "en": "Government employees (global)",
+      "ar": "موظفون حكوميون (عالمي)"
+    },
+    {
+      "key": "status_10",
+      "en": "Employees of large businesses dealing with other businesses (500+ employees)",
+      "ar": "موظفو الأنشطة التجارية الكبيرة التي تدير أعمالها مع أنشطة تجارية أخرى (500 موظف فأكثر)"
+    },
+    {
+      "key": "status_11",
+      "en": "Employees of medium-sized businesses dealing with other businesses (200 to 500 employees)",
+      "ar": "موظفو الأنشطة التجارية المتوسطة التي تدير أعمالها مع أنشطة تجارية أخرى (200 إلى 500 موظف)"
+    },
+    {
+      "key": "status_12",
+      "en": "Employees of small businesses dealing with other businesses (10 to 200 employees)",
+      "ar": "موظفو الأنشطة التجارية الصغيرة التي تدير أعمالها مع أنشطة تجارية أخرى (10 إلى 200 موظف)"
+    },
+    {
+      "key": "status_13",
+      "en": "Job titles and interests of business decision-makers",
+      "ar": "المسميات الوظيفية والاهتمامات لصانعي قرارات الأعمال"
+    },
+    {
+      "key": "status_14",
+      "en": "Business decision-makers",
+      "ar": "صانعو قرارات الأعمال"
+    },
+    {
+      "key": "status_15",
+      "en": "IT decision-makers",
+      "ar": "صانعو القرار في تكنولوجيا المعلومات"
+    },
+    {
+      "key": "status_16",
+      "en": "Company size: 11-100 employees",
+      "ar": "حجم الشركة: 11-100 موظف"
+    },
+    {
+      "key": "status_17",
+      "en": "Companies founded before 2000",
+      "ar": "الشركات التي تأسست قبل 2000"
+    },
+    {
+      "key": "status_18",
+      "en": "Companies founded between 2010 and now",
+      "ar": "الشركات التي تأسست بين عام 2010 وحتى الآن"
+    },
+    {
+      "key": "status_19",
+      "en": "Company revenue from 1 million to 10 million",
+      "ar": "إيرادات الشركة من 1 مليون إلى 10 مليون"
+    },
+    {
+      "key": "status_20",
+      "en": "Company revenue less than 1 million",
+      "ar": "إيرادات الشركة أقل من 1 مليون"
+    },
+    {
+      "key": "status_21",
+      "en": "Company size 101-150 employees",
+      "ar": "حجم الشركة 10150 موظف"
+    },
+    {
+      "key": "status_22",
+      "en": "Company size 1-10 employees",
+      "ar": "حجم الشركة 110 موظف"
+    },
+    {
+      "key": "status_23",
+      "en": "Companies founded between 2000 and 2009",
+      "ar": "الشركات التي تأسست بين عامي 2000 و 2009"
+    },
+    {
+      "key": "status_24",
+      "en": "Company revenue more than 10 million",
+      "ar": "إيرادات الشركة أكثر من 10 مليون"
+    },
+    {
+      "key": "status_25",
+      "en": "Company size more than 500 employees",
+      "ar": "حجم الشركة أكثر من 500 موظف"
+    },
+    {
+      "key": "status_26",
+      "en": "Transportation and mobility",
+      "ar": "النقل والتنقل"
+    },
+    {
+      "key": "status_27",
+      "en": "Friends of people who recently moved",
+      "ar": "أصدقاء الأشخاص الذين غيروا محل إقامتهم مؤخراً"
+    },
+    {
+      "key": "status_28",
+      "en": "Friends of people with birthdays within a month",
+      "ar": "أصدقاء الأشخاص عيد ميلادهم خلال شهر"
+    },
+    {
+      "key": "status_29",
+      "en": "Friends of women with birthdays within 7 to 30 days",
+      "ar": "أصدقاء لنساء عيد ميلادهن خلال 7 أيام إلى 30 يوماً"
+    },
+    {
+      "key": "status_30",
+      "en": "Friends of men with birthdays within 7 to 30 days",
+      "ar": "أصدقاء لرجال عيد ميلادهم خلال 7 أيام إلى 30 يوماً"
+    },
+    {
+      "key": "status_31",
+      "en": "Friends of people with birthdays within a week",
+      "ar": "أصدقاء الأشخاص عيد ميلادهم خلال أسبوع"
+    },
+    {
+      "key": "status_32",
+      "en": "Friends of women with birthdays within 0 to 7 days",
+      "ar": "أصدقاء لنساء عيد ميلادهن خلال 0 إلى 7 أيام"
+    },
+    {
+      "key": "status_33",
+      "en": "Friends of men with birthdays within 0 to 7 days",
+      "ar": "أصدقاء لرجال عيد ميلادهم خلال 0 إلى 7 أيام"
+    },
+    {
+      "key": "status_34",
+      "en": "Away from family",
+      "ar": "بعيداً عن العائلة"
+    },
+    {
+      "key": "status_35",
+      "en": "Away from place of origin",
+      "ar": "البعيدون عن مكان المنشأ"
+    },
+    {
+      "key": "status_36",
+      "en": "Long-distance relationship",
+      "ar": "علاقة عن بُعد"
+    },
+    {
+      "key": "status_37",
+      "en": "People who recently moved",
+      "ar": "الأشخاص الذين غيروا محل إقامتهم مؤخراً"
+    },
+    {
+      "key": "status_38",
+      "en": "New job",
+      "ar": "وظيفة جديدة"
+    },
+    {
+      "key": "status_39",
+      "en": "New relationship",
+      "ar": "علاقة جديدة"
+    },
+    {
+      "key": "status_40",
+      "en": "Recently engaged (3 months)",
+      "ar": "مخطوب/مخطوبة حديثاً (3 أشهر)"
+    },
+    {
+      "key": "status_41",
+      "en": "Recently married (3 months)",
+      "ar": "متزوج حديثاً (3 أشهر)"
+    },
+    {
+      "key": "status_42",
+      "en": "Life, physical, and social sciences",
+      "ar": "علوم الحياة والعلوم الفيزيائية والاجتماعية"
+    },
+    {
+      "key": "status_43",
+      "en": "Computing and mathematics",
+      "ar": "حوسبة ورياضيات"
+    },
+    {
+      "key": "status_44",
+      "en": "Community and social services",
+      "ar": "المجتمع والخدمات الاجتماعية"
+    },
+    {
+      "key": "status_45",
+      "en": "Protective services",
+      "ar": "خدمات وقائية"
+    },
+    {
+      "key": "status_46",
+      "en": "Agriculture, fishing, and forestry",
+      "ar": "الزراعة والصيد وعلم الغابات"
+    },
+    {
+      "key": "status_47",
+      "en": "Cleaning and maintenance services",
+      "ar": "خدمات تنظيف وصيانة"
+    },
+    {
+      "key": "status_48",
+      "en": "Military (global)",
+      "ar": "عسكري (عالمي)"
+    },
+    {
+      "key": "status_49",
+      "en": "Administrative services",
+      "ar": "خدمات إدارية"
+    },
+    {
+      "key": "status_50",
+      "en": "Technical and IT services",
+      "ar": "خدمات فنية وتكنولوجيا معلومات"
+    },
+    {
+      "key": "status_51",
+      "en": "Legal services",
+      "ar": "خدمات قانونية"
+    },
+    {
+      "key": "status_52",
+      "en": "Sales",
+      "ar": "مبيعات"
+    },
+    {
+      "key": "status_53",
+      "en": "Education and libraries",
+      "ar": "تعليم ومكتبات"
+    },
+    {
+      "key": "status_54",
+      "en": "Business and finance",
+      "ar": "أعمال وماليات"
+    },
+    {
+      "key": "status_55",
+      "en": "Recently married (1 year)",
+      "ar": "متزوج حديثا (سنة واحدة)"
+    },
+    {
+      "key": "status_56",
+      "en": "Recently engaged (6 months)",
+      "ar": "الاشخاص المخطبون حديثا (6 اشهر)"
+    },
+    {
+      "key": "status_57",
+      "en": "Recently married (6 months)",
+      "ar": "متزوج حديثا (6 اشهر)"
+    },
+    {
+      "key": "status_58",
+      "en": "Recently engaged (1 year)",
+      "ar": "الاشخاص المخطبون حديثا (سنة واحدة)"
+    },
+    {
+      "key": "status_59",
+      "en": "Management",
+      "ar": "إدارة"
+    },
+    {
+      "key": "status_60",
+      "en": "Arts, entertainment, sports, and media",
+      "ar": "فنون وترفيه ورياضات وإعلام"
+    }
+  ],
+  "behaviors": [
+    {
+      "key": "engaged_shoppers",
+      "en": "Engaged Shoppers",
+      "ar": "المتسوقون المتفاعلون"
+    },
+    {
+      "key": "soccer_fans_moderate",
+      "en": "Soccer Fans (Moderate Content)",
+      "ar": "مشجعي كرة القدم (المحتوى المعتدل)"
+    },
+    {
+      "key": "soccer_fans_high",
+      "en": "Soccer Fans (High Content)",
+      "ar": "مشجعي كرة القدم (المحتوى العالي)"
+    },
+    {
+      "key": "friends_of_soccer_fans",
+      "en": "Friends of Soccer Fans",
+      "ar": "أصدقاء محبي كرة القدم"
+    },
+    {
+      "key": "facebook_access_mobile_all_devices",
+      "en": "Facebook Access (Mobile): All Mobile Devices",
+      "ar": "الوصول إلى فيسبوك (موبايل): جميع الأجهزة المحمولة"
+    },
+    {
+      "key": "facebook_access_mobile_smartphones_tablets",
+      "en": "Facebook Access (Mobile): Smartphones and Tablets",
+      "ar": "الوصول إلى فيسبوك (موبايل): الهواتف الذكية والأجهزة اللوحية"
+    },
+    {
+      "key": "facebook_access_mobile_feature_phones",
+      "en": "Facebook Access (Mobile): Feature Phones",
+      "ar": "الوصول إلى فيسبوك (موبايل): هواتف بميزات أساسية"
+    },
+    {
+      "key": "all_mobile_devices_by_brand",
+      "en": "All Mobile Devices by Brand",
+      "ar": "جميع الأجهزة المحمولة حسب العلامة التجارية"
+    },
+    {
+      "key": "all_mobile_devices_by_os",
+      "en": "All Mobile Devices by OS",
+      "ar": "جميع الأجهزة المحمولة حسب نظام التشغيل"
+    },
+    {
+      "key": "new_smartphone_tablet_users",
+      "en": "New Smartphone and Tablet Users",
+      "ar": "مستخدمي الهواتف الذكية والأجهزة اللوحية الجدد"
+    },
+    {
+      "key": "network_connection",
+      "en": "Network Connection",
+      "ar": "اتصال الشبكة"
+    },
+    {
+      "key": "android_360_media_supported",
+      "en": "Android: 360 Media Supported",
+      "ar": "أندرويد: الوسائط المدعومة 360 درجة"
+    },
+    {
+      "key": "android_360_media_not_supported",
+      "en": "Android: 360 Media Not Supported",
+      "ar": "أندرويد: الوسائط غير المدعومة 360 درجة"
+    },
+    {
+      "key": "owns_oneplus",
+      "en": "Owns: OnePlus",
+      "ar": "يملك: OnePlus"
+    },
+    {
+      "key": "small_business_owners",
+      "en": "Small Business Owners",
+      "ar": "أصحاب الأعمال الصغيرة"
+    },
+    {
+      "key": "facebook_payment_users_90_days",
+      "en": "Facebook Payment Users (90 Days)",
+      "ar": "مستخدمو مدفوعات فيسبوك (90 يومًا)"
+    },
+    {
+      "key": "technology_early_adopters",
+      "en": "Technology Early Adopters",
+      "ar": "المتبنين المبكرين للتكنولوجيا"
+    },
+    {
+      "key": "os_used",
+      "en": "OS Used",
+      "ar": "نظام التشغيل المستخدم"
+    },
+    {
+      "key": "facebook_access_old_devices_os",
+      "en": "Facebook Access: Old Devices and OS",
+      "ar": "الوصول إلى فيسبوك: الأجهزة ونظام التشغيل القديمة"
+    },
+    {
+      "key": "facebook_payment_users_30_days",
+      "en": "Facebook Payment Users (30 Days)",
+      "ar": "مستخدمو مدفوعات فيسبوك (30 يومًا)"
+    },
+    {
+      "key": "mobile_gamers",
+      "en": "Mobile Gamers",
+      "ar": "لاعبي الأجهزة المحمولة"
+    },
+    {
+      "key": "browser_used",
+      "en": "Browser Used",
+      "ar": "المتصفح المستخدم"
+    },
+    {
+      "key": "facebook_page_admins",
+      "en": "Facebook Page Admins",
+      "ar": "مدراء صفحة فيسبوك"
+    },
+    {
+      "key": "canvas_games",
+      "en": "Canvas Games",
+      "ar": "ألعاب الكانفاس"
+    },
+    {
+      "key": "people_visited_facebook_gaming",
+      "en": "People Who Visited Facebook Gaming",
+      "ar": "الأشخاص الذين قاموا بزيارة Facebook Gaming"
+    },
+    {
+      "key": "new_active_business_6_months",
+      "en": "New Active Business (> 6 Months)",
+      "ar": "عمل نشط جديد (> 6 أشهر)"
+    },
+    {
+      "key": "new_active_business_24_months",
+      "en": "New Active Business (> 24 Months)",
+      "ar": "عمل نشط جديد (> 24 شهرًا)"
+    },
+    {
+      "key": "new_active_business_12_months",
+      "en": "New Active Business (> 12 Months)",
+      "ar": "عمل نشط جديد (> 12 شهرًا)"
+    },
+    {
+      "key": "instagram_business_profile_admins",
+      "en": "Instagram Business Profile Admins",
+      "ar": "مسؤولو الملف الشخصي لأعمال Instagram"
+    },
+    {
+      "key": "frequent_travelers",
+      "en": "Frequent Travelers",
+      "ar": "المسافرون بشكل متكرر"
+    },
+    {
+      "key": "returned_from_travel_week",
+      "en": "Returned from Travel (1 Week)",
+      "ar": "عادوا من السفر منذ أسبوع"
+    },
+    {
+      "key": "returned_from_travel_two_weeks",
+      "en": "Returned from Travel (2 Weeks)",
+      "ar": "عادوا من السفر منذ أسبوعين"
+    },
+    {
+      "key": "daily_commuters",
+      "en": "Daily Commuters",
+      "ar": "المسافرون يوميًا"
+    },
+    {
+      "key": "frequent_international_travelers",
+      "en": "Frequent International Travelers",
+      "ar": "المسافرون الدوليين بشكل متكرر"
+    },
+    {
+      "key": "facebook_lite_users",
+      "en": "Facebook Lite Users",
+      "ar": "مستخدمو تطبيق Facebook Lite"
+    },
+    {
+      "key": "store_admins",
+      "en": "Store Admins",
+      "ar": "مسؤولو المتاجر"
+    },
+    {
+      "key": "travel_outdoor_enthusiasts",
+      "en": "Travel and Outdoor Enthusiasts",
+      "ar": "مبدعو السفر والأنشطة الخارجية"
+    },
+    {
+      "key": "food_drink_creators",
+      "en": "Food and Drink Creators",
+      "ar": "مبدعو الطعام والشراب"
+    },
+    {
+      "key": "health_wellness_creators",
+      "en": "Health and Wellness Creators",
+      "ar": "مبدعو الصحة والعافية"
+    },
+    {
+      "key": "all_creators",
+      "en": "All Creators",
+      "ar": "جميع المبدعين"
+    },
+    {
+      "key": "internet_personality_creators",
+      "en": "Internet Personality Creators",
+      "ar": "مبدعو شخصيات الإنترنت"
+    },
+    {
+      "key": "travel",
+      "en": "Travel",
+      "ar": "السفر"
+    },
+    {
+      "key": "digital_activities",
+      "en": "Digital Activities",
+      "ar": "الأنشطة الرقمية"
+    },
+    {
+      "key": "mobile_device_user",
+      "en": "Mobile Device User",
+      "ar": "مستخدم الجهاز المحمول"
+    },
+    {
+      "key": "expats",
+      "en": "Expats",
+      "ar": "المغتربين"
+    },
+    {
+      "key": "anniversary",
+      "en": "Anniversary",
+      "ar": "ذكرى"
+    },
+    {
+      "key": "consumer_classification",
+      "en": "Consumer Classification",
+      "ar": "تصنيف المستهلك"
+    },
+    {
+      "key": "purchase_behavior",
+      "en": "Purchase Behavior",
+      "ar": "سلوك الشراء"
+    },
+    {
+      "key": "soccer",
+      "en": "Soccer",
+      "ar": "كرة القدم"
+    },
+    {
+      "key": "more_categories",
+      "en": "More Categories",
+      "ar": "المزيد من الفئات"
+    },
+    {
+      "key": "mobile_device_user_device_usage_time",
+      "en": "Mobile Device User / Device Usage Time",
+      "ar": "مستخدم الجهاز المحمول / وقت استخدام الجهاز"
+    },
+    {
+      "key": "behaviors",
+      "en": "Behaviors",
+      "ar": "السلوكيات"
+    },
+    {
+      "key": "digital_activities_team",
+      "en": "Digital Activities Team",
+      "ar": "فريق الأنشطة الرقمية"
+    }
+  ],
+  "interests": [
+    {
+      "key": "clothes",
+      "en": "Clothes",
+      "ar": "ملابس"
+    },
+    {
+      "key": "belt_clothes",
+      "en": "Belt (Clothes)",
+      "ar": "حزام (ملابس)"
+    },
+    {
+      "key": "sports_swimwear",
+      "en": "Sports Illustrated Swimwear Issue",
+      "ar": "قضية ملابس السباحة الرياضية المصورة"
+    },
+    {
+      "key": "republic_clothing_remix",
+      "en": "Republic Clothing Remix",
+      "ar": "ريمكس ملابس تائبية"
+    },
+    {
+      "key": "organic_clothing",
+      "en": "Organic Clothing",
+      "ar": "ملابس عضوية من الصورة"
+    },
+    {
+      "key": "work_clothes",
+      "en": "Work Clothes",
+      "ar": "ملابس العمل"
+    },
+    {
+      "key": "fashion_picture",
+      "en": "Fashion Picture",
+      "ar": "ملابس الصورة"
+    },
+    {
+      "key": "castro_clothes",
+      "en": "Castro (Clothes)",
+      "ar": "كاسترو (ملابس)"
+    },
+    {
+      "key": "pinup_channel_clothes",
+      "en": "Pinup Channel Clothes",
+      "ar": "ملابس قناة Pinup"
+    },
+    {
+      "key": "charlotte_rousse_retailer",
+      "en": "Charlotte Russe (Retailer)",
+      "ar": "شارلوت روس (تاجر ملابس بالتجزئة)"
+    },
+    {
+      "key": "underwear",
+      "en": "Underwear",
+      "ar": "ملابس داخلية"
+    },
+    {
+      "key": "hot_clothes",
+      "en": "Hot Clothes",
+      "ar": "ملابس ساخنة"
+    },
+    {
+      "key": "exclusive_clothes",
+      "en": "Exclusive Clothes",
+      "ar": "ملابس حصرية"
+    },
+    {
+      "key": "garage_retailer",
+      "en": "Garage (Retailer)",
+      "ar": "جراج (تاجر ملابس بالتجزئة)"
+    },
+    {
+      "key": "fila_sportswear",
+      "en": "Fila (Sportswear)",
+      "ar": "فيلاد (شركة ملابس رياضية)"
+    },
+    {
+      "key": "strategy_games",
+      "en": "Strategy Games",
+      "ar": "العاب استراتيجية"
+    },
+    {
+      "key": "property",
+      "en": "Property",
+      "ar": "ملكية"
+    },
+    {
+      "key": "hotels",
+      "en": "Hotels",
+      "ar": "الفنادق"
+    },
+    {
+      "key": "writing",
+      "en": "Writing",
+      "ar": "جاري الكتابة"
+    },
+    {
+      "key": "advertising",
+      "en": "Advertising",
+      "ar": "دعاية"
+    },
+    {
+      "key": "loud_music",
+      "en": "Loud Music",
+      "ar": "موسيقى صاخبه"
+    },
+    {
+      "key": "anime_movies",
+      "en": "Anime Movies",
+      "ar": "افلام انمي"
+    },
+    {
+      "key": "coffee",
+      "en": "Coffee",
+      "ar": "قهوة"
+    },
+    {
+      "key": "heavy_metal_music",
+      "en": "Heavy Metal Music",
+      "ar": "موسيقى الهيفي ميتال"
+    },
+    {
+      "key": "hard_drives",
+      "en": "Hard Drives",
+      "ar": "محركات الأقراص الصلبة"
+    },
+    {
+      "key": "card_games",
+      "en": "Card Games",
+      "ar": "لعب الورق"
+    },
+    {
+      "key": "vegetarian",
+      "en": "Vegetarian",
+      "ar": "نباتية"
+    },
+    {
+      "key": "bodybuilding",
+      "en": "Bodybuilding",
+      "ar": "كمال الاجسام"
+    },
+    {
+      "key": "economics",
+      "en": "Economics",
+      "ar": "اقتصاديات"
+    },
+    {
+      "key": "politics",
+      "en": "Politics",
+      "ar": "سياسة"
+    },
+    {
+      "key": "design",
+      "en": "Design",
+      "ar": "تصميم"
+    },
+    {
+      "key": "cooking",
+      "en": "Cooking",
+      "ar": "طبخ"
+    },
+    {
+      "key": "horror_movies",
+      "en": "Horror Movies",
+      "ar": "أفلام رعب"
+    },
+    {
+      "key": "network_storage",
+      "en": "Network Storage",
+      "ar": "تخزين الشبكة"
+    },
+    {
+      "key": "law",
+      "en": "Law",
+      "ar": "قانون"
+    },
+    {
+      "key": "puzzle_video_games",
+      "en": "Puzzle Video Games",
+      "ar": "ألعاب الفيديو اللغز"
+    },
+    {
+      "key": "pizza",
+      "en": "Pizza",
+      "ar": "بيتزا"
+    },
+    {
+      "key": "sculpture",
+      "en": "Sculpture",
+      "ar": "النحت"
+    },
+    {
+      "key": "consumer_electronics",
+      "en": "Consumer Electronics",
+      "ar": "مستهلكي الكترونيات"
+    },
+    {
+      "key": "juice",
+      "en": "Juice",
+      "ar": "عصير"
+    },
+    {
+      "key": "dancing",
+      "en": "Dancing",
+      "ar": "الرقص"
+    },
+    {
+      "key": "free_software",
+      "en": "Free Software",
+      "ar": "البرمجيات الحرة"
+    },
+    {
+      "key": "marathon",
+      "en": "Marathon",
+      "ar": "ماراتون"
+    },
+    {
+      "key": "beaches",
+      "en": "Beaches",
+      "ar": "الشواطئ"
+    },
+    {
+      "key": "tourism",
+      "en": "Tourism",
+      "ar": "السياحة"
+    },
+    {
+      "key": "lakes",
+      "en": "Lakes",
+      "ar": "بحيرات"
+    },
+    {
+      "key": "browser_games",
+      "en": "Browser Games",
+      "ar": "ألعاب المتصفح"
+    },
+    {
+      "key": "barbecue",
+      "en": "Barbecue",
+      "ar": "حفل شواء"
+    },
+    {
+      "key": "scouts",
+      "en": "Scouts",
+      "ar": "سكوتز"
+    },
+    {
+      "key": "marriage",
+      "en": "Marriage",
+      "ar": "زواج"
+    },
+    {
+      "key": "perfumes",
+      "en": "Perfumes",
+      "ar": "عطور"
+    },
+    {
+      "key": "hair_products",
+      "en": "Hair Products",
+      "ar": "منتجات الشعر"
+    },
+    {
+      "key": "books",
+      "en": "Books",
+      "ar": "كتب"
+    },
+    {
+      "key": "pet_food",
+      "en": "Pet Food",
+      "ar": "طعام الحيوانات الاليفة"
+    },
+    {
+      "key": "online_banking",
+      "en": "Online Banking",
+      "ar": "الخدمات المصرفية عبر الإنترنت"
+    },
+    {
+      "key": "weight_training",
+      "en": "Weight Training",
+      "ar": "تدريب الوزن"
+    },
+    {
+      "key": "diy",
+      "en": "DIY",
+      "ar": "افعالها بنفسك (DIY)"
+    },
+    {
+      "key": "tea",
+      "en": "Tea",
+      "ar": "شاي"
+    },
+    {
+      "key": "family",
+      "en": "Family",
+      "ar": "عائلة"
+    },
+    {
+      "key": "indian_cuisine",
+      "en": "Indian Cuisine",
+      "ar": "مطبخ هندي"
+    },
+    {
+      "key": "national_music",
+      "en": "National Music",
+      "ar": "موسيقى وطنية او قومية"
+    },
+    {
+      "key": "ice_skating",
+      "en": "Ice Skating",
+      "ar": "التزلج على الجليد"
+    },
+    {
+      "key": "golf",
+      "en": "Golf",
+      "ar": "الجولف"
+    },
+    {
+      "key": "sports_games",
+      "en": "Sports Games",
+      "ar": "الألعاب الرياضية"
+    },
+    {
+      "key": "internet_ads",
+      "en": "Internet Ads",
+      "ar": "اعلانات الانترنت"
+    },
+    {
+      "key": "seo",
+      "en": "SEO",
+      "ar": "محرك البحث الأمثل"
+    },
+    {
+      "key": "credit_cards",
+      "en": "Credit Cards",
+      "ar": "بطاقات الائتمان"
+    },
+    {
+      "key": "entrepreneurship",
+      "en": "Entrepreneurship",
+      "ar": "ريادة الأعمال"
+    },
+    {
+      "key": "fast_food_restaurants",
+      "en": "Fast Food Restaurants",
+      "ar": "مطاعم الوجبات السريعة"
+    },
+    {
+      "key": "drama_movies",
+      "en": "Drama Movies",
+      "ar": "أفلام درامية"
+    },
+    {
+      "key": "documentary_movies",
+      "en": "Documentary Movies",
+      "ar": "أفلام وثائقية"
+    },
+    {
+      "key": "american_football",
+      "en": "American Football",
+      "ar": "كرة القدم الأمريكية"
+    },
+    {
+      "key": "role_playing_games",
+      "en": "Role Playing Games",
+      "ar": "ألعاب لعب الدور"
+    },
+    {
+      "key": "reptiles",
+      "en": "Reptiles",
+      "ar": "الزواحف"
+    },
+    {
+      "key": "portable_media_players",
+      "en": "Portable Media Players",
+      "ar": "مشغلات الوسائط المحمولة"
+    },
+    {
+      "key": "racing_games",
+      "en": "Racing Games",
+      "ar": "ألعاب سباق"
+    },
+    {
+      "key": "fitness_wellness",
+      "en": "Fitness and Wellness",
+      "ar": "اللياقة والعافية"
+    },
+    {
+      "key": "recipes",
+      "en": "Recipes",
+      "ar": "وصفات"
+    },
+    {
+      "key": "website_hosting",
+      "en": "Website Hosting",
+      "ar": "استضافة الموقع"
+    },
+    {
+      "key": "social_media_marketing",
+      "en": "Social Media Marketing",
+      "ar": "تسويق وسائل الاعلام الاجتماعية"
+    },
+    {
+      "key": "investing",
+      "en": "Investing",
+      "ar": "استثمار"
+    },
+    {
+      "key": "energy_drinks",
+      "en": "Energy Drinks",
+      "ar": "مشروبات الطاقة"
+    },
+    {
+      "key": "shopping_centers",
+      "en": "Shopping Centers",
+      "ar": "مراكز التسوق"
+    },
+    {
+      "key": "drums",
+      "en": "Drums",
+      "ar": "طبول"
+    },
+    {
+      "key": "home_appliances",
+      "en": "Home Appliances",
+      "ar": "الأجهزة المنزلية"
+    },
+    {
+      "key": "vietnamese_cuisine",
+      "en": "Vietnamese Cuisine",
+      "ar": "المطبخ الفيتنامي"
+    },
+    {
+      "key": "shoes",
+      "en": "Shoes",
+      "ar": "أحذية"
+    },
+    {
+      "key": "online_shopping",
+      "en": "Online Shopping",
+      "ar": "التسوق عبر الانترنت"
+    },
+    {
+      "key": "camping",
+      "en": "Camping",
+      "ar": "تخييم"
+    },
+    {
+      "key": "fashion_accessories",
+      "en": "Fashion Accessories",
+      "ar": "اكسسوارات الموضة"
+    },
+    {
+      "key": "computer_memory",
+      "en": "Computer Memory",
+      "ar": "ذاكرة الكمبيوتر"
+    },
+    {
+      "key": "entertainment",
+      "en": "Entertainment",
+      "ar": "وسائل الترفيه"
+    },
+    {
+      "key": "triathlon",
+      "en": "Triathlon",
+      "ar": "الترياتلون"
+    },
+    {
+      "key": "musical_theater",
+      "en": "Musical Theater",
+      "ar": "مسرح موسيقي"
+    },
+    {
+      "key": "nature",
+      "en": "Nature",
+      "ar": "طبيعة سجية"
+    },
+    {
+      "key": "motorcycles",
+      "en": "Motorcycles",
+      "ar": "دراجات نارية"
+    },
+    {
+      "key": "basketball",
+      "en": "Basketball",
+      "ar": "كرة سلة"
+    },
+    {
+      "key": "nightclubs",
+      "en": "Nightclubs",
+      "ar": "النوادي الليلية"
+    },
+    {
+      "key": "mobile_homes",
+      "en": "Mobile Homes",
+      "ar": "منازل متنقلة"
+    },
+    {
+      "key": "construction",
+      "en": "Construction",
+      "ar": "بناء"
+    },
+    {
+      "key": "tennis",
+      "en": "Tennis",
+      "ar": "تنس"
+    },
+    {
+      "key": "casual_restaurants",
+      "en": "Casual Restaurants",
+      "ar": "مطاعم غير رسمية سريعة"
+    },
+    {
+      "key": "management",
+      "en": "Management",
+      "ar": "إدارة"
+    },
+    {
+      "key": "web_design",
+      "en": "Web Design",
+      "ar": "تصميم المواقع"
+    },
+    {
+      "key": "business",
+      "en": "Business",
+      "ar": "أعمال"
+    },
+    {
+      "key": "alcoholic_drink",
+      "en": "Alcoholic Drink",
+      "ar": "مشروب كحولي"
+    },
+    {
+      "key": "computers",
+      "en": "Computers",
+      "ar": "أجهزة الكمبيوتر"
+    },
+    {
+      "key": "children_clothes",
+      "en": "Children's Clothes",
+      "ar": "ملابس الأطفال"
+    },
+    {
+      "key": "weddings",
+      "en": "Weddings",
+      "ar": "حفلات الزفاف"
+    },
+    {
+      "key": "french_cuisine",
+      "en": "French Cuisine",
+      "ar": "المطبخ الفرنسي"
+    },
+    {
+      "key": "plays",
+      "en": "Plays",
+      "ar": "يلعب"
+    },
+    {
+      "key": "charity_causes",
+      "en": "Charity and Causes",
+      "ar": "الصدقة والأسباب"
+    },
+    {
+      "key": "non_fiction_books",
+      "en": "Non-Fiction Books",
+      "ar": "الكتب الواقعية"
+    },
+    {
+      "key": "action_games",
+      "en": "Action Games",
+      "ar": "ألعاب الأكشن"
+    },
+    {
+      "key": "diners",
+      "en": "Diners",
+      "ar": "داينرز"
+    },
+    {
+      "key": "seafood",
+      "en": "Seafood",
+      "ar": "مأكولات بحرية"
+    },
+    {
+      "key": "literature",
+      "en": "Literature",
+      "ar": "المؤلفات"
+    },
+    {
+      "key": "ballet",
+      "en": "Ballet",
+      "ar": "باليه"
+    },
+    {
+      "key": "simulation_games",
+      "en": "Simulation Games",
+      "ar": "ألعاب المحاكاة"
+    },
+    {
+      "key": "casino_games",
+      "en": "Casino Games",
+      "ar": "ألعاب الكازينو"
+    },
+    {
+      "key": "dancehall",
+      "en": "Dancehall",
+      "ar": "دانسهول"
+    },
+    {
+      "key": "sunglasses",
+      "en": "Sunglasses",
+      "ar": "نظارة شمسية"
+    },
+    {
+      "key": "health_products",
+      "en": "Health Products",
+      "ar": "منتجات صحية"
+    },
+    {
+      "key": "shopping",
+      "en": "Shopping",
+      "ar": "التسوق"
+    },
+    {
+      "key": "fashion_design",
+      "en": "Fashion Design",
+      "ar": "تصميم الأزياء"
+    },
+    {
+      "key": "jewelry",
+      "en": "Jewelry",
+      "ar": "مجوهرات"
+    },
+    {
+      "key": "blues_music",
+      "en": "Blues Music",
+      "ar": "موسيقى البلوز"
+    },
+    {
+      "key": "sports",
+      "en": "Sports",
+      "ar": "رياضات"
+    },
+    {
+      "key": "reality_tv",
+      "en": "Reality TV",
+      "ar": "برامج تلفزيون الواقع"
+    },
+    {
+      "key": "higher_education",
+      "en": "Higher Education",
+      "ar": "تعليم عالي"
+    },
+    {
+      "key": "fiction_books",
+      "en": "Fiction Books",
+      "ar": "كتب خيالية"
+    },
+    {
+      "key": "gps_devices",
+      "en": "GPS Devices",
+      "ar": "أجهزة GPS"
+    },
+    {
+      "key": "mmorpg",
+      "en": "MMORPG",
+      "ar": "ألعاب لعب الأدوار متعددة اللاعبين عبر الإنترنت"
+    },
+    {
+      "key": "middle_eastern_cuisine",
+      "en": "Middle Eastern Cuisine",
+      "ar": "مطبخ شرق أوسطي"
+    },
+    {
+      "key": "handbags",
+      "en": "Handbags",
+      "ar": "حقائب اليد"
+    },
+    {
+      "key": "sci_fi_movies",
+      "en": "Sci-Fi Movies",
+      "ar": "أفلام خيال علمي"
+    },
+    {
+      "key": "magazines",
+      "en": "Magazines",
+      "ar": "المجلات"
+    },
+    {
+      "key": "romance_novels",
+      "en": "Romance Novels",
+      "ar": "روايات رومانسية"
+    },
+    {
+      "key": "people_carriers",
+      "en": "People Carriers",
+      "ar": "ناقلات الناس"
+    },
+    {
+      "key": "insurance",
+      "en": "Insurance",
+      "ar": "تأمين"
+    },
+    {
+      "key": "discount_stores",
+      "en": "Discount Stores",
+      "ar": "متاجر الخصم"
+    },
+    {
+      "key": "air_travel",
+      "en": "Air Travel",
+      "ar": "السفر جوا"
+    },
+    {
+      "key": "televisions",
+      "en": "Televisions",
+      "ar": "التلفزيونات"
+    },
+    {
+      "key": "thriller_movies",
+      "en": "Thriller Movies",
+      "ar": "أفلام إثارة"
+    },
+    {
+      "key": "cruises",
+      "en": "Cruises",
+      "ar": "الرحلات البحرية"
+    },
+    {
+      "key": "hip_hop_music",
+      "en": "Hip Hop Music",
+      "ar": "موسيقى الهيب هوب"
+    },
+    {
+      "key": "parenting",
+      "en": "Parenting",
+      "ar": "الأبوة والأمومة"
+    },
+    {
+      "key": "mountain_biking",
+      "en": "Mountain Biking",
+      "ar": "ركوب الدراجات في الجبل"
+    },
+    {
+      "key": "car_rentals",
+      "en": "Car Rentals",
+      "ar": "تأجير السيارات"
+    },
+    {
+      "key": "trucks",
+      "en": "Trucks",
+      "ar": "الشاحنات"
+    },
+    {
+      "key": "graphic_design",
+      "en": "Graphic Design",
+      "ar": "تصميم جرافيك"
+    },
+    {
+      "key": "latin_american_cuisine",
+      "en": "Latin American Cuisine",
+      "ar": "مطبخ أمريكا اللاتينية"
+    },
+    {
+      "key": "italian_cuisine",
+      "en": "Italian Cuisine",
+      "ar": "المطبخ الإيطالي"
+    },
+    {
+      "key": "boutiques",
+      "en": "Boutiques",
+      "ar": "البوتيكات"
+    },
+    {
+      "key": "fishing",
+      "en": "Fishing",
+      "ar": "الصيد"
+    },
+    {
+      "key": "crafts",
+      "en": "Crafts",
+      "ar": "الحرف"
+    },
+    {
+      "key": "football",
+      "en": "Football",
+      "ar": "كرة القدم"
+    },
+    {
+      "key": "soul_music",
+      "en": "Soul Music",
+      "ar": "موسيقى الروح"
+    },
+    {
+      "key": "spanish_cuisine",
+      "en": "Spanish Cuisine",
+      "ar": "المطعم الإسباني"
+    },
+    {
+      "key": "music_festivals",
+      "en": "Music Festivals",
+      "ar": "مهرجانات موسيقية"
+    },
+    {
+      "key": "computer_monitors",
+      "en": "Computer Monitors",
+      "ar": "شاشات الكمبيوتر"
+    },
+    {
+      "key": "desktop_computers",
+      "en": "Desktop Computers",
+      "ar": "أجهزة الكمبيوتر المكتبية"
+    },
+    {
+      "key": "electric_car",
+      "en": "Electric Car",
+      "ar": "سيارة كهربائية"
+    },
+    {
+      "key": "cafes",
+      "en": "Cafes",
+      "ar": "المقاهي"
+    },
+    {
+      "key": "boats",
+      "en": "Boats",
+      "ar": "القوارب"
+    },
+    {
+      "key": "candy",
+      "en": "Candy",
+      "ar": "حلوى"
+    },
+    {
+      "key": "beauty",
+      "en": "Beauty",
+      "ar": "جمال"
+    },
+    {
+      "key": "science",
+      "en": "Science",
+      "ar": "علوم"
+    },
+    {
+      "key": "cosmetics",
+      "en": "Cosmetics",
+      "ar": "مستحضرات التجميل"
+    },
+    {
+      "key": "organic_food",
+      "en": "Organic Food",
+      "ar": "طعام عضوي"
+    },
+    {
+      "key": "adventure_trip",
+      "en": "Adventure Trip",
+      "ar": "رحلة مغامرة"
+    },
+    {
+      "key": "home_decor",
+      "en": "Home Decor",
+      "ar": "تصميم ديكور"
+    },
+    {
+      "key": "small_business",
+      "en": "Small Business",
+      "ar": "أعمال صغيرة"
+    },
+    {
+      "key": "holidays",
+      "en": "Holidays",
+      "ar": "العطل"
+    },
+    {
+      "key": "volleyball",
+      "en": "Volleyball",
+      "ar": "كرة الطائرة"
+    },
+    {
+      "key": "classical_music",
+      "en": "Classical Music",
+      "ar": "الموسيقى الكلاسيكية"
+    },
+    {
+      "key": "theater",
+      "en": "Theater",
+      "ar": "المسرح"
+    },
+    {
+      "key": "mexican_cuisine",
+      "en": "Mexican Cuisine",
+      "ar": "المطبخ المكسيكي"
+    },
+    {
+      "key": "aviation",
+      "en": "Aviation",
+      "ar": "طيران"
+    },
+    {
+      "key": "parties",
+      "en": "Parties",
+      "ar": "حفلات"
+    },
+    {
+      "key": "mobile_phones",
+      "en": "Mobile Phones",
+      "ar": "الهواتف المحمولة"
+    },
+    {
+      "key": "surfing",
+      "en": "Surfing",
+      "ar": "تصفح"
+    },
+    {
+      "key": "mystery_fiction",
+      "en": "Mystery Fiction",
+      "ar": "خيال غامض"
+    },
+    {
+      "key": "outdoor_recreation",
+      "en": "Outdoor Recreation",
+      "ar": "الاستجمام في الهواء الطلق"
+    },
+    {
+      "key": "motherhood",
+      "en": "Motherhood",
+      "ar": "أمومة"
+    },
+    {
+      "key": "singing",
+      "en": "Singing",
+      "ar": "الغناء"
+    },
+    {
+      "key": "reading",
+      "en": "Reading",
+      "ar": "قراءة"
+    },
+    {
+      "key": "video_cameras",
+      "en": "Video Cameras",
+      "ar": "كاميرات الفيديو"
+    },
+    {
+      "key": "music",
+      "en": "Music",
+      "ar": "موسيقى"
+    },
+    {
+      "key": "gambling",
+      "en": "Gambling",
+      "ar": "القمار"
+    },
+    {
+      "key": "japanese_cuisine",
+      "en": "Japanese Cuisine",
+      "ar": "المطبخ الياباني"
+    },
+    {
+      "key": "online_poker",
+      "en": "Online Poker",
+      "ar": "البوكير عبر الإنترنت"
+    },
+    {
+      "key": "arts_music",
+      "en": "Arts and Music",
+      "ar": "الفن والموسيقى"
+    },
+    {
+      "key": "tattoos",
+      "en": "Tattoos",
+      "ar": "الأوشام"
+    },
+    {
+      "key": "coupons",
+      "en": "Coupons",
+      "ar": "الكوبونات"
+    },
+    {
+      "key": "gardens",
+      "en": "Gardens",
+      "ar": "الحدائق"
+    },
+    {
+      "key": "community_issues",
+      "en": "Community Issues",
+      "ar": "قضايا المجتمع"
+    },
+    {
+      "key": "ecotourism",
+      "en": "Ecotourism",
+      "ar": "السياحة البيئية"
+    },
+    {
+      "key": "first_person_shooters",
+      "en": "First Person Shooters",
+      "ar": "ألعاب إطلاق النار من منظور شخص أول"
+    },
+    {
+      "key": "retail_banking",
+      "en": "Retail Banking",
+      "ar": "الخدمات المصرفية للأفراد"
+    },
+    {
+      "key": "investment_banking",
+      "en": "Investment Banking",
+      "ar": "الخدمات المصرفية الاستثمارية"
+    },
+    {
+      "key": "mountains",
+      "en": "Mountains",
+      "ar": "الجبال"
+    },
+    {
+      "key": "children_games",
+      "en": "Children's Games",
+      "ar": "ألعاب الأطفال"
+    },
+    {
+      "key": "sales",
+      "en": "Sales",
+      "ar": "مبيعات"
+    },
+    {
+      "key": "ebooks",
+      "en": "Ebooks",
+      "ar": "كتب إلكترونية"
+    },
+    {
+      "key": "manga",
+      "en": "Manga",
+      "ar": "مانجا"
+    },
+    {
+      "key": "email_marketing",
+      "en": "Email Marketing",
+      "ar": "التسويق عبر البريد الإلكتروني"
+    },
+    {
+      "key": "beauty_salons",
+      "en": "Beauty Salons",
+      "ar": "صالونات التجميل"
+    },
+    {
+      "key": "baseball",
+      "en": "Baseball",
+      "ar": "البيسبول"
+    },
+    {
+      "key": "thai_cuisine",
+      "en": "Thai Cuisine",
+      "ar": "المطبخ التايلاندي"
+    },
+    {
+      "key": "smartphones",
+      "en": "Smartphones",
+      "ar": "الهواتف الذكية"
+    },
+    {
+      "key": "projectors",
+      "en": "Projectors",
+      "ar": "أجهزة عرض"
+    },
+    {
+      "key": "web_development",
+      "en": "Web Development",
+      "ar": "تطوير الشبكة"
+    },
+    {
+      "key": "current_events",
+      "en": "Current Events",
+      "ar": "الأحداث الحالية"
+    },
+    {
+      "key": "drinks",
+      "en": "Drinks",
+      "ar": "مشروبات"
+    },
+    {
+      "key": "greek_cuisine",
+      "en": "Greek Cuisine",
+      "ar": "المطبخ اليوناني"
+    },
+    {
+      "key": "yoga",
+      "en": "Yoga",
+      "ar": "يوغا"
+    },
+    {
+      "key": "cameras",
+      "en": "Cameras",
+      "ar": "الكاميرات"
+    },
+    {
+      "key": "skiing",
+      "en": "Skiing",
+      "ar": "التزلج"
+    },
+    {
+      "key": "dogs",
+      "en": "Dogs",
+      "ar": "الكلاب"
+    },
+    {
+      "key": "pop_music",
+      "en": "Pop Music",
+      "ar": "موسيقى البوب"
+    },
+    {
+      "key": "music_videos",
+      "en": "Music Videos",
+      "ar": "أشرطة الفيديو والموسيقى"
+    },
+    {
+      "key": "korean_cuisine",
+      "en": "Korean Cuisine",
+      "ar": "المطبخ الكوري"
+    },
+    {
+      "key": "digital_marketing",
+      "en": "Digital Marketing",
+      "ar": "التسويق الرقمي"
+    },
+    {
+      "key": "tv_game_shows",
+      "en": "TV Game Shows",
+      "ar": "برامج الألعاب التلفزيونية"
+    },
+    {
+      "key": "furniture",
+      "en": "Furniture",
+      "ar": "أثاث"
+    },
+    {
+      "key": "animated_movies",
+      "en": "Animated Movies",
+      "ar": "أفلام الرسوم المتحركة"
+    },
+    {
+      "key": "vehicles",
+      "en": "Vehicles",
+      "ar": "مركبات"
+    },
+    {
+      "key": "volunteering",
+      "en": "Volunteering",
+      "ar": "التطوع"
+    },
+    {
+      "key": "mortgage_loans",
+      "en": "Mortgage Loans",
+      "ar": "قروض الرهن العقاري"
+    },
+    {
+      "key": "computer_processors",
+      "en": "Computer Processors",
+      "ar": "معالجات الكمبيوتر"
+    },
+    {
+      "key": "personal_finance",
+      "en": "Personal Finance",
+      "ar": "تمويل شخصي"
+    },
+    {
+      "key": "car_racing",
+      "en": "Car Racing",
+      "ar": "سباق السيارات"
+    },
+    {
+      "key": "jazz_music",
+      "en": "Jazz Music",
+      "ar": "موسيقى الجاز"
+    },
+    {
+      "key": "wine",
+      "en": "Wine",
+      "ar": "نبيد"
+    },
+    {
+      "key": "performing_arts",
+      "en": "Performing Arts",
+      "ar": "الفن التمثيلي"
+    },
+    {
+      "key": "cats",
+      "en": "Cats",
+      "ar": "القطط"
+    },
+    {
+      "key": "bollywood_movies",
+      "en": "Bollywood Movies",
+      "ar": "أفلام بوليوود"
+    },
+    {
+      "key": "comedy_movies",
+      "en": "Comedy Movies",
+      "ar": "أفلام كوميدية"
+    },
+    {
+      "key": "college_football",
+      "en": "College Football",
+      "ar": "الكلية لكرة القدم"
+    },
+    {
+      "key": "tv_talk_shows",
+      "en": "TV Talk Shows",
+      "ar": "برامج الدردشة التلفزيونية"
+    },
+    {
+      "key": "tv_programs",
+      "en": "TV Programs",
+      "ar": "برنامج تلفزيوني"
+    },
+    {
+      "key": "cars",
+      "en": "Cars",
+      "ar": "السيارات"
+    },
+    {
+      "key": "fine_arts",
+      "en": "Fine Arts",
+      "ar": "فن راقي"
+    },
+    {
+      "key": "dresses",
+      "en": "Dresses",
+      "ar": "فساتين"
+    },
+    {
+      "key": "dance_music",
+      "en": "Dance Music",
+      "ar": "موسيقى الرقص"
+    },
+    {
+      "key": "dishes",
+      "en": "Dishes",
+      "ar": "أطباق"
+    },
+    {
+      "key": "rhythm_blues_music",
+      "en": "Rhythm and Blues Music",
+      "ar": "موسيقى الإيقاع والبلوز"
+    },
+    {
+      "key": "bars",
+      "en": "Bars",
+      "ar": "الحانات"
+    },
+    {
+      "key": "fish",
+      "en": "Fish",
+      "ar": "سمك"
+    }
+  ]
+}

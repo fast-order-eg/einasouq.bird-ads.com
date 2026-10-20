@@ -602,10 +602,29 @@ ${mediaDirective}
 5. ❌ ممنوع تكرار نفس الملاحظة أو النصيحة في أكثر من مكان داخل التقرير.
 6. ⭐ قاعدة ذهبية لاستهدافات ميتا (Meta Ads Detailed Targeting):
    - ممنوع نهائياً اختراع أو كتابة أي كلمة عامة وهمية مش موجودة في فيسبوك (زي كلمة Engagement لوحدها).
-   - كل استهداف يُذكر لازم يكون خيار حقيقي ورسمي 100% موجود في شريط بحث Meta Ads Manager:
-     • الاهتمامات الحقيقية: مثل [Online shopping], [E-commerce], [Retail], [Small business], [Boutique], [Cosmetics], [Real estate], [Furniture], [Bedroom].
-     • السلوكيات الحقيقية: مثل [Engaged Shoppers] (سلوك المتسوقين المتفاعلين)، [Facebook Page Admins] (مسؤولو الصفحات).
-     • المناسبات والديموغرافيا الحقيقية: مثل [Newly engaged (6 months)] (المخطوبون حديثاً)، [Newlywed (1 year)] (المتزوجون حديثاً)، [Anniversary within 30 days] (ذكرى سنوية)، [Parents with early school-age children (06-08 years)].
+   - كل استهداف يُذكر لازم يكون خيار حقيقي ورسمي 100% مطابق لشجرة استهدافات Meta Ads Manager الرسمية (المطابقة لقاموس تطبيق Bird Ads):
+     • الاهتمامات الرسمية (Official Interests) حسب تخصص البوست:
+       - التجارة والتسوق: [Online shopping], [E-commerce], [Retail], [Shopping malls], [Boutique]
+       - الأزياء والموضة: [Clothes], [Shoes], [Dresses], [Handbags], [Perfumes], [Hair products], [Cosmetics], [Work Clothes], [Underwear]
+       - الأثاث والمنزل والديكور: [Furniture], [Bedroom], [Living room], [Interior design], [Home improvement]
+       - العقارات والسياحة: [Property], [Real estate], [Hotels], [Tourism]
+       - الأطعمة والمطاعم: [Fast food restaurants], [Cooking], [Recipes], [Coffee], [Pizza], [Barbecue]
+       - الأعمال والتسويق: [Small business], [Entrepreneurship], [Advertising], [Online advertising], [Search engine optimization (SEO)], [Design]
+       - التكنولوجيا والإلكترونيات: [Smartphones], [Computers], [Consumer electronics]
+       - الرياضة واللياقة: [Fitness and wellness], [Bodybuilding], [Weight training], [Association Football / Soccer]
+     • السلوكيات الرسمية (Official Behaviors):
+       - [Engaged Shoppers] (المتسوقون المتفاعلون - أصحاب أعلى معدل نقر على أزرار الشراء Shop Now)
+       - [Facebook Page Admins] (مسؤولو صفحات فيسبوك)، [Instagram Business Profile Admins]، [Store Page Admins]
+       - [Small business owners] (أصحاب الأنشطة التجارية الصغيرة)
+       - [New active business 6/12/24 months] (الأنشطة التجارية الجديدة)
+       - [Frequent Travelers] (المسافرون باستمرار)، [Frequent International Travelers]
+       - [Technology early adopters] (رواد تبني التكنولوجيا)
+     • المناسبات الحياتية والبيانات الديموغرافية (Life Events & Demographics):
+       - [Newly engaged (6 months)] أو [Newly engaged (1 year)] (المخطوبون حديثاً)
+       - [Newlywed (1 year)] (المتزوجون حديثاً)
+       - [Anniversary within 30 days] (ذكرى سنوية خلال 30 يوماً)
+       - عائلات الأطفال: [Parents (up to 12 months)], [Parents with infants (1 to 2 years)], [Parents with preschoolers (3 to 5 years)], [Parents with early school-age children (6 to 8 years)], [Parents with teenagers (13 to 17 years)], [Parents with adult children (18 to 26 years)]
+       - قطاع الشركات: [Employees of large businesses dealing with other businesses (500+ employees)] (B2B)
 7. ⭐ افصل السلوكيات والمناسبات عن مواضع الظهور بشكل مستقل تماماً. واذكر مواضع الظهور الفعالة باللغة العربية (مثل: ريلز إنستجرام وفيسبوك، وخلاصة الأخبار الرئيسية Feeds).
 8. ⭐ التعديل المطلوب فوراً: اكتب التعديلات العملية في نقاط مرقمة بوضوح (1، 2...) بدون مصطلحات إنجليزية حشوية.
 9. ⭐ زاوية استهداف بديلة (Alternative Targeting): قدم زاوية استهداف بديلة كاملة مختلفة تماماً عن الأساسية مع اهتمامات وسلوكيات رسمية حقيقية بالإنجليزية لتمكين الميديا باير من اختبار A/B Test.
