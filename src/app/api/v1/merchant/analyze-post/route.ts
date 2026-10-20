@@ -86,25 +86,27 @@ function formatPostAnalysisForWhatsApp(
   const interests = analysis.targeting_suggestions?.detailed_interests || [];
   if (Array.isArray(interests) && interests.length > 0) {
     interests.forEach((item: any) => {
-      if (typeof item === 'object' && item !== null && item.interest) {
-        part2 += `  🎯 [${item.interest}] - ${item.reason || ''}\n`;
-      } else {
-        part2 += `  🎯 [${String(item)}]\n`;
-      }
+      const rawName = typeof item === 'object' && item !== null && item.interest ? item.interest : String(item);
+      const cleanName = rawName.replace(/^\[+|\]+$/g, '').trim();
+      const reason = typeof item === 'object' && item !== null && item.reason ? item.reason.trim() : '';
+      part2 += `  🎯 [${cleanName}]${reason ? ` - ${reason}` : ''}\n`;
     });
   } else {
     part2 += `  🎯 [Online shopping] - استهداف مباشر للجمهور الأكثر شراءً وتفاعلاً\n`;
   }
 
-  const behaviors = analysis.targeting_suggestions?.behaviors || 'Engaged Shoppers';
-  const placements =
+  const rawBehaviors = analysis.targeting_suggestions?.behaviors || 'Engaged Shoppers';
+  const cleanBehaviors = rawBehaviors.replace(/\[\[/g, '[').replace(/\]\]/g, ']').replace(/^\[+|\]+$/g, '').trim();
+  const rawPlacements =
     analysis.targeting_suggestions?.placements ||
     (isVideo ? 'ريلز إنستجرام وفيسبوك، وخلاصة الأخبار الرئيسية Feeds' : 'خلاصة الأخبار الرئيسية Feeds، وريلز فيسبوك، وقصص إنستجرام');
-  part2 += `• *السلوكيات والمناسبات الرسمية:* [${behaviors}]\n`;
-  part2 += `• *مواضع الظهور الفعالة:* [${placements}]\n`;
+  const cleanPlacements = rawPlacements.replace(/\[\[/g, '[').replace(/\]\]/g, ']').replace(/^\[+|\]+$/g, '').trim();
+
+  part2 += `• *السلوكيات والمناسبات الرسمية:* [${cleanBehaviors}]\n`;
+  part2 += `• *مواضع الظهور الفعالة:* [${cleanPlacements}]\n`;
   part2 += `══════════════════════════\n`;
 
-  const objective = analysis.campaign_strategy?.recommended_objective || 'رسائل واتساب / Leads';
+  const objective = (analysis.campaign_strategy?.recommended_objective || 'رسائل واتساب / Leads').replace(/^\[+|\]+$/g, '').trim();
   const goldenTip =
     analysis.campaign_strategy?.media_buyer_golden_tip ||
     'ركز على سرعة الرد اللحظي على الرسائل لرفع معدل التحويل وخفض تكلفة الطلب.';
@@ -126,28 +128,29 @@ function formatPostAnalysisForWhatsApp(
     }
     part3 += `══════════════════════════\n`;
     part3 += `👥 *الجمهور المقترح:*\n`;
-    part3 += `• *السن المقترح:* [${alt.age_range || '24 - 45 سنة'}]\n`;
-    part3 += `• *النوع:* [${alt.gender || 'الجميع'}]\n`;
+    part3 += `• *السن المقترح:* [${(alt.age_range || '24 - 45 سنة').replace(/^\[+|\]+$/g, '')}]\n`;
+    part3 += `• *النوع:* [${(alt.gender || 'الجميع').replace(/^\[+|\]+$/g, '')}]\n`;
     part3 += `• *الاهتمامات البديلة الحقيقية من فيسبوك:*\n`;
 
     const altInterests = alt.detailed_interests || [];
     if (Array.isArray(altInterests) && altInterests.length > 0) {
       altInterests.forEach((item: any) => {
-        if (typeof item === 'object' && item !== null && item.interest) {
-          part3 += `  🎯 [${item.interest}] - ${item.reason || ''}\n`;
-        } else {
-          part3 += `  🎯 [${String(item)}]\n`;
-        }
+        const rawName = typeof item === 'object' && item !== null && item.interest ? item.interest : String(item);
+        const cleanName = rawName.replace(/^\[+|\]+$/g, '').trim();
+        const reason = typeof item === 'object' && item !== null && item.reason ? item.reason.trim() : '';
+        part3 += `  🎯 [${cleanName}]${reason ? ` - ${reason}` : ''}\n`;
       });
     } else {
       part3 += `  🎯 [Online shopping] - استهداف بديل للشراء والتفاعل\n`;
     }
 
     if (alt.behaviors) {
-      part3 += `• *السلوكيات أو المناسبات البديلة:* [${alt.behaviors}]\n`;
+      const cleanAltBehaviors = alt.behaviors.replace(/\[\[/g, '[').replace(/\]\]/g, ']').replace(/^\[+|\]+$/g, '').trim();
+      part3 += `• *السلوكيات أو المناسبات البديلة:* [${cleanAltBehaviors}]\n`;
     }
     if (alt.placements) {
-      part3 += `• *مواضع الظهور الفعالة:* [${alt.placements}]\n`;
+      const cleanAltPlacements = alt.placements.replace(/\[\[/g, '[').replace(/\]\]/g, ']').replace(/^\[+|\]+$/g, '').trim();
+      part3 += `• *مواضع الظهور الفعالة:* [${cleanAltPlacements}]\n`;
     }
     part3 += `══════════════════════════\n`;
     part3 += `🌟 *نصيحة الاختبار:* شغّل هذا الاستهداف في مجموعة إعلانية مستقلة لمقارنة تكلفة الرسالة وسرعة الإغلاق مع الاستهداف الأساسي.`;
