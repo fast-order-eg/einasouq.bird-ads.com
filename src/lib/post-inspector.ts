@@ -45,6 +45,22 @@ export interface InspectPostResponse {
   details?: any;
 }
 
+// Helper to decode HTML entities in scraped social media metadata
+export function decodeHtmlEntities(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/[\u200E\u200F\u202A-\u202E]/g, '')
+    .trim();
+}
+
 // Helper to extract audio stream for Facebook Reels/Videos using DASH representations in the embed plugin
 async function extractReelAudioUrl(fullFbUrl: string): Promise<string | null> {
   try {
@@ -116,6 +132,24 @@ export function parseFacebookPostUrl(input: string): ParsedFacebookUrl {
     const urlObj = new URL(clean.startsWith('http') ? clean : `https://${clean}`);
     const pathname = urlObj.pathname;
     const searchParams = urlObj.searchParams;
+
+    // 0. Instagram Support (Posts, Reels, TV)
+    if (urlObj.hostname.includes('instagram.com') || urlObj.hostname.includes('instagr.am')) {
+      const isReel = /\/(?:reel|reels)\//i.test(pathname);
+      const postMatch =
+        pathname.match(/\/(?:p|tv|reel|reels|share\/p)\/([a-zA-Z0-9_-]+)/i) ||
+        pathname.match(/\/([^/]+)\/(?:p|reel|reels)\/([a-zA-Z0-9_-]+)/i);
+      const shortcode = postMatch ? (postMatch[2] || postMatch[1]) : undefined;
+      const user = postMatch && postMatch[2] ? postMatch[1] : undefined;
+
+      return {
+        type: isReel ? 'REEL' : 'POST',
+        pageIdOrSlug: user,
+        postId: shortcode,
+        videoId: isReel ? shortcode : undefined,
+        rawInput: clean,
+      };
+    }
 
     // 1. Reel with page: /{page_slug}/reel/{reel_id}
     const pageReelMatch = pathname.match(/\/([^/]+)\/reel\/([a-zA-Z0-9_-]+)/i);
@@ -289,12 +323,244 @@ export async function resolveFacebookShareUrl(url: string): Promise<{
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// INSTAGRAM POST INSPECTOR (Posts, Reels, Carousel, Videos)
+// ─────────────────────────────────────────────────────────────────────────────
+export async function inspectInstagramPost(rawUrl: string): Promise<InspectPostResponse> {
+  const clean = (rawUrl || '').trim();
+  if (!clean) {
+    return { success: false, error: 'برجاء إدخال رابط منشور إنستجرام صالح للبدء' };
+  }
+
+  try {
+    const urlObj = new URL(clean.startsWith('http') ? clean : `https://${clean}`);
+    const pathname = urlObj.pathname;
+
+    const isReel = /\/(?:reel|reels)\//i.test(pathname);
+    const postMatch =
+      pathname.match(/\/(?:p|tv|reel|reels|share\/p)\/([a-zA-Z0-9_-]+)/i) ||
+      pathname.match(/\/([^/]+)\/(?:p|reel|reels)\/([a-zA-Z0-9_-]+)/i);
+
+    const shortcode = postMatch ? (postMatch[2] || postMatch[1]) : '';
+    const urlUsername = postMatch && postMatch[2] ? postMatch[1] : '';
+
+    if (!shortcode) {
+      return {
+        success: false,
+        error: 'تعذر استخراج معرّف المنشور من رابط إنستجرام. تأكد من صحة الرابط.',
+      };
+    }
+
+    const canonicalUrl = isReel
+      ? `https://www.instagram.com/reel/${shortcode}/`
+      : `https://www.instagram.com/p/${shortcode}/`;
+
+    // Fetch OpenGraph meta directly from Instagram using Facebook External Hit User-Agent
+    let html = '';
+    try {
+      const res = await fetch(canonicalUrl, {
+        headers: {
+          'User-Agent':
+            'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+          'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(9000),
+      });
+
+      if (res.ok) {
+        html = await res.text();
+      }
+    } catch (fetchErr) {
+      console.warn('[Instagram Inspector] Fetch error:', fetchErr);
+    }
+
+    // If scraping succeeded and has OpenGraph content
+    if (html && (html.includes('og:image') || html.includes('og:title') || html.includes('og:description'))) {
+      const getOg = (prop: string): string => {
+        const m =
+          html.match(new RegExp(`<meta[^>]+property=["']og:${prop}["'][^>]+content=["']([^"']*)["']`, 'i')) ||
+          html.match(new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+property=["']og:${prop}["']`, 'i'));
+        return m ? m[1] : '';
+      };
+
+      const rawTitle = getOg('title');
+      const rawDesc = getOg('description');
+      const rawImage = getOg('image');
+      const rawVideo = getOg('video');
+      const rawOgUrl = getOg('url');
+
+      const decodedTitle = decodeHtmlEntities(rawTitle);
+      const decodedDesc = decodeHtmlEntities(rawDesc);
+      const imageUrl = rawImage ? rawImage.replace(/&amp;/g, '&') : null;
+      const videoUrl = rawVideo ? rawVideo.replace(/&amp;/g, '&') : null;
+
+      // Extract Page/Account Name
+      let pageName = '';
+      const nameMatch = decodedTitle.match(/^[\s\u200e\u200f]*(.+?)(?:\s+على\s+Instagram|\s+on\s+Instagram|\s*[-:]\s*Instagram)/i);
+      if (nameMatch && nameMatch[1].trim()) {
+        pageName = nameMatch[1].trim();
+      }
+
+      // Extract Username
+      let username = urlUsername;
+      if (!username) {
+        const userMatch =
+          decodedDesc.match(/-\s*([a-zA-Z0-9._]+)\s*(?:on|في|بتاريخ)/i) ||
+          rawOgUrl.match(/instagram\.com\/([a-zA-Z0-9._]+)\/(?:p|reel)/i);
+        if (userMatch && userMatch[1]) {
+          username = userMatch[1].trim();
+        }
+      }
+
+      if (!pageName) {
+        pageName = username ? `@${username}` : 'حساب إنستجرام';
+      }
+
+      // Extract Caption / Copy Message
+      let message = '';
+      const titleQuote = decodedTitle.match(/["“]([\s\S]+?)["”]?$/);
+      if (titleQuote && titleQuote[1] && titleQuote[1].trim().length > 3) {
+        message = titleQuote[1].replace(/["”]$/, '').trim();
+      } else {
+        const colonIdx = decodedTitle.indexOf(':');
+        if (colonIdx !== -1) {
+          message = decodedTitle.slice(colonIdx + 1).replace(/^[\s"“]+|[\s"”]+$/g, '').trim();
+        }
+      }
+
+      if (!message || message.length < 5) {
+        const descQuote = decodedDesc.match(/["“]([\s\S]+?)["”]?$/);
+        if (descQuote && descQuote[1]) {
+          message = descQuote[1].replace(/["”]$/, '').trim();
+        }
+      }
+
+      // Extract Reactions & Comments
+      let reactions = 0;
+      let comments = 0;
+      const likesMatch = decodedDesc.match(/([\d,]+)\s*(?:likes|إعجاب|like)/i);
+      if (likesMatch) {
+        reactions = parseInt(likesMatch[1].replace(/,/g, ''), 10) || 0;
+      }
+      const commentsMatch = decodedDesc.match(/([\d,]+)\s*(?:comments|تعليق|comment)/i);
+      if (commentsMatch) {
+        comments = parseInt(commentsMatch[1].replace(/,/g, ''), 10) || 0;
+      }
+
+      const isVideoContent = isReel || Boolean(videoUrl);
+      const isCarousel = imageUrl ? /CAROUSEL_ITEM/i.test(imageUrl) : false;
+      const mediaType: 'VIDEO' | 'IMAGE' | 'CAROUSEL' = isVideoContent
+        ? 'VIDEO'
+        : isCarousel
+        ? 'CAROUSEL'
+        : 'IMAGE';
+
+      return {
+        success: true,
+        post: {
+          id: `ig_${shortcode}`,
+          postId: shortcode,
+          pageId: username || shortcode,
+          pageName,
+          pagePicture: null,
+          message: message || `${pageName} على إنستجرام`,
+          createdTime: new Date().toISOString(),
+          permalinkUrl: canonicalUrl,
+          mediaType,
+          media: {
+            videoUrl,
+            audioUrl: null,
+            fbEmbedUrl: null,
+            thumbnailUrl: imageUrl,
+            images: imageUrl ? [imageUrl] : [],
+            primaryImageUrl: imageUrl,
+          },
+          metrics: {
+            reactions,
+            comments,
+            shares: 0,
+            views: 0,
+          },
+          isOwned: true,
+        },
+      };
+    }
+
+    // Fallback: Check Database for previously cached post
+    const dbPost = await prisma.pagePost.findFirst({
+      where: {
+        OR: [
+          { externalPostId: shortcode },
+          { externalPostId: `ig_${shortcode}` },
+          { permalinkUrl: { contains: shortcode } },
+        ],
+      },
+      include: { asset: true },
+    });
+
+    if (dbPost) {
+      return {
+        success: true,
+        post: {
+          id: dbPost.externalPostId,
+          postId: dbPost.externalPostId,
+          pageId: dbPost.asset?.externalId || urlUsername || 'instagram',
+          pageName: dbPost.asset?.name || urlUsername || 'حساب إنستجرام',
+          pagePicture: null,
+          message: dbPost.message || '',
+          createdTime: dbPost.createdTime.toISOString(),
+          permalinkUrl: dbPost.permalinkUrl || canonicalUrl,
+          mediaType: isReel ? 'VIDEO' : 'IMAGE',
+          media: {
+            videoUrl: null,
+            audioUrl: null,
+            fbEmbedUrl: null,
+            thumbnailUrl: null,
+            images: [],
+            primaryImageUrl: null,
+          },
+          metrics: {
+            reactions: dbPost.reactionsCount || 0,
+            comments: dbPost.commentsCount || 0,
+            shares: 0,
+            views: dbPost.viewsCount || 0,
+          },
+          isOwned: true,
+        },
+      };
+    }
+
+    return {
+      success: false,
+      error:
+        'تعذر جلب بيانات منشور إنستجرام. تأكد أن المنشور عام (Public) وليس في حساب خاص (Private) وأن الرابط صحيح.',
+      details: { shortcode, canonicalUrl },
+    };
+  } catch (err: any) {
+    console.error('[Instagram Inspector Error]:', err);
+    return {
+      success: false,
+      error: `حدث خطأ أثناء فحص منشور إنستجرام: ${err?.message || err}`,
+    };
+  }
+}
+
 export async function inspectFacebookPost(rawUrl: string): Promise<InspectPostResponse> {
   if (!rawUrl || !rawUrl.trim()) {
     return { success: false, error: 'برجاء إدخال رابط المنشور أو معرّفه للبدء' };
   }
 
   let effectiveInput = rawUrl.trim();
+
+  // 0. Route Instagram URLs directly to Instagram inspector
+  if (
+    effectiveInput.includes('instagram.com') ||
+    effectiveInput.includes('instagr.am')
+  ) {
+    return await inspectInstagramPost(effectiveInput);
+  }
   let resolvedShare: { resolvedUrl?: string; pageId?: string; videoId?: string; postId?: string } | null = null;
 
   if (

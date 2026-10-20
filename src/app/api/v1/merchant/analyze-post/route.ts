@@ -42,8 +42,11 @@ function formatPostAnalysisForWhatsApp(
   decision = decision.replace(/^\[|\]$/g, '').trim();
 
   // ── الجزء الأول: فحص الكريتيف والمحتوى ──
+  const isInstagram = post.permalinkUrl?.includes('instagram.com') || String(post.id || '').startsWith('ig_');
+  const pageLabel = isInstagram ? '📌 *الصفحة / الحساب:*' : '📌 *الصفحة:*';
+
   let part1 = `🎯 *تقرير التحليل الإعلاني للبوست* 📊\n`;
-  part1 += `📌 *الصفحة:* ${post.pageName || 'صفحة تابعة للعميل'}\n`;
+  part1 += `${pageLabel} ${post.pageName || (isInstagram ? 'حساب إنستجرام' : 'صفحة تابعة للعميل')}\n`;
   part1 += `🎬 *نوع المحتوى:* ${formatLabel}\n`;
   part1 += `📊 *التفاعلات المرصودة:* 👍 ${post.metrics?.reactions || 0} | 💬 ${post.metrics?.comments || 0} | 🔄 ${post.metrics?.shares || 0}\n`;
   part1 += `══════════════════════════\n`;
@@ -251,11 +254,12 @@ export async function POST(req: Request) {
         });
 
         if (!asset) {
+          const isIgAsset = post.permalinkUrl?.includes('instagram.com') || String(effectivePostId).startsWith('ig_');
           asset = await prisma.metaAsset.create({
             data: {
               externalId: post.pageId ? String(post.pageId) : `page_${Date.now()}`,
-              name: post.pageName || 'صفحة تابعة للعميل',
-              assetType: 'PAGE',
+              name: post.pageName || (isIgAsset ? 'حساب إنستجرام' : 'صفحة تابعة للعميل'),
+              assetType: isIgAsset ? 'INSTAGRAM' : 'PAGE',
               isAuthorized: true,
             },
           });
