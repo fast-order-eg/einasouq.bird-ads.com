@@ -73,15 +73,15 @@ function formatPostAnalysisForWhatsApp(
     `${analysis.copy_analysis?.hook_evaluation || ''} ${analysis.copy_analysis?.offer_evaluation || ''}`.trim() ||
     'الهوك والعرض مباشر ومفهوم للجمهور المستهدف.';
   part1 += `• *قوة الهوك والعرض:* ${hookAndOffer}\n`;
-  part1 += `• *التوجيه (Call To Action):* ${analysis.copy_analysis?.cta_evaluation || 'واضح ومباشر للتواصل.'}`;
+  part1 += `• *التوجيه لاتخاذ القرار:* ${analysis.copy_analysis?.cta_evaluation || 'واضح ومباشر للتواصل.'}`;
 
   // ── الجزء الثاني: خطة الميديا باينج والاستهداف ──
   let part2 = `🎯 *خطة الاستهداف واستراتيجية الميديا باير* 🚀\n`;
   part2 += `══════════════════════════\n`;
-  part2 += `👥 *الجمهور والاستهداف الدقيق (الأهم):*\n`;
+  part2 += `👥 *الجمهور والاستهداف الدقيق:*\n`;
   part2 += `• *السن المقترح:* [${analysis.targeting_suggestions?.age_range || '24 - 45 سنة'}]\n`;
   part2 += `• *النوع:* [${analysis.targeting_suggestions?.gender || 'الجميع'}]\n`;
-  part2 += `• *الاهتمامات الدقيقة المباشرة (Meta Ads Interests):*\n`;
+  part2 += `• *الاهتمامات الحقيقية من منصة فيسبوك:*\n`;
 
   const interests = analysis.targeting_suggestions?.detailed_interests || [];
   if (Array.isArray(interests) && interests.length > 0) {
@@ -99,9 +99,9 @@ function formatPostAnalysisForWhatsApp(
   const behaviors = analysis.targeting_suggestions?.behaviors || 'Engaged Shoppers';
   const placements =
     analysis.targeting_suggestions?.placements ||
-    (isVideo ? 'Instagram Reels, Facebook Reels, Feeds' : 'Feeds, Facebook Reels, Instagram Stories');
-  part2 += `• *السلوكيات (Behaviors):* [${behaviors}]\n`;
-  part2 += `• *مواضع الظهور الفعالة (Placements):* [${placements}]\n`;
+    (isVideo ? 'ريلز إنستجرام وفيسبوك، وخلاصة الأخبار الرئيسية Feeds' : 'خلاصة الأخبار الرئيسية Feeds، وريلز فيسبوك، وقصص إنستجرام');
+  part2 += `• *السلوكيات والمناسبات الرسمية:* [${behaviors}]\n`;
+  part2 += `• *مواضع الظهور الفعالة:* [${placements}]\n`;
   part2 += `══════════════════════════\n`;
 
   const objective = analysis.campaign_strategy?.recommended_objective || 'رسائل واتساب / Leads';
@@ -110,12 +110,10 @@ function formatPostAnalysisForWhatsApp(
     'ركز على سرعة الرد اللحظي على الرسائل لرفع معدل التحويل وخفض تكلفة الطلب.';
 
   part2 += `💼 *إعدادات الحملة المقترحة:*\n`;
-  part2 += `• *الهدف الإعلاني (Objective):* [${objective}]\n\n`;
+  part2 += `• *الهدف الإعلاني:* [${objective}]\n\n`;
 
   part2 += `🌟 *الزتونة ونصيحة الميديا باير:*\n`;
-  part2 += `"${goldenTip}"\n\n`;
-  part2 += `══════════════════════════\n`;
-  part2 += `💡 *تريد تجربة زاوية أخرى؟* اكتب "استهداف بديل" لعرض جمهور بديل للاختبار (A/B Test).`;
+  part2 += `"${goldenTip}"`;
 
   // ── الجزء الثالث: زاوية الاستهداف البديلة (A/B Test) ──
   let part3 = '';
@@ -130,7 +128,7 @@ function formatPostAnalysisForWhatsApp(
     part3 += `👥 *الجمهور المقترح:*\n`;
     part3 += `• *السن المقترح:* [${alt.age_range || '24 - 45 سنة'}]\n`;
     part3 += `• *النوع:* [${alt.gender || 'الجميع'}]\n`;
-    part3 += `• *الاهتمامات البديلة (Meta Ads Interests):*\n`;
+    part3 += `• *الاهتمامات البديلة الحقيقية من فيسبوك:*\n`;
 
     const altInterests = alt.detailed_interests || [];
     if (Array.isArray(altInterests) && altInterests.length > 0) {
@@ -146,13 +144,13 @@ function formatPostAnalysisForWhatsApp(
     }
 
     if (alt.behaviors) {
-      part3 += `• *السلوكيات المقترحة:* [${alt.behaviors}]\n`;
+      part3 += `• *السلوكيات أو المناسبات البديلة:* [${alt.behaviors}]\n`;
     }
     if (alt.placements) {
-      part3 += `• *المواضع الفعالة:* [${alt.placements}]\n`;
+      part3 += `• *مواضع الظهور الفعالة:* [${alt.placements}]\n`;
     }
     part3 += `══════════════════════════\n`;
-    part3 += `🌟 *نصيحة الاختبار:* قم بتشغيل هذا الاستهداف في مجموعة إعلانية (Ad Set) مستقلة لمقارنة تكلفة الرسالة ومعدل التحويل مع الاستهداف الأساسي.`;
+    part3 += `🌟 *نصيحة الاختبار:* شغّل هذا الاستهداف في مجموعة إعلانية مستقلة لمقارنة تكلفة الرسالة وسرعة الإغلاق مع الاستهداف الأساسي.`;
     part3 = part3.trim();
   }
 
