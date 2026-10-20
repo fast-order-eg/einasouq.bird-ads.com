@@ -204,12 +204,147 @@ export function parseFacebookPostUrl(input: string): ParsedFacebookUrl {
   return { type: 'UNKNOWN', rawInput: clean };
 }
 
+// Helper to resolve Facebook share shortlinks (e.g. /share/v/..., /share/r/..., /share/p/..., fb.watch/...)
+export async function resolveFacebookShareUrl(url: string): Promise<{
+  resolvedUrl?: string;
+  pageId?: string;
+  videoId?: string;
+  postId?: string;
+} | null> {
+  const clean = (url || '').trim();
+  if (!clean) return null;
+
+  const isShareLink =
+    clean.includes('/share/') ||
+    clean.includes('fb.watch') ||
+    clean.includes('/share.php') ||
+    clean.includes('m.facebook.com/share');
+
+  if (!isShareLink) return null;
+
+  try {
+    const targetUrl = clean.startsWith('http') ? clean : `https://${clean}`;
+    const res = await fetch(targetUrl, {
+      headers: {
+        'User-Agent':
+          'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+        'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!res.ok) return null;
+
+    let resolvedUrl: string | undefined = undefined;
+    if (res.url && !res.url.includes('/share/') && !res.url.includes('fb.watch')) {
+      resolvedUrl = res.url;
+    }
+
+    const html = await res.text();
+
+    // 1. Look for canonical link or alternate link or og:url
+    if (!resolvedUrl) {
+      const canonicalMatch =
+        html.match(/<link[^>]+rel=["'](?:alternate|canonical)["'][^>]+href=["']([^"']+)["']/i) ||
+        html.match(/<link[^>]+href=["']([^"']+)["'][^>]+rel=["'](?:alternate|canonical)["']/i) ||
+        html.match(/<meta[^>]+property=["']og:url["'][^>]+content=["']([^"']+)["']/i);
+
+      if (canonicalMatch && canonicalMatch[1]) {
+        resolvedUrl = canonicalMatch[1].replace(/&amp;/g, '&');
+      }
+    }
+
+    // 2. Extract pageID and video_id/story_token/post_id from embedded JSON / props
+    const pageIdMatch =
+      html.match(/"pageID":"(\d+)"/i) ||
+      html.match(/"page_id":"(\d+)"/i) ||
+      html.match(/"owner_id":"(\d+)"/i);
+
+    const videoIdMatch =
+      html.match(/"video_id":"(\d+)"/i) ||
+      html.match(/"story_token":"(\d+)"/i) ||
+      html.match(/"v":"(\d+)"/i) ||
+      html.match(/"fbid":"(\d+)"/i);
+
+    const postIdMatch =
+      html.match(/"post_id":"(\d+)"/i) ||
+      html.match(/"story_fbid":"(\d+)"/i) ||
+      html.match(/"mf_story_key":"(\d+)"/i);
+
+    const pageId = pageIdMatch ? pageIdMatch[1] : undefined;
+    const videoId = videoIdMatch ? videoIdMatch[1] : undefined;
+    const postId = postIdMatch ? postIdMatch[1] : undefined;
+
+    return {
+      resolvedUrl,
+      pageId,
+      videoId,
+      postId,
+    };
+  } catch (err) {
+    console.warn('[Post Inspect] Error resolving share URL:', err);
+    return null;
+  }
+}
+
 export async function inspectFacebookPost(rawUrl: string): Promise<InspectPostResponse> {
   if (!rawUrl || !rawUrl.trim()) {
     return { success: false, error: 'برجاء إدخال رابط المنشور أو معرّفه للبدء' };
   }
 
-  const parsed = parseFacebookPostUrl(rawUrl);
+  let effectiveInput = rawUrl.trim();
+  let resolvedShare: { resolvedUrl?: string; pageId?: string; videoId?: string; postId?: string } | null = null;
+
+  if (
+    effectiveInput.includes('/share/') ||
+    effectiveInput.includes('fb.watch') ||
+    effectiveInput.includes('/share.php') ||
+    effectiveInput.includes('m.facebook.com/share')
+  ) {
+    resolvedShare = await resolveFacebookShareUrl(effectiveInput);
+    if (resolvedShare?.pageId && resolvedShare?.videoId) {
+      effectiveInput = `https://www.facebook.com/${resolvedShare.pageId}/videos/${resolvedShare.videoId}/`;
+    } else if (resolvedShare?.pageId && resolvedShare?.postId) {
+      effectiveInput = `https://www.facebook.com/${resolvedShare.pageId}/posts/${resolvedShare.postId}/`;
+    } else if (resolvedShare?.resolvedUrl) {
+      effectiveInput = resolvedShare.resolvedUrl;
+    }
+  }
+
+  const parsed = parseFacebookPostUrl(effectiveInput);
+
+  if (resolvedShare) {
+    if (resolvedShare.pageId && !parsed.pageIdOrSlug) {
+      parsed.pageIdOrSlug = resolvedShare.pageId;
+    }
+    if (resolvedShare.videoId && (!parsed.videoId || !/^\d+$/.test(parsed.videoId))) {
+      parsed.videoId = resolvedShare.videoId;
+      if (parsed.type === 'UNKNOWN') parsed.type = 'VIDEO';
+    }
+    if (resolvedShare.postId && (!parsed.postId || !/^\d+$/.test(parsed.postId))) {
+      parsed.postId = resolvedShare.postId;
+      if (parsed.type === 'UNKNOWN') parsed.type = 'POST';
+    }
+  } else if (
+    (parsed.videoId && !/^\d+$/.test(parsed.videoId)) ||
+    (parsed.postId && !/^\d+$/.test(parsed.postId) && !parsed.postId.includes('_'))
+  ) {
+    resolvedShare = await resolveFacebookShareUrl(rawUrl);
+    if (resolvedShare) {
+      if (resolvedShare.pageId && !parsed.pageIdOrSlug) parsed.pageIdOrSlug = resolvedShare.pageId;
+      if (resolvedShare.videoId) {
+        parsed.videoId = resolvedShare.videoId;
+        if (parsed.type === 'UNKNOWN') parsed.type = 'VIDEO';
+      }
+      if (resolvedShare.postId) {
+        parsed.postId = resolvedShare.postId;
+        if (parsed.type === 'UNKNOWN') parsed.type = 'POST';
+      }
+    }
+  }
+
   const userToken = process.env.META_USER_TOKEN || '';
 
   // Step 1: Resolve Page Asset & Token from Database
