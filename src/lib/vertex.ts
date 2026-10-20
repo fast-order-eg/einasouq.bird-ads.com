@@ -49,6 +49,7 @@ export interface AlternativeTargetingPlan {
   angle_name: string; // اسم الزاوية البديلة
   angle_rationale: string; // سبب وفكرة هذه الزاوية
   age_range: string;
+  age_rationale?: string; // سبب ومبرر تحديد هذا السن بناء على القوة الشرائية وطبيعة المنتج
   gender: string;
   detailed_interests: Array<DetailedInterestItem | string>;
   behaviors: string;
@@ -84,6 +85,7 @@ export interface PaidCampaignPostAnalysis {
   };
   targeting_suggestions: {
     age_range: string;
+    age_rationale?: string; // سبب ومبرر تحديد هذا السن بناء على القوة الشرائية واحتياج المنتج
     gender: string;
     detailed_interests: Array<DetailedInterestItem | string>;
     behaviors?: string;
@@ -92,7 +94,7 @@ export interface PaidCampaignPostAnalysis {
   };
   alternative_targeting?: AlternativeTargetingPlan;
   campaign_strategy: {
-    recommended_objective: string;
+    recommended_objective?: string;
     media_buyer_golden_tip: string;
     daily_test_budget?: string;
     budget_type?: string;
@@ -614,7 +616,7 @@ ${mediaDirective}
 1. ❌ ممنوع منعاً باتاً دمج مصطلحات إنجليزية داخل النصوص العربية أو وضع ترجمات بين أقواس مثل: (Dynamic Subtitles) أو (Objective) أو (Automated Icebreakers) أو (Placements). الكلام كله يُكتب باللغة العربية الواضحة والمباشرة فقط. الاستثناء الوحيد للإنجليزية هو كتابة اسم الاهتمام أو السلوك الرسمي لفيسبوك داخل معقوفين مثل [E-commerce].
 2. ❌ ممنوع منعاً باتاً كتابة أي نصوص أو صيغ إعلانية بديلة (ممنوع اقتراح كوبي بديل). التركيز فقط على تقييم البوست الحالي.
 3. ❌ ممنوع ذكر مراحل التكبير النظرية (Scaling phases) أو شرح مصطلحات الكتب النظرية.
-4. ❌ ممنوع اقتراح ميزانيات يومية رقمية أو تحديد نوع ميزانية ABO/CBO (التركيز فقط على الهدف الإعلاني المناسب ونصيحة الميديا باير).
+4. ❌ ممنوع منعاً باتاً اقتراح أي ميزانيات أو تحديد أهداف إعلانية للحملة (يُترك تحديد الهدف الإعلاني للموظف بالاتفاق مع العميل). التركيز التام على نصيحة الميديا باير الذهبية.
 5. ❌ ممنوع تكرار نفس الملاحظة أو النصيحة في أكثر من مكان داخل التقرير.
 6. ⭐ قاعدة ذهبية لاستهدافات ميتا (Meta Ads Detailed Targeting):
    - ممنوع نهائياً اختراع أو كتابة أي كلمة عامة وهمية مش موجودة في فيسبوك (زي كلمة Engagement لوحدها).
@@ -622,6 +624,7 @@ ${mediaDirective}
 7. ⭐ افصل السلوكيات والمناسبات عن مواضع الظهور بشكل مستقل تماماً. واذكر مواضع الظهور الفعالة باللغة العربية (مثل: ريلز إنستجرام وفيسبوك، وخلاصة الأخبار الرئيسية Feeds).
 8. ⭐ التعديل المطلوب فوراً: اكتب التعديلات العملية في نقاط مرقمة بوضوح (1، 2...) بدون مصطلحات إنجليزية حشوية.
 9. ⭐ زاوية استهداف بديلة (Alternative Targeting): قدم زاوية استهداف بديلة كاملة مختلفة تماماً عن الأساسية مع اهتمامات وسلوكيات رسمية حقيقية بالإنجليزية من القاموس المرفق لتمكين الميديا باير من اختبار A/B Test.
+10. ⭐ السن المقترح ومبرره (Age Range & Rationale): يجب كتابة السن المقترح مع توضيح سبب ومبرر اختياره بدقة في حقل age_rationale (بناءً على القوة الشرائية وطبيعة المنتج والجمهور الأكثر طلباً) في كل من الاستهداف الأساسي والبديل.
 
 ${fullTaxonomyReference}
 
@@ -652,6 +655,7 @@ ${fullTaxonomyReference}
   },
   "targeting_suggestions": {
     "age_range": "24 - 45 سنة",
+    "age_rationale": "سبب ومبرر تحديد هذا السن بناء على القوة الشرائية واحتياج المنتج في سطر واحد",
     "gender": "الجميع",
     "detailed_interests": [
       {
@@ -678,6 +682,7 @@ ${fullTaxonomyReference}
     "angle_name": "اسم الزاوية البديلة (مثال: زاوية المشاكل والشكاوى Pain Point أو زاوية B2B)",
     "angle_rationale": "شرح فكرة هذه الزاوية البديلة ولماذا تفيد في الـ A/B Testing",
     "age_range": "26 - 50 سنة",
+    "age_rationale": "سبب ومبرر تحديد هذا السن للزاوية البديلة في سطر واحد",
     "gender": "الجميع",
     "detailed_interests": [
       {
@@ -697,7 +702,6 @@ ${fullTaxonomyReference}
     "placements": "المواضع المناسبة للزاوية البديلة"
   },
   "campaign_strategy": {
-    "recommended_objective": "رسائل واتساب / Leads / مبيعات متجر",
     "media_buyer_golden_tip": "نصيحة تكتيكية واحدة ذهبية تخص هذا البوست تحديداً لتحقيق أعلى عائد وأقل تكلفة رسالة/طلب"
   }
 }

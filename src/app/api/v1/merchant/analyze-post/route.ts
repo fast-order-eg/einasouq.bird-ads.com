@@ -82,7 +82,10 @@ function formatPostAnalysisForWhatsApp(
   let part2 = `🎯 *خطة الاستهداف واستراتيجية الميديا باير* 🚀\n`;
   part2 += `══════════════════════════\n`;
   part2 += `👥 *الجمهور والاستهداف الدقيق:*\n`;
-  part2 += `• *السن المقترح:* [${analysis.targeting_suggestions?.age_range || '24 - 45 سنة'}]\n`;
+
+  const rawAge = (analysis.targeting_suggestions?.age_range || '24 - 45 سنة').replace(/^\[+|\]+$/g, '').trim();
+  const ageRationale = (analysis.targeting_suggestions as any)?.age_rationale?.trim();
+  part2 += `• *السن المقترح:* [${rawAge}]${ageRationale ? ` - ${ageRationale}` : ''}\n`;
   part2 += `• *النوع:* [${analysis.targeting_suggestions?.gender || 'الجميع'}]\n`;
   part2 += `• *الاهتمامات الحقيقية من منصة فيسبوك:*\n`;
 
@@ -109,13 +112,9 @@ function formatPostAnalysisForWhatsApp(
   part2 += `• *مواضع الظهور الفعالة:* [${cleanPlacements}]\n`;
   part2 += `══════════════════════════\n`;
 
-  const objective = (analysis.campaign_strategy?.recommended_objective || 'رسائل واتساب / Leads').replace(/^\[+|\]+$/g, '').trim();
   const goldenTip =
     analysis.campaign_strategy?.media_buyer_golden_tip ||
     'ركز على سرعة الرد اللحظي على الرسائل لرفع معدل التحويل وخفض تكلفة الطلب.';
-
-  part2 += `💼 *إعدادات الحملة المقترحة:*\n`;
-  part2 += `• *الهدف الإعلاني:* [${objective}]\n\n`;
 
   part2 += `🌟 *الزتونة ونصيحة الميديا باير:*\n`;
   part2 += `"${goldenTip}"`;
@@ -131,7 +130,10 @@ function formatPostAnalysisForWhatsApp(
     }
     part3 += `══════════════════════════\n`;
     part3 += `👥 *الجمهور المقترح:*\n`;
-    part3 += `• *السن المقترح:* [${(alt.age_range || '24 - 45 سنة').replace(/^\[+|\]+$/g, '')}]\n`;
+
+    const altRawAge = (alt.age_range || '24 - 45 سنة').replace(/^\[+|\]+$/g, '').trim();
+    const altAgeRationale = (alt as any)?.age_rationale?.trim();
+    part3 += `• *السن المقترح:* [${altRawAge}]${altAgeRationale ? ` - ${altAgeRationale}` : ''}\n`;
     part3 += `• *النوع:* [${(alt.gender || 'الجميع').replace(/^\[+|\]+$/g, '')}]\n`;
     part3 += `• *الاهتمامات البديلة الحقيقية من فيسبوك:*\n`;
 
