@@ -89,23 +89,116 @@ function parseAgeRange(min?: number, max?: number): string {
   return `${minAge} - ${maxAge}`;
 }
 
-function formatCampaignTargetingForWhatsApp(
-  campaign: any,
+async function enrichAdCreative(
   adset: any,
-  creative: any,
-  currentTargeting: any,
-  evaluation: CampaignTargetingEvaluationResult
-): { fullMessage: string; parts: string[] } {
-  // ── الجزء الأول: فحص الاستهداف الحالي والتقييم ──
-  let part1 = `🎯 *تقرير فحص وتدقيق استهداف الحملة* 📊\n`;
-  part1 += `📌 *الحملة:* ${campaign.name || 'حملة إعلانية'} (ID: \`${campaign.id}\`)\n`;
-  if (adset?.name) {
-    part1 += `📂 *المجموعة الإعلانية:* ${adset.name}\n`;
+  adsList: any[],
+  token: string
+): Promise<{
+  postText: string;
+  imageUrl: string | null;
+  mediaType: 'VIDEO' | 'IMAGE' | 'CAROUSEL' | 'TEXT';
+  cta: string | null;
+  adName?: string;
+}> {
+  // Find ads belonging to this specific ad set
+  const adsetAds = adsList.filter((a: any) => String(a.adset_id) === String(adset.id));
+  const candidateAds = adsetAds.length > 0 ? adsetAds : adsList;
+
+  const activeAd =
+    candidateAds.find((a: any) => a.effective_status === 'ACTIVE' || a.status === 'ACTIVE') ||
+    candidateAds[0] ||
+    {};
+
+  const creative = activeAd.creative || {};
+  let postText = creative.body || creative.title || '';
+  let imageUrl = creative.image_url || creative.thumbnail_url || null;
+  let mediaType: 'VIDEO' | 'IMAGE' | 'CAROUSEL' | 'TEXT' = 'IMAGE';
+
+  // Video identification
+  const videoId = creative.video_id || creative.object_story_spec?.video_data?.video_id;
+  if (videoId) {
+    mediaType = 'VIDEO';
+    if (!imageUrl) {
+      try {
+        const vRes = await fetch(
+          `https://graph.facebook.com/v21.0/${videoId}?fields=id,picture&access_token=${token}`,
+          { signal: AbortSignal.timeout(4000) }
+        );
+        const vData = await vRes.json();
+        if (vData.picture) imageUrl = vData.picture;
+      } catch {}
+    }
   }
-  if (creative?.body || creative?.title) {
-    const cleanSnippet = (creative.body || creative.title || '').trim().split('\n')[0].slice(0, 90);
+
+  // Post story identification (for full message text, carousel or high-res images)
+  const storyId = creative.effective_object_story_id || creative.object_story_id;
+  if (storyId) {
+    try {
+      const postRes = await fetch(
+        `https://graph.facebook.com/v21.0/${storyId}?fields=id,message,attachments{media,subattachments{media},type,media_type}&access_token=${token}`,
+        { signal: AbortSignal.timeout(4000) }
+      );
+      const postData = await postRes.json();
+      if (postData.message && (!postText || postText.length < 40)) {
+        postText = postData.message;
+      }
+      const att = postData.attachments?.data?.[0];
+      if (att) {
+        if (att.media_type === 'video' || att.type === 'video_inline') {
+          mediaType = 'VIDEO';
+        } else if (att.subattachments?.data?.length > 1) {
+          mediaType = 'CAROUSEL';
+        }
+        if (!imageUrl && att.media?.image?.src) {
+          imageUrl = att.media.image.src;
+        }
+      }
+    } catch {}
+  }
+
+  if (!postText && creative.object_story_spec?.link_data?.message) {
+    postText = creative.object_story_spec.link_data.message;
+  }
+
+  return {
+    postText: postText || 'إعلان ترويجي على منصات ميتا',
+    imageUrl,
+    mediaType,
+    cta: creative.call_to_action_type || null,
+    adName: activeAd.name,
+  };
+}
+
+function formatAdsetEvaluationParts(
+  campaign: any,
+  adsetItem: any,
+  index: number,
+  total: number
+): { part1: string; part2: string } {
+  const currentTargeting = adsetItem.current_targeting;
+  const creative = adsetItem.ad_creative;
+  const evaluation: CampaignTargetingEvaluationResult = adsetItem.evaluation;
+  const isMulti = total > 1;
+
+  const mediaLabel =
+    creative.media_type === 'VIDEO'
+      ? 'فيديو / ريلز 🎬'
+      : creative.media_type === 'CAROUSEL'
+      ? 'ألبوم صور / كاروسيل 📸'
+      : 'صورة / تصميم 🎨';
+
+  // ── الجزء الأول: فحص الاستهداف الحالي ومطابقته للبوست ──
+  const groupLabel = isMulti ? ` (${index + 1} من ${total})` : '';
+  let part1 = `🎯 *تقرير فحص وتدقيق استهداف المجموعة الإعلانية${groupLabel}* 📊\n`;
+  part1 += `📌 *الحملة:* ${campaign.name || 'حملة إعلانية'} (ID: \`${campaign.id}\`)\n`;
+  part1 += `📂 *المجموعة الإعلانية:* ${adsetItem.adset_name || 'المجموعة الأساسية'}\n`;
+  part1 += `🎬 *نوع المحتوى المرئي:* ${mediaLabel}\n`;
+
+  if (creative?.body) {
+    const cleanSnippet = creative.body.trim().split('\n')[0].slice(0, 90);
     part1 += `📝 *محتوى البوست:* "${cleanSnippet}..."\n`;
   }
+
   part1 += `══════════════════════════\n`;
   part1 += `⚙️ *الاستهداف الحالي في مدير الإعلانات:*\n`;
   part1 += `• *السن:* [${currentTargeting.ageRange}]\n`;
@@ -131,13 +224,14 @@ function formatCampaignTargetingForWhatsApp(
 
   part1 += `══════════════════════════\n`;
   part1 += `🏆 *تقييم الذكاء الاصطناعي للاستهداف:*\n`;
-  part1 += `⭐ *درجة الملاءمة للبوست:* [${evaluation.targeting_suitability_score} / 10]\n`;
+  part1 += `⭐ *درجة الملاءمة لمحتوى البوست:* [${evaluation.targeting_suitability_score} / 10]\n`;
   part1 += `⚖️ *القرار:* [${evaluation.verdict?.decision_label || evaluation.verdict?.status_label || '🟡 استهداف مقبول ويحتاج تحسين'}]\n\n`;
-  part1 += `🔍 *تحليل ملاءمة الاستهداف مع البوست:*\n`;
+  part1 += `🔍 *تحليل ملاءمة الاستهداف مع البوست (${mediaLabel}):*\n`;
   part1 += `${evaluation.suitability_analysis || evaluation.verdict?.summary}\n`;
 
   // ── الجزء الثاني: مقترحات الاستهداف الأفضل وتعديل الجمهور ──
-  let part2 = `🚀 *مقترحات الاستهداف الأفضل للبوست* 🎯\n`;
+  let part2 = `🚀 *مقترحات الاستهداف الأفضل للمجموعة${groupLabel}* 🎯\n`;
+  part2 += `📂 *المجموعة:* ${adsetItem.adset_name}\n`;
   part2 += `(مختارة حصرياً من قاموس ميتا الرسمي المعتمد)\n`;
   part2 += `══════════════════════════\n`;
   part2 += `🎯 *الاهتمامات البديلة الأنسب (5 خيارات دقيقة):*\n`;
@@ -171,9 +265,7 @@ function formatCampaignTargetingForWhatsApp(
   part2 += `🌟 *الزتونة ونصيحة الميديا باير:*\n`;
   part2 += `"${evaluation.media_buyer_golden_tip}"`;
 
-  const parts = [part1.trim(), part2.trim()];
-  const fullMessage = parts.join('\n\n══════════════════════════════\n\n');
-  return { fullMessage, parts };
+  return { part1: part1.trim(), part2: part2.trim() };
 }
 
 export async function POST(req: Request) {
@@ -219,7 +311,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Step 1: Check if inputId is an ad or adset, resolve to campaign_id
+    // Step 1: Check if inputId is an ad or adset, resolve to parent campaign_id
     let effectiveCampaignId = inputId;
     try {
       const checkRes = await fetch(
@@ -233,7 +325,7 @@ export async function POST(req: Request) {
 
     // Step 2: Fetch Campaign, Adsets, and Ads from Meta Graph API
     const campFields =
-      'id,name,objective,status,effective_status,adsets{id,name,status,effective_status,targeting,optimization_goal,billing_event,daily_budget,lifetime_budget},ads{id,name,status,effective_status,creative{id,name,title,body,image_url,thumbnail_url,video_id,object_story_spec,effective_object_story_id,object_story_id,link_url,instagram_permalink_url,call_to_action_type}}';
+      'id,name,objective,status,effective_status,adsets{id,name,status,effective_status,targeting,optimization_goal,billing_event,daily_budget,lifetime_budget},ads{id,name,status,effective_status,adset_id,creative{id,name,title,body,image_url,thumbnail_url,video_id,object_story_spec,effective_object_story_id,object_story_id,link_url,instagram_permalink_url,call_to_action_type}}';
 
     const campUrl = `https://graph.facebook.com/v21.0/${effectiveCampaignId}?fields=${encodeURIComponent(campFields)}&access_token=${token}`;
     const campRes = await fetch(campUrl);
@@ -251,132 +343,155 @@ export async function POST(req: Request) {
       );
     }
 
-    // Step 3: Extract AdSet & Targeting Information
+    // Step 3: Extract AdSets (Support Multiple Ad Sets!)
     const adsetsList = campData.adsets?.data || [];
-    const activeAdset =
-      adsetsList.find((a: any) => a.effective_status === 'ACTIVE' || a.status === 'ACTIVE') ||
-      adsetsList[0] ||
-      {};
+    if (adsetsList.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `لا توجد مجموعات إعلانية (Ad Sets) تابعة للحملة رقم (${effectiveCampaignId}).`,
+        },
+        { status: 404 }
+      );
+    }
 
-    const targeting = activeAdset.targeting || {};
-
-    const isAdvantageAudience = Boolean(
-      targeting.targeting_automation?.advantage_audience === 1 ||
-      targeting.targeting_automation?.advantage_detailed_targeting === 1 ||
-      targeting.targeting_optimization === 'expansion_all'
+    // Filter adsets: prefer active ad sets, or non-deleted ad sets if all paused.
+    let targetAdsets = adsetsList.filter(
+      (a: any) => a.effective_status === 'ACTIVE' || a.status === 'ACTIVE'
     );
 
-    const targetingType = isAdvantageAudience
-      ? 'استهداف أدفانتج بلس (Advantage+ Audience)'
-      : 'استهداف تفصيلي يدوي (Manual Targeting)';
-
-    const ageRange = parseAgeRange(targeting.age_min, targeting.age_max);
-    const gender = parseGender(targeting.genders);
-    const locations = parseLocations(targeting.geo_locations);
-
-    // Extract Interests, Behaviors, Demographics
-    const interests: string[] = [];
-    const behaviors: string[] = [];
-    const demographics: string[] = [];
-    const exclusions: string[] = [];
-
-    const flexible = targeting.flexible_spec || [];
-    flexible.forEach((spec: any) => {
-      if (Array.isArray(spec.interests)) {
-        spec.interests.forEach((item: any) => {
-          if (item.name) interests.push(item.name);
-        });
-      }
-      if (Array.isArray(spec.behaviors)) {
-        spec.behaviors.forEach((item: any) => {
-          if (item.name) behaviors.push(item.name);
-        });
-      }
-      if (Array.isArray(spec.demographics)) {
-        spec.demographics.forEach((item: any) => {
-          if (item.name) demographics.push(item.name);
-        });
-      }
-    });
-
-    if (Array.isArray(targeting.interests)) {
-      targeting.interests.forEach((item: any) => {
-        if (item.name && !interests.includes(item.name)) interests.push(item.name);
-      });
-    }
-    if (Array.isArray(targeting.behaviors)) {
-      targeting.behaviors.forEach((item: any) => {
-        if (item.name && !behaviors.includes(item.name)) behaviors.push(item.name);
-      });
+    if (targetAdsets.length === 0) {
+      targetAdsets = adsetsList.filter(
+        (a: any) =>
+          !['DELETED', 'ARCHIVED'].includes(a.effective_status) &&
+          !['DELETED', 'ARCHIVED'].includes(a.status)
+      );
     }
 
-    if (targeting.exclusions) {
-      if (Array.isArray(targeting.exclusions.interests)) {
-        targeting.exclusions.interests.forEach((i: any) => exclusions.push(`استبعاد: ${i.name}`));
-      }
-      if (Array.isArray(targeting.exclusions.behaviors)) {
-        targeting.exclusions.behaviors.forEach((b: any) => exclusions.push(`استبعاد: ${b.name}`));
-      }
+    if (targetAdsets.length === 0) {
+      targetAdsets = adsetsList;
     }
 
-    // Step 4: Extract Ad Creative & Post Information
+    // Limit to top 3 ad sets for performance and WhatsApp message limits
+    targetAdsets = targetAdsets.slice(0, 3);
     const adsList = campData.ads?.data || [];
-    const activeAd =
-      adsList.find((a: any) => a.effective_status === 'ACTIVE' || a.status === 'ACTIVE') ||
-      adsList[0] ||
-      {};
 
-    const creative = activeAd.creative || {};
-    let postText = creative.body || creative.title || '';
-    let imageUrl = creative.image_url || creative.thumbnail_url || '';
+    // Step 4: Evaluate Each Ad Set Concurrently
+    const adsetResults = await Promise.all(
+      targetAdsets.map(async (adset: any, index: number) => {
+        const enrichedCreative = await enrichAdCreative(adset, adsList, token);
+        const targeting = adset.targeting || {};
 
-    // If text is short and there's a connected post ID, try fetching the full post
-    const storyId = creative.effective_object_story_id || creative.object_story_id;
-    if (storyId && (!postText || postText.length < 30)) {
-      try {
-        const postRes = await fetch(
-          `https://graph.facebook.com/v21.0/${storyId}?fields=id,message,attachments{media,subattachments{media}}&access_token=${token}`
+        const isAdvantageAudience = Boolean(
+          targeting.targeting_automation?.advantage_audience === 1 ||
+          targeting.targeting_automation?.advantage_detailed_targeting === 1 ||
+          targeting.targeting_optimization === 'expansion_all'
         );
-        const postData = await postRes.json();
-        if (postData.message) {
-          postText = postData.message;
-        }
-        const attImg = postData.attachments?.data?.[0]?.media?.image?.src;
-        if (attImg && !imageUrl) {
-          imageUrl = attImg;
-        }
-      } catch {}
-    }
 
-    const currentTargetingParsed = {
-      ageRange,
-      gender,
-      locations,
-      targetingType,
-      interests,
-      behaviors,
-      demographics,
-      exclusions,
-      isAdvantageAudience,
-    };
+        const targetingType = isAdvantageAudience
+          ? 'استهداف أدفانتج بلس (Advantage+ Audience)'
+          : 'استهداف تفصيلي يدوي (Manual Targeting)';
 
-    // Step 5: Run AI Evaluation with Gemini 3.8 Flash
-    const evaluation = await vertexAI.evaluateCampaignTargeting({
-      campaignName: campData.name || 'حملة إعلانية',
-      adsetName: activeAdset.name || undefined,
-      postText: postText || campData.name || 'إعلان ترويجي على ميتا',
-      imageUrl: imageUrl || undefined,
-      currentTargeting: currentTargetingParsed,
+        const ageRange = parseAgeRange(targeting.age_min, targeting.age_max);
+        const gender = parseGender(targeting.genders);
+        const locations = parseLocations(targeting.geo_locations);
+
+        const interests: string[] = [];
+        const behaviors: string[] = [];
+        const demographics: string[] = [];
+        const exclusions: string[] = [];
+
+        const flexible = targeting.flexible_spec || [];
+        flexible.forEach((spec: any) => {
+          if (Array.isArray(spec.interests)) {
+            spec.interests.forEach((item: any) => {
+              if (item.name && !interests.includes(item.name)) interests.push(item.name);
+            });
+          }
+          if (Array.isArray(spec.behaviors)) {
+            spec.behaviors.forEach((item: any) => {
+              if (item.name && !behaviors.includes(item.name)) behaviors.push(item.name);
+            });
+          }
+          if (Array.isArray(spec.demographics)) {
+            spec.demographics.forEach((item: any) => {
+              if (item.name && !demographics.includes(item.name)) demographics.push(item.name);
+            });
+          }
+        });
+
+        if (Array.isArray(targeting.interests)) {
+          targeting.interests.forEach((item: any) => {
+            if (item.name && !interests.includes(item.name)) interests.push(item.name);
+          });
+        }
+        if (Array.isArray(targeting.behaviors)) {
+          targeting.behaviors.forEach((item: any) => {
+            if (item.name && !behaviors.includes(item.name)) behaviors.push(item.name);
+          });
+        }
+
+        if (targeting.exclusions) {
+          if (Array.isArray(targeting.exclusions.interests)) {
+            targeting.exclusions.interests.forEach((i: any) => exclusions.push(`استبعاد: ${i.name}`));
+          }
+          if (Array.isArray(targeting.exclusions.behaviors)) {
+            targeting.exclusions.behaviors.forEach((b: any) => exclusions.push(`استبعاد: ${b.name}`));
+          }
+        }
+
+        const currentTargetingParsed = {
+          ageRange,
+          gender,
+          locations,
+          targetingType,
+          interests,
+          behaviors,
+          demographics,
+          exclusions,
+          isAdvantageAudience,
+        };
+
+        const evaluation = await vertexAI.evaluateCampaignTargeting({
+          campaignName: campData.name || 'حملة إعلانية',
+          adsetName: adset.name || `المجموعة الإعلانية رقم ${index + 1}`,
+          postText: enrichedCreative.postText,
+          imageUrl: enrichedCreative.imageUrl || undefined,
+          mediaType: enrichedCreative.mediaType,
+          currentTargeting: currentTargetingParsed,
+        });
+
+        return {
+          adset_id: adset.id,
+          adset_name: adset.name,
+          status: adset.effective_status || adset.status,
+          current_targeting: currentTargetingParsed,
+          ad_creative: {
+            body: enrichedCreative.postText,
+            image_url: enrichedCreative.imageUrl,
+            media_type: enrichedCreative.mediaType,
+            cta: enrichedCreative.cta,
+            ad_name: enrichedCreative.adName,
+          },
+          evaluation,
+        };
+      })
+    );
+
+    // Step 5: Format Output for WhatsApp
+    const messageParts: string[] = [];
+    adsetResults.forEach((adsetItem, idx) => {
+      const { part1, part2 } = formatAdsetEvaluationParts(
+        campData,
+        adsetItem,
+        idx,
+        adsetResults.length
+      );
+      messageParts.push(part1);
+      messageParts.push(part2);
     });
 
-    // Step 6: Format Output for WhatsApp
-    const { fullMessage, parts } = formatCampaignTargetingForWhatsApp(
-      campData,
-      activeAdset,
-      creative,
-      currentTargetingParsed,
-      evaluation
-    );
+    const fullMessage = messageParts.join('\n\n══════════════════════════════\n\n');
 
     return NextResponse.json({
       success: true,
@@ -384,16 +499,14 @@ export async function POST(req: Request) {
       campaign_name: campData.name,
       objective: campData.objective,
       status: campData.effective_status || campData.status,
-      adset_name: activeAdset.name || null,
-      current_targeting: currentTargetingParsed,
-      ad_creative: {
-        body: postText,
-        image_url: imageUrl || null,
-        cta: creative.call_to_action_type || null,
-      },
-      evaluation,
+      adsets_count: adsetResults.length,
+      adsets: adsetResults,
+      // For backward compatibility if single adset
+      current_targeting: adsetResults[0]?.current_targeting,
+      ad_creative: adsetResults[0]?.ad_creative,
+      evaluation: adsetResults[0]?.evaluation,
       formatted_message: fullMessage,
-      formatted_message_parts: parts,
+      formatted_message_parts: messageParts,
     });
   } catch (err: any) {
     console.error('[Campaign Targeting API Error]:', err);
@@ -407,7 +520,7 @@ export async function POST(req: Request) {
   }
 }
 
-// Support GET requests as well for easy browser or webhook queries
+// Support GET requests as well
 export async function GET(req: Request) {
   if (!validateApiKey(req)) {
     return NextResponse.json(
