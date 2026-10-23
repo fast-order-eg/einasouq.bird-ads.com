@@ -108,6 +108,51 @@ export interface PaidCampaignPostAnalysis {
   };
 }
 
+export interface CampaignTargetingEvaluationParams {
+  campaignName: string;
+  adsetName?: string;
+  postText: string;
+  imageUrl?: string;
+  currentTargeting: {
+    ageRange: string;
+    gender: string;
+    locations: string;
+    targetingType: string;
+    interests: string[];
+    behaviors: string[];
+    demographics: string[];
+    exclusions: string[];
+    isAdvantageAudience: boolean;
+  };
+}
+
+export interface CampaignTargetingEvaluationResult {
+  targeting_suitability_score: number; // 1 to 10
+  verdict: {
+    decision_label: string; // 🟢 استهداف متطابق ومثالي / 🟡 استهداف مقبول ويحتاج تحسين / 🔴 استهداف غير مناسب ويسبب هدر ميزانية
+    status_label: string;
+    summary: string;
+  };
+  suitability_analysis: string;
+  current_targeting_critique: {
+    strengths: string[];
+    weaknesses: string[];
+  };
+  suggested_targeting: {
+    suggested_age_range: string;
+    suggested_age_rationale: string;
+    suggested_gender: string;
+    suggested_locations?: string;
+    suggested_placements?: string;
+    detailed_interests: Array<{
+      interest: string;
+      reason: string;
+    }>;
+    behaviors?: string;
+  };
+  media_buyer_golden_tip: string;
+}
+
 export function safeParseJson(rawText: string): any {
   if (!rawText) return null;
   // Strip code block markers if any
@@ -739,6 +784,180 @@ ${fullTaxonomyReference}
     } catch (err) {
       console.error('Failed to parse Paid Post Analysis Gemini JSON:', rawResponse);
       throw new Error('فشل معالجة استجابة الذكاء الاصطناعي، يرجى إعادة المحاولة.');
+    }
+  }
+
+  async evaluateCampaignTargeting(
+    params: CampaignTargetingEvaluationParams
+  ): Promise<CampaignTargetingEvaluationResult> {
+    let imageBase64: string | undefined = undefined;
+    if (params.imageUrl) {
+      try {
+        const imgRes = await fetch(params.imageUrl, { signal: AbortSignal.timeout(5000) });
+        if (imgRes.ok) {
+          const buf = await imgRes.arrayBuffer();
+          imageBase64 = Buffer.from(buf).toString('base64');
+        }
+      } catch (e) {
+        console.warn('Failed to download image for campaign targeting evaluation:', e);
+      }
+    }
+
+    const totalEntitiesCount =
+      metaTargetingDict.demographics.length +
+      metaTargetingDict.behaviors.length +
+      metaTargetingDict.interests.length;
+
+    const fullTaxonomyReference = `
+══════════════════════════════════════
+📋 قاموس الاستهدافات الرسمية لفيسبوك المعتمدة في Bird Ads و Meta Ads Manager (اختر الاستهدافات المقترحة حصرياً من هذه العناصر الـ ${totalEntitiesCount} الرسمية):
+• المناسبات والديموغرافيا الرسمية (${metaTargetingDict.demographics.length} عنصر):
+${metaTargetingDict.demographics.map((d: any) => `[${d.en}] (${d.ar})`).join(' | ')}
+
+• السلوكيات الرسمية (${metaTargetingDict.behaviors.length} عنصر):
+${metaTargetingDict.behaviors.map((b: any) => `[${b.en}] (${b.ar})`).join(' | ')}
+
+• الاهتمامات الرسمية (${metaTargetingDict.interests.length} عنصر):
+${metaTargetingDict.interests.map((i: any) => `[${i.en}] (${i.ar})`).join(' | ')}
+`;
+
+    const interestsSummary =
+      params.currentTargeting.interests && params.currentTargeting.interests.length > 0
+        ? params.currentTargeting.interests.join(' | ')
+        : 'لا توجد اهتمامات يدوية محددة (متروكة للذكاء الاصطناعي أو عامة)';
+
+    const behaviorsSummary =
+      params.currentTargeting.behaviors && params.currentTargeting.behaviors.length > 0
+        ? params.currentTargeting.behaviors.join(' | ')
+        : 'لا توجد سلوكيات محددة';
+
+    const exclusionsSummary =
+      params.currentTargeting.exclusions && params.currentTargeting.exclusions.length > 0
+        ? params.currentTargeting.exclusions.join(' | ')
+        : 'لا توجد استبعادات';
+
+    const prompt = `
+أنت "عين السوق" 🦅، خبير الميديا باينج وتحسين الحملات الإعلانية الأول في مصر والوطن العربي، المتخصص في تدقيق وفحص الاستهدافات الإعلانية في مدير إعلانات ميتا (Meta Ads Manager).
+أسلوبك: بالعامية المصرية البيزنس، صريح، عملي، ومختصر وبدون أي حشو.
+
+مهمتك:
+فحص ومقارنة "الاستهداف الحالي المضبوط في الحملة" مع "محتوى البوست/الإعلان المعروض" وتقييم مدى ملاءمته وهل هو مناسب للمنتج والجمهور المستهدف أم يسبب هدر ميزانية، ثم إعطاء تقييم رقمي من 10، واقتراح 5 استهدافات بديلة على الأقل من القاموس المعتمد مع ذكر السبب لكل استهداف.
+
+بيانات الحملة والإعلان الحالي:
+- اسم الحملة: ${params.campaignName}
+${params.adsetName ? `- اسم المجموعة الإعلانية: ${params.adsetName}` : ''}
+- نص الإعلان / البوست:
+"""
+${params.postText || 'لا يوجد نص مكتوب'}
+"""
+
+الاستهداف الحالي المضبوط في الحملة:
+- الفئة العمرية (السن): ${params.currentTargeting.ageRange}
+- النوع: ${params.currentTargeting.gender}
+- المناطق الجغرافية: ${params.currentTargeting.locations}
+- نوع الاستهداف: ${params.currentTargeting.targetingType} ${params.currentTargeting.isAdvantageAudience ? '(استهداف أدفانتج بلس Advantage+ مفعل)' : ''}
+- الاهتمامات الحالية: ${interestsSummary}
+- السلوكيات الحالية: ${behaviorsSummary}
+- الاستبعادات: ${exclusionsSummary}
+
+══════════════════════════════════════
+🛑 قواعد صارمة لا يمكن مخالفتها:
+1. ❌ ممنوع منعاً باتاً دمج مصطلحات إنجليزية داخل النصوص العربية أو وضع ترجمات بين أقواس. الاستثناء الوحيد هو كتابة اسم الاهتمام أو السلوك الرسمي لفيسبوك داخل معقوفين مثل [Furniture].
+2. ⭐ تقييم الاستهداف الحالي مقارنة بالبوست:
+   - هل السن الحالي مناسب للمنتج المعروض وقدرته الشرائية؟ (مثلاً: سن 18-65 سنة لإعلان مدارس أو عقارات أو ملابس متخصصة واسع جداً ويهدر ميزانية).
+   - هل استهداف أدفانتج بلس أو الاهتمامات الحالية تخدم البوست ولا بتستهدف جمهور عشوائي؟
+   - هل المناطق المحددة منطقية لطبيعة العرض؟
+3. ⭐ التقييم الرقمي: يجب إعطاء درجة دقيقة وعادلة من 10 لمدى ملاءمة الاستهداف الحالي للبوست (مثلاً: 5/10 لو الاستهداف واسع أو غير موجه، 8.5/10 لو مظبوط، 3/10 لو غير متوافق تماماً).
+4. ⭐ مقترحات الاستهداف البديلة (على الأقل 5 استهدافات):
+   - يجب اختيار 5 استهدافات أو اهتمامات بديلة أفضل للبوست **حصرياً من قائمة الـ 513 استهداف رسمي المرفقة بالأسفل**.
+   - كتابة اسم كل استهداف بالإنجليزية داخل معقوفين مثل [E-commerce] مع شرح سبب ومبرر اختياره بالعربي.
+5. ⭐ توضيح السن المقترح الأنسب للبوست مع مبرره التسويقي بدقة.
+6. ⭐ نصيحة الميديا باير: نصيحة تكتيكية واحدة ذهبية تخص هذه الحملة لتحقيق أعلى عائد على الإنفاق وخفض تكلفة الرسالة/الطلب.
+
+${fullTaxonomyReference}
+
+يجب أن يكون الرد JSON فقط مطابقاً للهيكل التالي 100%:
+{
+  "targeting_suitability_score": 7.5,
+  "verdict": {
+    "decision_label": "🟡 استهداف مقبول ويحتاج تحسين",
+    "status_label": "🟡 استهداف مقبول ويحتاج تحسين",
+    "summary": "ملخص صريح في سطرين عن سبب هذا التقييم ومدى مطابقة الجمهور للمنتج المعروض"
+  },
+  "suitability_analysis": "تحليل تكتيكي سريع في سطرين يوضح هل الجمهور المضبوط مناسب للبوست والمنتج ولا فيه هدر ميزانية",
+  "current_targeting_critique": {
+    "strengths": [
+      "نقطة قوة في الاستهداف الحالي 1",
+      "نقطة قوة 2"
+    ],
+    "weaknesses": [
+      "ملاحظة أو نقطة ضعف في الاستهداف الحالي 1",
+      "ملاحظة 2"
+    ]
+  },
+  "suggested_targeting": {
+    "suggested_age_range": "24 - 45 سنة",
+    "suggested_age_rationale": "سبب ومبرر تحديد هذا السن بناء على القوة الشرائية وطبيعة المنتج",
+    "suggested_gender": "الجميع",
+    "suggested_placements": "المواضع الفعالة للظهور بالعربي مثل خلاصة الأخبار وريلز فيسبوك وإنستجرام",
+    "detailed_interests": [
+      {
+        "interest": "Interest 1 in English",
+        "reason": "سبب اختيار هذا الاهتمام ولماذا هو أفضل للبوست"
+      },
+      {
+        "interest": "Interest 2 in English",
+        "reason": "سبب اختيار هذا الاهتمام"
+      },
+      {
+        "interest": "Interest 3 in English",
+        "reason": "سبب اختيار هذا الاهتمام"
+      },
+      {
+        "interest": "Interest 4 in English",
+        "reason": "سبب اختيار هذا الاهتمام"
+      },
+      {
+        "interest": "Interest 5 in English",
+        "reason": "سبب اختيار هذا الاهتمام"
+      }
+    ],
+    "behaviors": "السلوكيات الرسمية المقترحة مثل [Engaged Shoppers]"
+  },
+  "media_buyer_golden_tip": "نصيحة تكتيكية واحدة ذهبية تخص هذا البوست لرفع التحويل وخفض تكلفة الرسالة"
+}
+`;
+
+    const rawResponse = await this.generate(prompt, {
+      model: 'quality',
+      imageBase64,
+      mimeType: 'image/jpeg',
+      config: {
+        temperature: 0.1,
+        maxOutputTokens: 8192,
+        responseMimeType: 'application/json',
+      },
+    });
+
+    try {
+      let cleanJson = rawResponse.trim();
+      if (cleanJson.startsWith('```')) {
+        cleanJson = cleanJson.replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/i, '');
+      }
+      const firstBrace = cleanJson.indexOf('{');
+      const lastBrace = cleanJson.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1) {
+        cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
+      }
+      const parsed = JSON.parse(cleanJson);
+      parsed.targeting_suitability_score =
+        typeof parsed.targeting_suitability_score === 'number'
+          ? parsed.targeting_suitability_score
+          : 7.0;
+      return parsed;
+    } catch (err) {
+      console.error('Failed to parse Campaign Targeting Evaluation Gemini JSON:', rawResponse);
+      throw new Error('فشل معالجة تقييم استهداف الحملة بالذكاء الاصطناعي، يرجى المحاولة مجدداً.');
     }
   }
 
