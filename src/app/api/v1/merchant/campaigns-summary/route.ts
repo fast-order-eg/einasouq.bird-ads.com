@@ -66,6 +66,81 @@ function normalizeStatusFilter(filter?: string): string {
 }
 
 /**
+ * تبني استعلام الفترة الزمنية لـ Meta Graph API
+ * ملاحظة هامة: بريسيتات ميتا مثل last_7d و last_3d و last_14d و last_30d تستبعد اليوم الحالي تلقائياً (Not including today).
+ * لذلك نقوم بتحويلها إلى time_range يشمل اليوم الحالي حتى اللحظة لضمان مطابقة توقعات التاجر وأوردرات المتجر.
+ */
+function buildInsightsTimeClause(
+  safePreset: string,
+  customTimeRange?: { since: string; until: string } | null
+): { clause: string; rangeKey: string } {
+  if (customTimeRange?.since && customTimeRange?.until) {
+    const since = customTimeRange.since.trim();
+    const until = customTimeRange.until.trim();
+    return {
+      clause: `time_range({'since':'${since}','until':'${until}'})`,
+      rangeKey: `custom_${since}_${until}`,
+    };
+  }
+
+  // حساب تاريخ اليوم بتوقيت القاهرة Africa/Cairo
+  const now = new Date();
+  const cairoFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Cairo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const todayStr = cairoFormatter.format(now); // YYYY-MM-DD
+  const [y, m, d] = todayStr.split('-').map(Number);
+  const todayDate = new Date(Date.UTC(y, m - 1, d));
+
+  const formatUtc = (date: Date) => date.toISOString().split('T')[0];
+
+  if (safePreset === 'last_7d') {
+    const since = new Date(todayDate);
+    since.setUTCDate(todayDate.getUTCDate() - 6);
+    return {
+      clause: `time_range({'since':'${formatUtc(since)}','until':'${todayStr}'})`,
+      rangeKey: `last_7d_${todayStr}`,
+    };
+  }
+
+  if (safePreset === 'last_3d') {
+    const since = new Date(todayDate);
+    since.setUTCDate(todayDate.getUTCDate() - 2);
+    return {
+      clause: `time_range({'since':'${formatUtc(since)}','until':'${todayStr}'})`,
+      rangeKey: `last_3d_${todayStr}`,
+    };
+  }
+
+  if (safePreset === 'last_14d') {
+    const since = new Date(todayDate);
+    since.setUTCDate(todayDate.getUTCDate() - 13);
+    return {
+      clause: `time_range({'since':'${formatUtc(since)}','until':'${todayStr}'})`,
+      rangeKey: `last_14d_${todayStr}`,
+    };
+  }
+
+  if (safePreset === 'last_30d') {
+    const since = new Date(todayDate);
+    since.setUTCDate(todayDate.getUTCDate() - 29);
+    return {
+      clause: `time_range({'since':'${formatUtc(since)}','until':'${todayStr}'})`,
+      rangeKey: `last_30d_${todayStr}`,
+    };
+  }
+
+  // today, yesterday, this_month, last_month, maximum تعتمد على بريسيت ميتا الأصلي
+  return {
+    clause: `date_preset(${safePreset})`,
+    rangeKey: safePreset,
+  };
+}
+
+/**
  * دالة مساعدة لجلب قائمة معرفات الحملات التابعة لحساب إعلاني معين
  */
 async function fetchCampaignIdsForAccount(
@@ -386,7 +461,8 @@ async function handleRequest(
   campaignIds: string[],
   datePreset: string = 'last_7d',
   forceRefresh: boolean = false,
-  extraMetadata: { account_id?: string; search?: string } = {}
+  extraMetadata: { account_id?: string; search?: string } = {},
+  customTimeRange?: { since: string; until: string } | null
 ) {
   const token = process.env.META_USER_TOKEN;
   if (!token) {
@@ -399,7 +475,8 @@ async function handleRequest(
   }
 
   const safePreset = normalizeDatePreset(datePreset);
-  const cacheKey = `merchant_${cleanIds.slice().sort().join('_')}_${safePreset}`;
+  const { clause: timeClause, rangeKey } = buildInsightsTimeClause(safePreset, customTimeRange);
+  const cacheKey = `merchant_${cleanIds.slice().sort().join('_')}_${rangeKey}`;
   if (!forceRefresh) {
     const cached = memoryCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
@@ -408,7 +485,7 @@ async function handleRequest(
   }
 
   // Construct Meta Graph API field query with attribution windows and account attribution setting
-  const insightsSubquery = `insights.date_preset(${safePreset}).use_account_attribution_setting(true).action_attribution_windows(['7d_click','1d_view']){spend,impressions,reach,clicks,cpc,cpm,ctr,actions,action_values,cost_per_action_type,purchase_roas}`;
+  const insightsSubquery = `insights.${timeClause}.use_account_attribution_setting(true).action_attribution_windows(['7d_click','1d_view']){spend,impressions,reach,clicks,cpc,cpm,ctr,actions,action_values,cost_per_action_type,purchase_roas}`;
   const fields = [
     'id',
     'name',
@@ -864,7 +941,14 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { campaign_ids, account_id, status_filter, search, date_preset, force_refresh } = body;
+    const { campaign_ids, account_id, status_filter, search, date_preset, force_refresh, time_range, since, until } = body;
+
+    let customTimeRange: { since: string; until: string } | null = null;
+    if (time_range?.since && time_range?.until) {
+      customTimeRange = { since: String(time_range.since).trim(), until: String(time_range.until).trim() };
+    } else if (since && until) {
+      customTimeRange = { since: String(since).trim(), until: String(until).trim() };
+    }
 
     let targetCampaignIds: string[] = [];
     const extraMeta: { account_id?: string; search?: string } = {};
@@ -943,7 +1027,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = await handleRequest(targetCampaignIds, date_preset, Boolean(force_refresh), extraMeta);
+    const result = await handleRequest(targetCampaignIds, date_preset, Boolean(force_refresh), extraMeta, customTimeRange);
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error }, { status: result.status || 500 });
     }
@@ -972,6 +1056,12 @@ export async function GET(req: Request) {
   const search = searchParams.get('search') || searchParams.get('q') || '';
   const datePreset = searchParams.get('date_preset') || 'last_7d';
   const forceRefresh = searchParams.get('force_refresh') === 'true';
+  const sinceParam = searchParams.get('since');
+  const untilParam = searchParams.get('until');
+  let customTimeRange: { since: string; until: string } | null = null;
+  if (sinceParam && untilParam) {
+    customTimeRange = { since: sinceParam.trim(), until: untilParam.trim() };
+  }
 
   let targetCampaignIds: string[] = idsParam.split(',').map((id) => id.trim()).filter(Boolean);
   const extraMeta: { account_id?: string; search?: string } = {};
@@ -1048,7 +1138,7 @@ export async function GET(req: Request) {
     );
   }
 
-  const result = await handleRequest(targetCampaignIds, datePreset, forceRefresh, extraMeta);
+  const result = await handleRequest(targetCampaignIds, datePreset, forceRefresh, extraMeta, customTimeRange);
   if (!result.success) {
     return NextResponse.json({ success: false, error: result.error }, { status: result.status || 500 });
   }
