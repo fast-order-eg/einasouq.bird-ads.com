@@ -301,9 +301,13 @@ function formatAdsetEvaluationParts(
 
   // ── الجزء الأول: فحص الاستهداف الحالي ومطابقته للبوست ──
   const groupLabel = isMulti ? ` (${index + 1} من ${total})` : '';
-  let part1 = `🎯 *تقرير فحص وتدقيق استهداف المجموعة الإعلانية${groupLabel}* 📊\n`;
+  let part1 = isMulti
+    ? `🎯 *تقرير فحص وتدقيق استهداف المجموعة الإعلانية${groupLabel}* 📊\n`
+    : `🎯 *تقرير فحص وتدقيق استهداف الحملة* 📊\n`;
   part1 += `📌 *الحملة:* ${campaign.name || 'حملة إعلانية'} (ID: \`${campaign.id}\`)\n`;
-  part1 += `📂 *المجموعة الإعلانية:* ${adsetItem.adset_name || 'المجموعة الأساسية'}\n`;
+  if (isMulti) {
+    part1 += `📂 *المجموعة الإعلانية:* ${adsetItem.adset_name || 'المجموعة الأساسية'}\n`;
+  }
   part1 += `🎬 *نوع المحتوى المرئي:* ${mediaLabel}\n`;
 
   if (creative?.body) {
@@ -332,8 +336,29 @@ function formatAdsetEvaluationParts(
     part1 += `• *البيانات الديموغرافية والحالة:* ${currentTargeting.demographics.map((d: string) => `[${d}]`).join(' | ')}\n`;
   }
 
+  // الاهتمامات الحالية: كل اهتمام على سطر مستقل مع علامة ✅ أو ❌
+  const interestsAudit = evaluation.current_interests_audit || [];
+  const behaviorsAudit = evaluation.current_behaviors_audit || [];
+
   if (currentTargeting.interests && currentTargeting.interests.length > 0) {
-    part1 += `• *الاهتمامات الحالية:* ${currentTargeting.interests.map((i: string) => `[${i}]`).join(' | ')}\n`;
+    part1 += `• *الاهتمامات الحالية:*\n`;
+    currentTargeting.interests.forEach((rawInt: string) => {
+      const cleanInt = rawInt.trim();
+      const auditItem = interestsAudit.find(
+        (a) => a.name && (cleanInt.includes(a.name) || a.name.includes(cleanInt))
+      );
+      let icon = '✅';
+      if (auditItem?.icon) {
+        icon = auditItem.icon;
+      } else if (
+        evaluation.current_targeting_critique?.remove_items?.some((r) =>
+          r.toLowerCase().includes(cleanInt.toLowerCase())
+        )
+      ) {
+        icon = '❌';
+      }
+      part1 += `  ▫️ [${cleanInt}] ${icon}\n`;
+    });
   } else if (currentTargeting.isAdvantageAudience) {
     part1 += `• *الاهتمامات التفصيلية:* يعتمد كلياً على خوارزمية أدفانتج بلس الموسعة (بدون اهتمامات يدوية).\n`;
   } else {
@@ -341,7 +366,24 @@ function formatAdsetEvaluationParts(
   }
 
   if (currentTargeting.behaviors && currentTargeting.behaviors.length > 0) {
-    part1 += `• *السلوكيات الحالية:* ${currentTargeting.behaviors.map((b: string) => `[${b}]`).join(' | ')}\n`;
+    part1 += `• *السلوكيات الحالية:*\n`;
+    currentTargeting.behaviors.forEach((rawBeh: string) => {
+      const cleanBeh = rawBeh.trim();
+      const auditItem = behaviorsAudit.find(
+        (a) => a.name && (cleanBeh.includes(a.name) || a.name.includes(cleanBeh))
+      );
+      let icon = '✅';
+      if (auditItem?.icon) {
+        icon = auditItem.icon;
+      } else if (
+        evaluation.current_targeting_critique?.remove_items?.some((r) =>
+          r.toLowerCase().includes(cleanBeh.toLowerCase())
+        )
+      ) {
+        icon = '❌';
+      }
+      part1 += `  ▫️ [${cleanBeh}] ${icon}\n`;
+    });
   }
 
   if (currentTargeting.exclusions && currentTargeting.exclusions.length > 0) {
@@ -355,29 +397,23 @@ function formatAdsetEvaluationParts(
   part1 += `🔍 *تحليل ملاءمة الاستهداف مع البوست (${mediaLabel}):*\n`;
   part1 += `${evaluation.suitability_analysis || evaluation.verdict?.summary}\n`;
 
-  const critique = evaluation.current_targeting_critique;
-  if (critique?.keep_items && critique.keep_items.length > 0) {
-    part1 += `\n✅ *ما ننصحك بالإبقاء عليه (شغال صح ومناسب):*\n`;
-    critique.keep_items.forEach((item: string) => {
-      part1 += `• ${item}\n`;
-    });
-  }
-
-  if (critique?.remove_items && critique.remove_items.length > 0) {
-    part1 += `\n❌ *ما يجب حذفه فوراً (سبب هدر الميزانية):*\n`;
-    critique.remove_items.forEach((item: string) => {
-      part1 += `• ${item}\n`;
-    });
-  }
-
   // ── الجزء الثاني: مقترحات الاستهداف الأفضل وتعديل الجمهور ──
-  const titlePrefix = adsetItem.user_directive ? 'الاستهداف البديل المخصص' : 'الاستهداف الأفضل';
-  let part2 = `🚀 *مقترحات ${titlePrefix} للمجموعة${groupLabel}* 🎯\n`;
-  part2 += `📂 *المجموعة:* ${adsetItem.adset_name}\n`;
-  if (adsetItem.user_directive) {
+  let part2 = isMulti
+    ? `🎯 *مقترحات الاستهداف للمجموعة${groupLabel}:*\n`
+    : `🎯 *مقترحات الاستهداف:*\n`;
+
+  if (isMulti) {
+    part2 += `📂 *المجموعة:* ${adsetItem.adset_name}\n`;
+  }
+
+  if (
+    adsetItem.user_directive &&
+    adsetItem.user_directive.length > 4 &&
+    !/^(?:بديل|استهداف بديل|استهداف|\/استهداف)$/i.test(adsetItem.user_directive)
+  ) {
     part2 += `📝 *بناءً على طلبك وملاحظاتك:* "${adsetItem.user_directive}"\n`;
   }
-  part2 += `(مختارة حصرياً من قاموس ميتا الرسمي المعتمد)\n`;
+
   part2 += `══════════════════════════\n`;
   part2 += `🎯 *الاهتمامات البديلة الأنسب (5 خيارات دقيقة):*\n`;
 
@@ -392,8 +428,16 @@ function formatAdsetEvaluationParts(
   }
 
   if (evaluation.suggested_targeting?.behaviors) {
-    const cleanBehaviors = evaluation.suggested_targeting.behaviors.replace(/\[\[/g, '[').replace(/\]\]/g, ']');
-    part2 += `\n• *السلوكيات المقترحة:* ${cleanBehaviors}\n`;
+    const rawBehaviors = evaluation.suggested_targeting.behaviors;
+    const bracketMatches = rawBehaviors.match(/\[[^\]]+\]/g);
+    part2 += `\n• *السلوكيات المقترحة:*\n`;
+    if (bracketMatches && bracketMatches.length > 0) {
+      bracketMatches.forEach((b: string) => {
+        part2 += `  ▫️ ${b}\n`;
+      });
+    } else {
+      part2 += `  ▫️ ${rawBehaviors}\n`;
+    }
   }
 
   if (evaluation.suggested_targeting?.narrowing_technique) {
@@ -476,12 +520,14 @@ export async function POST(req: Request) {
     let userDirective = body.notes || body.directive || body.custom_instructions || '';
     if (!userDirective) {
       const sourceText = body.text || body.query || rawInput || '';
-      const cleaned = sourceText
+      let cleaned = sourceText
         .replace(new RegExp(inputId, 'g'), '')
-        .replace(/^(استهداف|بديل|فحص|تحليل|تدقيق|حملة|تقرير)\s*/gi, '')
-        .replace(/^(استهداف|بديل|فحص|تحليل|تدقيق|حملة|تقرير)\s*/gi, '')
+        .replace(/^[/\s]*(?:استهداف|targeting)\s*/i, '')
+        .replace(/^[/\s]*(?:استهداف|targeting)\s*/i, '')
+        .replace(/[/"']/g, '')
         .trim();
-      if (cleaned.length >= 3) {
+      cleaned = cleaned.replace(/^(?:استهداف|targeting|فحص|تحليل|تدقيق)\s*/i, '').trim();
+      if (cleaned.length >= 2 && !/^(?:استهداف|targeting|\/استهداف)$/i.test(cleaned)) {
         userDirective = cleaned;
       }
     }
