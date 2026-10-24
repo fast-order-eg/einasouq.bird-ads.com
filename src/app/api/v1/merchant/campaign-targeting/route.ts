@@ -406,6 +406,9 @@ function formatAdsetEvaluationParts(
   const sugRationale = evaluation.suggested_targeting?.suggested_age_rationale || '';
   part2 += `• *السن المقترح:* [${sugAge}]${sugRationale ? ` - ${sugRationale}` : ''}\n`;
   part2 += `• *النوع المقترح:* [${(evaluation.suggested_targeting?.suggested_gender || 'الجميع').replace(/^\[+|\]+$/g, '')}]\n`;
+  if (currentTargeting.isAdvantageAudience) {
+    part2 += `• *خيار نافذة الجماهير:* اختر [الوصول إلى جمهور مقيد] ثم اضغط متابعة (لإلزام خوارزميات ميتا بالاستهداف ومنع التوسع العشوائي للقطاعي).\n`;
+  }
 
   const placementsPlan = evaluation.suggested_targeting?.suggested_placements_plan;
   if (
