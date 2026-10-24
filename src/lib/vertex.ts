@@ -120,6 +120,12 @@ export interface CampaignTargetingEvaluationParams {
     gender: string;
     locations: string;
     targetingType: string;
+    placements?: {
+      isAutomatic: boolean;
+      typeLabel: string;
+      formattedText: string;
+      hasAudienceNetwork: boolean;
+    };
     interests: string[];
     behaviors: string[];
     demographics: string[];
@@ -148,6 +154,10 @@ export interface CampaignTargetingEvaluationResult {
     suggested_gender: string;
     suggested_locations?: string;
     suggested_placements?: string;
+    suggested_placements_plan?: {
+      keep_placements: string[]; // المواضع التي ننصح بتشغيلها
+      stop_placements: string[]; // المواضع التي ننصح بإيقافها مع ذكر السبب
+    };
     detailed_interests: Array<{
       interest: string;
       reason: string;
@@ -883,6 +893,7 @@ ${params.postText || 'لا يوجد نص مكتوب'}
 - النوع: ${params.currentTargeting.gender}
 - المناطق الجغرافية: ${params.currentTargeting.locations}
 - نوع الاستهداف: ${params.currentTargeting.targetingType} ${params.currentTargeting.isAdvantageAudience ? '(استهداف أدفانتج بلس Advantage+ مفعل)' : ''}
+- مواضع الظهور الحالية: ${params.currentTargeting.placements?.formattedText || 'مواضع أدفانتج بلس التلقائية'}
 - البيانات الديموغرافية والحالة الاجتماعية والمناسبات: ${demographicsSummary}
 - الاهتمامات الحالية: ${interestsSummary}
 - السلوكيات الحالية: ${behaviorsSummary}
@@ -913,7 +924,10 @@ ${params.userDirective ? `
    - keep_items: حدد العناصر الحالية الصحيحة التي يجب الإبقاء عليها بدون تغيير حتى لا يغير المعلن كل شيء.
    - remove_items: حدد العناصر أو السلوكيات الضارة التي تهدر الميزانية ويجب حذفها فوراً مع ذكر السبب.
 7. ⭐ تضييق الجمهور (Narrow Audience): وضح في narrowing_technique إرشادات عملية لكيفية استخدام زر "تقييد جمهورك بشكل أكبر" في مدير الإعلانات للربط بشرط (AND).
-8. ⭐ نصيحة الميديا باير: نصيحة تكتيكية واحدة ذهبية تخص هذه الحملة لتحقيق أعلى عائد على الإنفاق وخفض تكلفة الرسالة/الطلب.
+8. ⭐ خطة مواضع الظهور الفعالة (Placements Plan):
+   - keep_placements: حدد المواضع الفعالة التي ننصح بتشغيلها في الحملة (مثل خلاصات وريلز فيسبوك وإنستجرام على الموبايل).
+   - stop_placements: حدد المواضع التي يجب إيقافها فوراً في مدير الإعلانات مع ذكر السبب (مثل شبكة الجمهور Audience Network لأنها ألعاب وتطبيقات خارجية بمكافأة تهدر الميزانية، والإعلانات المضمنة في الفيديو In-Stream وسطح المكتب).
+9. ⭐ نصيحة الميديا باير: نصيحة تكتيكية واحدة ذهبية تخص هذه الحملة لتحقيق أعلى عائد على الإنفاق وخفض تكلفة الرسالة/الطلب.
 
 ${fullTaxonomyReference}
 
@@ -948,6 +962,18 @@ ${fullTaxonomyReference}
     "suggested_gender": "الجميع",
     "suggested_locations": "مصر بالكامل أو مناطق محددة",
     "suggested_placements": "خلاصة فيسبوك وإنستجرام وريلز مع قصر الظهور على الموبايل واستبعاد شبكة الجمهور Audience Network",
+    "suggested_placements_plan": {
+      "keep_placements": [
+        "خلاصات فيسبوك وإنستجرام (Feeds) - لمشاهدة الإعلان بتركيز أثناء التصفح",
+        "ريلز وقصص فيسبوك وإنستجرام (Reels & Stories) - أفضل موضع لعرض الفيديو بكامل الشاشة والتفاعل السريع",
+        "الهواتف المحمولة فقط (Mobile Only) - استبعاد أجهزة الكمبيوتر لأن التفاعل الرئيسي على الموبايل"
+      ],
+      "stop_placements": [
+        "شبكة الجمهور (Audience Network) - احذفها فوراً لأنها إعلانات ألعاب وتطبيقات خارجية بمكافأة تهدر الميزانية بنقرات وهمية",
+        "الفيديو المضمن أثناء البث (In-Stream) - يسبب نقرات عاطفية غير مقصودة ويشتت المشاهد",
+        "صندوق وارد ماسنجر وأشرطة البحث - تفاعل ضعيف ومعدل تحويل منخفض"
+      ]
+    },
     "detailed_interests": [
       {
         "interest": "Interest 1 in English",
@@ -974,6 +1000,7 @@ ${fullTaxonomyReference}
     "narrowing_technique": "خطوات واضحة لتضييق الجمهور بزر تقييد جمهورك بشكل أكبر (مثل: ضع اهتمامات المجال في المربع الأول، واضغط تقييد جمهورك بشكل أكبر وضع أصحاب الأنشطة التجارية في المربع الثاني)"
   },
   "media_buyer_golden_tip": "نصيحة تكتيكية واحدة ذهبية تخص هذا البوست لرفع التحويل وخفض تكلفة الرسالة"
+}
 }
 }
 `;

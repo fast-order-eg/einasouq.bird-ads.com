@@ -158,6 +158,49 @@ function parseAgeRange(targeting: any): string {
   return `${minAge} - ${maxAge}`;
 }
 
+const PLATFORM_NAMES: Record<string, string> = {
+  facebook: 'فيسبوك',
+  instagram: 'إنستجرام',
+  audience_network: 'شبكة الجمهور (Audience Network)',
+  messenger: 'ماسنجر',
+  whatsapp: 'واتساب',
+};
+
+function parsePlacements(targeting: any): {
+  isAutomatic: boolean;
+  typeLabel: string;
+  platformsList: string[];
+  hasAudienceNetwork: boolean;
+  formattedText: string;
+} {
+  const isAdvantage = !targeting.publisher_platforms || targeting.publisher_platforms.length === 0;
+
+  if (isAdvantage) {
+    return {
+      isAutomatic: true,
+      typeLabel: 'مواضع أدفانتج بلس التلقائية (Advantage+ Placements)',
+      platformsList: ['فيسبوك', 'إنستجرام', 'شبكة الجمهور (Audience Network)', 'ماسنجر'],
+      hasAudienceNetwork: true,
+      formattedText: 'مواضع أدفانتج بلس التلقائية - تشمل فيسبوك وإنستجرام وتطبيقات وألعاب Audience Network',
+    };
+  }
+
+  const platforms: string[] = (targeting.publisher_platforms || []).map(
+    (p: string) => PLATFORM_NAMES[p.toLowerCase()] || p
+  );
+
+  const hasAudienceNetwork = (targeting.publisher_platforms || []).includes('audience_network');
+  const platformsStr = platforms.join(' ، ');
+
+  return {
+    isAutomatic: false,
+    typeLabel: 'مواضع يدوية مخصصة (Manual Placements)',
+    platformsList: platforms,
+    hasAudienceNetwork,
+    formattedText: `مواضع يدوية محددة على [${platformsStr}]${hasAudienceNetwork ? ' (تتضمن ألعاب شبكة الجمهور Audience Network)' : ''}`,
+  };
+}
+
 async function enrichAdCreative(
   adset: any,
   adsList: any[],
@@ -281,6 +324,10 @@ function formatAdsetEvaluationParts(
 
   part1 += `• *نوع الاستهداف:* [${currentTargeting.targetingType}]\n`;
 
+  if (currentTargeting.placements) {
+    part1 += `• *مواضع الظهور الحالية:* [${currentTargeting.placements.formattedText}]\n`;
+  }
+
   if (currentTargeting.demographics && currentTargeting.demographics.length > 0) {
     part1 += `• *البيانات الديموغرافية والحالة:* ${currentTargeting.demographics.map((d: string) => `[${d}]`).join(' | ')}\n`;
   }
@@ -360,7 +407,26 @@ function formatAdsetEvaluationParts(
   part2 += `• *السن المقترح:* [${sugAge}]${sugRationale ? ` - ${sugRationale}` : ''}\n`;
   part2 += `• *النوع المقترح:* [${(evaluation.suggested_targeting?.suggested_gender || 'الجميع').replace(/^\[+|\]+$/g, '')}]\n`;
 
-  if (evaluation.suggested_targeting?.suggested_placements) {
+  const placementsPlan = evaluation.suggested_targeting?.suggested_placements_plan;
+  if (
+    placementsPlan &&
+    ((placementsPlan.keep_placements && placementsPlan.keep_placements.length > 0) ||
+      (placementsPlan.stop_placements && placementsPlan.stop_placements.length > 0))
+  ) {
+    part2 += `\n📱 *خطة مواضع الظهور الفعالة (Placements):*\n`;
+    if (placementsPlan.keep_placements && placementsPlan.keep_placements.length > 0) {
+      part2 += `✅ *المواضع التي ننصح بتشغيلها (نسيب ايه شغال):*\n`;
+      placementsPlan.keep_placements.forEach((item: string) => {
+        part2 += `• ${item}\n`;
+      });
+    }
+    if (placementsPlan.stop_placements && placementsPlan.stop_placements.length > 0) {
+      part2 += `🛑 *المواضع التي ننصح بإيقافها فوراً في مدير الإعلانات (نوقف ايه بالظبط):*\n`;
+      placementsPlan.stop_placements.forEach((item: string) => {
+        part2 += `• ${item}\n`;
+      });
+    }
+  } else if (evaluation.suggested_targeting?.suggested_placements) {
     part2 += `• *مواضع الظهور الفعالة:* [${evaluation.suggested_targeting.suggested_placements}]\n`;
   }
 
@@ -599,11 +665,14 @@ export async function POST(req: Request) {
           }
         }
 
+        const placements = parsePlacements(targeting);
+
         const currentTargetingParsed = {
           ageRange,
           gender,
           locations,
           targetingType,
+          placements,
           interests,
           behaviors,
           demographics,
