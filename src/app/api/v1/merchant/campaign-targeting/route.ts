@@ -406,8 +406,8 @@ export async function POST(req: Request) {
     // Extract user custom instructions / notes if any (e.g. "استهداف بديل 120251807851810053 ركز على تجار الجملة وبلاش بيوتي سنتر")
     let userDirective = body.notes || body.directive || body.custom_instructions || '';
     if (!userDirective) {
-      const allText = `${body.text || ''} ${body.query || ''} ${rawInput}`;
-      const cleaned = allText
+      const sourceText = body.text || body.query || rawInput || '';
+      const cleaned = sourceText
         .replace(new RegExp(inputId, 'g'), '')
         .replace(/^(استهداف|بديل|فحص|تحليل|تدقيق|حملة|تقرير)\s*/gi, '')
         .replace(/^(استهداف|بديل|فحص|تحليل|تدقيق|حملة|تقرير)\s*/gi, '')
