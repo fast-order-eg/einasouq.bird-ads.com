@@ -324,10 +324,11 @@ function formatAdsetEvaluationParts(
   }
 
   // ── الجزء الثاني: مقترحات الاستهداف الأفضل وتعديل الجمهور ──
-  let part2 = `🚀 *مقترحات الاستهداف الأفضل للمجموعة${groupLabel}* 🎯\n`;
+  const titlePrefix = adsetItem.user_directive ? 'الاستهداف البديل المخصص' : 'الاستهداف الأفضل';
+  let part2 = `🚀 *مقترحات ${titlePrefix} للمجموعة${groupLabel}* 🎯\n`;
   part2 += `📂 *المجموعة:* ${adsetItem.adset_name}\n`;
   if (adsetItem.user_directive) {
-    part2 += `📝 *بناءً على ملاحظاتك:* "${adsetItem.user_directive}"\n`;
+    part2 += `📝 *بناءً على طلبك وملاحظاتك:* "${adsetItem.user_directive}"\n`;
   }
   part2 += `(مختارة حصرياً من قاموس ميتا الرسمي المعتمد)\n`;
   part2 += `══════════════════════════\n`;
@@ -381,11 +382,11 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
     const rawInput =
+      body.text ||
+      body.query ||
       body.campaign_id ||
       body.campaignId ||
       body.id ||
-      body.query ||
-      body.text ||
       '';
 
     const idMatch = String(rawInput).match(/\d{9,25}/);
@@ -405,8 +406,9 @@ export async function POST(req: Request) {
     // Extract user custom instructions / notes if any (e.g. "استهداف بديل 120251807851810053 ركز على تجار الجملة وبلاش بيوتي سنتر")
     let userDirective = body.notes || body.directive || body.custom_instructions || '';
     if (!userDirective) {
-      const cleaned = String(rawInput)
-        .replace(inputId, '')
+      const allText = `${body.text || ''} ${body.query || ''} ${rawInput}`;
+      const cleaned = allText
+        .replace(new RegExp(inputId, 'g'), '')
         .replace(/^(استهداف|بديل|فحص|تحليل|تدقيق|حملة|تقرير)\s*/gi, '')
         .replace(/^(استهداف|بديل|فحص|تحليل|تدقيق|حملة|تقرير)\s*/gi, '')
         .trim();
