@@ -308,9 +308,27 @@ function formatAdsetEvaluationParts(
   part1 += `🔍 *تحليل ملاءمة الاستهداف مع البوست (${mediaLabel}):*\n`;
   part1 += `${evaluation.suitability_analysis || evaluation.verdict?.summary}\n`;
 
+  const critique = evaluation.current_targeting_critique;
+  if (critique?.keep_items && critique.keep_items.length > 0) {
+    part1 += `\n✅ *ما ننصحك بالإبقاء عليه (شغال صح ومناسب):*\n`;
+    critique.keep_items.forEach((item: string) => {
+      part1 += `• ${item}\n`;
+    });
+  }
+
+  if (critique?.remove_items && critique.remove_items.length > 0) {
+    part1 += `\n❌ *ما يجب حذفه فوراً (سبب هدر الميزانية):*\n`;
+    critique.remove_items.forEach((item: string) => {
+      part1 += `• ${item}\n`;
+    });
+  }
+
   // ── الجزء الثاني: مقترحات الاستهداف الأفضل وتعديل الجمهور ──
   let part2 = `🚀 *مقترحات الاستهداف الأفضل للمجموعة${groupLabel}* 🎯\n`;
   part2 += `📂 *المجموعة:* ${adsetItem.adset_name}\n`;
+  if (adsetItem.user_directive) {
+    part2 += `📝 *بناءً على ملاحظاتك:* "${adsetItem.user_directive}"\n`;
+  }
   part2 += `(مختارة حصرياً من قاموس ميتا الرسمي المعتمد)\n`;
   part2 += `══════════════════════════\n`;
   part2 += `🎯 *الاهتمامات البديلة الأنسب (5 خيارات دقيقة):*\n`;
@@ -328,6 +346,11 @@ function formatAdsetEvaluationParts(
   if (evaluation.suggested_targeting?.behaviors) {
     const cleanBehaviors = evaluation.suggested_targeting.behaviors.replace(/\[\[/g, '[').replace(/\]\]/g, ']');
     part2 += `\n• *السلوكيات المقترحة:* ${cleanBehaviors}\n`;
+  }
+
+  if (evaluation.suggested_targeting?.narrowing_technique) {
+    part2 += `\n⚙️ *طريقة تضييق الجمهور بزر [تقييد جمهورك بشكل أكبر]:*\n`;
+    part2 += `${evaluation.suggested_targeting.narrowing_technique}\n`;
   }
 
   part2 += `\n👥 *التعديل المقترح للجمهور:*\n`;
@@ -378,6 +401,20 @@ export async function POST(req: Request) {
     }
 
     const inputId = idMatch[0];
+
+    // Extract user custom instructions / notes if any (e.g. "استهداف بديل 120251807851810053 ركز على تجار الجملة وبلاش بيوتي سنتر")
+    let userDirective = body.notes || body.directive || body.custom_instructions || '';
+    if (!userDirective) {
+      const cleaned = String(rawInput)
+        .replace(inputId, '')
+        .replace(/^(استهداف|بديل|فحص|تحليل|تدقيق|حملة|تقرير)\s*/gi, '')
+        .replace(/^(استهداف|بديل|فحص|تحليل|تدقيق|حملة|تقرير)\s*/gi, '')
+        .trim();
+      if (cleaned.length >= 3) {
+        userDirective = cleaned;
+      }
+    }
+
     const token = process.env.META_USER_TOKEN;
 
     if (!token) {
@@ -578,6 +615,7 @@ export async function POST(req: Request) {
           postText: enrichedCreative.postText,
           imageUrl: enrichedCreative.imageUrl || undefined,
           mediaType: enrichedCreative.mediaType,
+          userDirective: userDirective || undefined,
           currentTargeting: currentTargetingParsed,
         });
 
@@ -585,6 +623,7 @@ export async function POST(req: Request) {
           adset_id: adset.id,
           adset_name: adset.name,
           status: adset.effective_status || adset.status,
+          user_directive: userDirective || undefined,
           current_targeting: currentTargetingParsed,
           ad_creative: {
             body: enrichedCreative.postText,
@@ -656,11 +695,12 @@ export async function GET(req: Request) {
     url.searchParams.get('id') ||
     url.searchParams.get('query') ||
     '';
+  const notes = url.searchParams.get('notes') || url.searchParams.get('directive') || '';
 
   const mockReq = new Request(req.url, {
     method: 'POST',
     headers: req.headers,
-    body: JSON.stringify({ campaign_id: rawInput }),
+    body: JSON.stringify({ campaign_id: rawInput, notes }),
   });
 
   return await POST(mockReq);
