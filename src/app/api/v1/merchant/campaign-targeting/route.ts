@@ -31,37 +31,98 @@ const COUNTRY_NAMES: Record<string, string> = {
   US: 'الولايات المتحدة',
 };
 
+const RELATIONSHIP_STATUS_MAP: Record<number, string> = {
+  1: 'أعزب',
+  2: 'في علاقة',
+  3: 'متزوج',
+  4: 'مخطوب',
+  7: 'مطلق',
+  8: 'أرمل',
+  9: 'منفصل',
+  13: 'متزوج حديثاً',
+};
+
+const LIFE_EVENTS_MAP: Record<string, string> = {
+  'newly-engaged (6 months)': 'المخطوبون حديثاً - 6 أشهر',
+  'newly-engaged (3 months)': 'المخطوبون حديثاً - 3 أشهر',
+  'newly-engaged (1 year)': 'المخطوبون حديثاً - سنة واحدة',
+  'newlywed (1 year)': 'المتزوجون حديثاً - سنة واحدة',
+  'newlywed (6 months)': 'المتزوجون حديثاً - 6 أشهر',
+  'newlywed (3 months)': 'المتزوجون حديثاً - 3 أشهر',
+  'new job': 'بدأ وظيفة جديدة',
+  'moved': 'انتقل مؤخراً إلى سكن جديد',
+  'away from family': 'يعيش بعيداً عن العائلة',
+  'away from hometown': 'يعيش بعيداً عن مسقط رأسه',
+  'recently moved': 'انتقل إلى منزل جديد حديثاً',
+  'upcoming birthday': 'عيد ميلاد قادم قريباً',
+  'anniversary': 'ذكرى سنوية',
+  'anniversary (within 30 days)': 'ذكرى سنوية خلال 30 يوماً',
+  'friends of newly engaged people': 'أصدقاء المخطوبين حديثاً',
+  'friends of newlyweds': 'أصدقاء المتزوجين حديثاً',
+  'new relationship': 'علاقة عاطفية جديدة',
+};
+
+function translateLifeEvent(name: string): string {
+  const lower = (name || '').toLowerCase().trim();
+  return LIFE_EVENTS_MAP[lower] || name;
+}
+
+function cleanPlaceName(name: string): string {
+  if (!name) return 'موقع محدد';
+  if (name.includes('مستقبل سيتي')) return 'مستقبل سيتي';
+  if (name.includes('العاصمة الادارية')) return 'العاصمة الإدارية الجديدة';
+  if (name.includes('العبور الجديدة')) return 'العبور الجديدة';
+  let clean = name.replace(/,\s*(القاهرة|مصر|الجيزة).*$/i, '').trim();
+  clean = clean.replace(/\s*-\s*[A-Za-z\s]+$/g, '').trim();
+  return clean || name;
+}
+
 function parseLocations(geoLocations: any): string {
   if (!geoLocations) return 'غير محدد';
 
   const parts: string[] = [];
 
-  // 1. Custom pins/locations
+  // 1. Places (Named radius pins)
+  if (Array.isArray(geoLocations.places) && geoLocations.places.length > 0) {
+    const placesList = geoLocations.places.map((p: any) => {
+      const name = cleanPlaceName(p.name);
+      const radius = p.radius ? ` (+${p.radius} كم)` : '';
+      return `${name}${radius}`;
+    });
+
+    if (placesList.length > 6) {
+      parts.push(`محددة في ${placesList.length} منطقة رئيسية بالقاهرة والجيزة والمدن الجديدة (${placesList.join(' ، ')})`);
+    } else {
+      parts.push(placesList.join(' ، '));
+    }
+  }
+
+  // 2. Custom pins/locations
   if (Array.isArray(geoLocations.custom_locations) && geoLocations.custom_locations.length > 0) {
     const customList = geoLocations.custom_locations.map((loc: any) => {
-      const name = loc.name || loc.address_string || 'موقع محدد';
-      const radius = loc.radius ? ` (نطاق ${loc.radius} كم)` : '';
+      const name = (loc.name || loc.address_string || 'موقع محدد').replace(/\(.*?\)/g, '').trim();
+      const radius = loc.radius ? ` (+${loc.radius} كم)` : '';
       return `${name}${radius}`;
     });
     parts.push(customList.join(' ، '));
   }
 
-  // 2. Cities
+  // 3. Cities
   if (Array.isArray(geoLocations.cities) && geoLocations.cities.length > 0) {
     const cityList = geoLocations.cities.map((c: any) => {
       const radius = c.radius ? ` (+${c.radius} كم)` : '';
-      return `${c.name || 'مدينة'}${radius}`;
+      return `${(c.name || 'مدينة').replace(/\(.*?\)/g, '').trim()}${radius}`;
     });
     parts.push(cityList.join(' ، '));
   }
 
-  // 3. Regions / Governorates
+  // 4. Regions / Governorates
   if (Array.isArray(geoLocations.regions) && geoLocations.regions.length > 0) {
-    const regionList = geoLocations.regions.map((r: any) => r.name || 'محافظة');
+    const regionList = geoLocations.regions.map((r: any) => (r.name || 'محافظة').replace(/\(.*?\)/g, '').trim());
     parts.push(regionList.join(' ، '));
   }
 
-  // 4. Countries
+  // 5. Countries
   if (Array.isArray(geoLocations.countries) && geoLocations.countries.length > 0) {
     const countryList = geoLocations.countries.map((c: string) => COUNTRY_NAMES[c.toUpperCase()] || c);
     if (parts.length === 0) {
@@ -76,15 +137,23 @@ function parseLocations(geoLocations: any): string {
 
 function parseGender(genders?: number[]): string {
   if (!genders || genders.length === 0 || genders.length === 2) {
-    return 'الجميع (رجال ونساء)';
+    return 'الجميع - رجال ونساء';
   }
   if (genders.includes(1)) return 'رجال فقط';
   if (genders.includes(2)) return 'نساء فقط';
   return 'الجميع';
 }
 
-function parseAgeRange(min?: number, max?: number): string {
-  const minAge = min || 18;
+function parseAgeRange(targeting: any): string {
+  if (Array.isArray(targeting?.age_range) && targeting.age_range.length === 2) {
+    const min = targeting.age_range[0] || 18;
+    const max = targeting.age_range[1];
+    const maxStr = max ? (max >= 65 ? '65+ سنة' : `${max} سنة`) : '65+ سنة';
+    return `${min} - ${maxStr}`;
+  }
+
+  const minAge = targeting?.age_min || 18;
+  const max = targeting?.age_max;
   const maxAge = max ? (max >= 65 ? '65+ سنة' : `${max} سنة`) : '65+ سنة';
   return `${minAge} - ${maxAge}`;
 }
@@ -203,8 +272,18 @@ function formatAdsetEvaluationParts(
   part1 += `⚙️ *الاستهداف الحالي في مدير الإعلانات:*\n`;
   part1 += `• *السن:* [${currentTargeting.ageRange}]\n`;
   part1 += `• *النوع:* [${currentTargeting.gender}]\n`;
-  part1 += `• *المناطق:* [${currentTargeting.locations}]\n`;
+
+  if (currentTargeting.locations && currentTargeting.locations.startsWith('محددة في')) {
+    part1 += `• *المناطق:* ${currentTargeting.locations}\n`;
+  } else {
+    part1 += `• *المناطق:* [${currentTargeting.locations}]\n`;
+  }
+
   part1 += `• *نوع الاستهداف:* [${currentTargeting.targetingType}]\n`;
+
+  if (currentTargeting.demographics && currentTargeting.demographics.length > 0) {
+    part1 += `• *البيانات الديموغرافية والحالة:* ${currentTargeting.demographics.map((d: string) => `[${d}]`).join(' | ')}\n`;
+  }
 
   if (currentTargeting.interests && currentTargeting.interests.length > 0) {
     part1 += `• *الاهتمامات الحالية:* ${currentTargeting.interests.map((i: string) => `[${i}]`).join(' | ')}\n`;
@@ -389,10 +468,10 @@ export async function POST(req: Request) {
         );
 
         const targetingType = isAdvantageAudience
-          ? 'استهداف أدفانتج بلس (Advantage+ Audience)'
-          : 'استهداف تفصيلي يدوي (Manual Targeting)';
+          ? 'استهداف أدفانتج بلس - Advantage+ Audience'
+          : 'استهداف تفصيلي يدوي - Manual Targeting';
 
-        const ageRange = parseAgeRange(targeting.age_min, targeting.age_max);
+        const ageRange = parseAgeRange(targeting);
         const gender = parseGender(targeting.genders);
         const locations = parseLocations(targeting.geo_locations);
 
@@ -405,38 +484,79 @@ export async function POST(req: Request) {
         flexible.forEach((spec: any) => {
           if (Array.isArray(spec.interests)) {
             spec.interests.forEach((item: any) => {
-              if (item.name && !interests.includes(item.name)) interests.push(item.name);
+              const cleanName = (item.name || '').replace(/\s*\((.*?)\)/g, ' - $1').trim();
+              if (cleanName && !interests.includes(cleanName)) interests.push(cleanName);
             });
           }
           if (Array.isArray(spec.behaviors)) {
             spec.behaviors.forEach((item: any) => {
-              if (item.name && !behaviors.includes(item.name)) behaviors.push(item.name);
+              const cleanName = (item.name || '').replace(/\s*\((.*?)\)/g, ' - $1').trim();
+              if (cleanName && !behaviors.includes(cleanName)) behaviors.push(cleanName);
             });
           }
           if (Array.isArray(spec.demographics)) {
             spec.demographics.forEach((item: any) => {
-              if (item.name && !demographics.includes(item.name)) demographics.push(item.name);
+              const cleanName = (item.name || '').replace(/\s*\((.*?)\)/g, ' - $1').trim();
+              if (cleanName && !demographics.includes(cleanName)) demographics.push(cleanName);
+            });
+          }
+          if (Array.isArray(spec.life_events)) {
+            spec.life_events.forEach((item: any) => {
+              const label = `مناسبة شخصية: ${translateLifeEvent(item.name || '')}`;
+              if (!demographics.includes(label)) demographics.push(label);
+            });
+          }
+          if (Array.isArray(spec.relationship_statuses)) {
+            spec.relationship_statuses.forEach((id: number) => {
+              const label = `الحالة الاجتماعية: ${RELATIONSHIP_STATUS_MAP[id] || `حالة اجتماعية (${id})`}`;
+              if (!demographics.includes(label)) demographics.push(label);
             });
           }
         });
 
         if (Array.isArray(targeting.interests)) {
           targeting.interests.forEach((item: any) => {
-            if (item.name && !interests.includes(item.name)) interests.push(item.name);
+            const cleanName = (item.name || '').replace(/\s*\((.*?)\)/g, ' - $1').trim();
+            if (cleanName && !interests.includes(cleanName)) interests.push(cleanName);
           });
         }
         if (Array.isArray(targeting.behaviors)) {
           targeting.behaviors.forEach((item: any) => {
-            if (item.name && !behaviors.includes(item.name)) behaviors.push(item.name);
+            const cleanName = (item.name || '').replace(/\s*\((.*?)\)/g, ' - $1').trim();
+            if (cleanName && !behaviors.includes(cleanName)) behaviors.push(cleanName);
+          });
+        }
+        if (Array.isArray(targeting.demographics)) {
+          targeting.demographics.forEach((item: any) => {
+            const cleanName = (item.name || '').replace(/\s*\((.*?)\)/g, ' - $1').trim();
+            if (cleanName && !demographics.includes(cleanName)) demographics.push(cleanName);
+          });
+        }
+        if (Array.isArray(targeting.life_events)) {
+          targeting.life_events.forEach((item: any) => {
+            const label = `مناسبة شخصية: ${translateLifeEvent(item.name || '')}`;
+            if (!demographics.includes(label)) demographics.push(label);
+          });
+        }
+        if (Array.isArray(targeting.relationship_statuses)) {
+          targeting.relationship_statuses.forEach((id: number) => {
+            const label = `الحالة الاجتماعية: ${RELATIONSHIP_STATUS_MAP[id] || `حالة اجتماعية (${id})`}`;
+            if (!demographics.includes(label)) demographics.push(label);
           });
         }
 
         if (targeting.exclusions) {
           if (Array.isArray(targeting.exclusions.interests)) {
-            targeting.exclusions.interests.forEach((i: any) => exclusions.push(`استبعاد: ${i.name}`));
+            targeting.exclusions.interests.forEach((i: any) => {
+              const cleanName = (i.name || '').replace(/\s*\((.*?)\)/g, ' - $1').trim();
+              exclusions.push(`استبعاد: ${cleanName}`);
+            });
           }
           if (Array.isArray(targeting.exclusions.behaviors)) {
-            targeting.exclusions.behaviors.forEach((b: any) => exclusions.push(`استبعاد: ${b.name}`));
+            targeting.exclusions.behaviors.forEach((b: any) => {
+              const cleanName = (b.name || '').replace(/\s*\((.*?)\)/g, ' - $1').trim();
+              exclusions.push(`استبعاد: ${cleanName}`);
+            });
           }
         }
 

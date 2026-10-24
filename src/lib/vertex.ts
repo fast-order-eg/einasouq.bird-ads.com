@@ -822,6 +822,11 @@ ${metaTargetingDict.behaviors.map((b: any) => `[${b.en}] (${b.ar})`).join(' | ')
 ${metaTargetingDict.interests.map((i: any) => `[${i.en}] (${i.ar})`).join(' | ')}
 `;
 
+    const demographicsSummary =
+      params.currentTargeting.demographics && params.currentTargeting.demographics.length > 0
+        ? params.currentTargeting.demographics.join(' | ')
+        : 'لا توجد بيانات ديموغرافية أو مناسبات محددة';
+
     const interestsSummary =
       params.currentTargeting.interests && params.currentTargeting.interests.length > 0
         ? params.currentTargeting.interests.join(' | ')
@@ -874,6 +879,7 @@ ${params.postText || 'لا يوجد نص مكتوب'}
 - النوع: ${params.currentTargeting.gender}
 - المناطق الجغرافية: ${params.currentTargeting.locations}
 - نوع الاستهداف: ${params.currentTargeting.targetingType} ${params.currentTargeting.isAdvantageAudience ? '(استهداف أدفانتج بلس Advantage+ مفعل)' : ''}
+- البيانات الديموغرافية والحالة الاجتماعية والمناسبات: ${demographicsSummary}
 - الاهتمامات الحالية: ${interestsSummary}
 - السلوكيات الحالية: ${behaviorsSummary}
 - الاستبعادات: ${exclusionsSummary}
@@ -882,7 +888,7 @@ ${params.postText || 'لا يوجد نص مكتوب'}
 🛑 قواعد صارمة لا يمكن مخالفتها:
 1. ❌ ممنوع منعاً باتاً دمج مصطلحات إنجليزية داخل النصوص العربية أو وضع ترجمات بين أقواس. الاستثناء الوحيد هو كتابة اسم الاهتمام أو السلوك الرسمي لفيسبوك داخل معقوفين مثل [Furniture].
 2. ⭐ تقييم الاستهداف الحالي مقارنة بالبوست:
-   - هل السن الحالي مناسب للمنتج المعروض وقدرته الشرائية؟ (مثلاً: سن 18-65 سنة لإعلان مدارس أو عقارات أو ملابس متخصصة واسع جداً ويهدر ميزانية).
+   - هل السن الحالي والمناطق الجغرافية والحالة الاجتماعية/الديموغرافية مناسبة لطبيعة المنتج أو الخدمة وقدرته الشرائية؟
    - هل استهداف أدفانتج بلس أو الاهتمامات الحالية تخدم البوست ولا بتستهدف جمهور عشوائي؟
    - هل المناطق المحددة منطقية لطبيعة العرض؟
 3. ⭐ التقييم الرقمي: يجب إعطاء درجة دقيقة وعادلة من 10 لمدى ملاءمة الاستهداف الحالي للبوست (مثلاً: 5/10 لو الاستهداف واسع أو غير موجه، 8.5/10 لو مظبوط، 3/10 لو غير متوافق تماماً).
