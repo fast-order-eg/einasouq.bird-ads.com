@@ -259,7 +259,8 @@ function extractResultsAndCpa(
   costPerActions: any[] = [],
   spend: number,
   clicks: number,
-  hasMessagingCta: boolean = false
+  hasMessagingCta: boolean = false,
+  channelInfo?: { isInstagram?: boolean; isWhatsapp?: boolean; isMessenger?: boolean }
 ) {
   const obj = (objectiveStr || '').toUpperCase();
 
@@ -304,7 +305,7 @@ function extractResultsAndCpa(
   let cpa = 0;
 
   if (isMessagingObjective) {
-    // 1. حملات الرسائل والواتساب
+    // 1. حملات الرسائل والواتساب وإنستغرام دايركت
     const msgCount = getActionValue([
       'onsite_conversion.messaging_conversation_started_7d',
       'onsite_conversion.total_messaging_connection',
@@ -317,8 +318,19 @@ function extractResultsAndCpa(
     ]);
 
     resultsCount = msgCount;
-    resultType = 'messages';
-    resultLabel = 'رسائل';
+    if (channelInfo?.isInstagram) {
+      resultType = 'instagram';
+      resultLabel = 'رسائل إنستغرام دايركت';
+    } else if (channelInfo?.isWhatsapp) {
+      resultType = 'whatsapp';
+      resultLabel = 'رسائل واتساب';
+    } else if (channelInfo?.isMessenger) {
+      resultType = 'messenger';
+      resultLabel = 'رسائل ماسنجر';
+    } else {
+      resultType = 'messages';
+      resultLabel = 'رسائل';
+    }
     cpa = metaCpa !== null ? metaCpa : (resultsCount > 0 ? Number((spend / resultsCount).toFixed(2)) : 0);
   } else if (isSalesObjective) {
     // 2. حملات مبيعات المتجر (Conversions / Pixel Purchases)
@@ -387,7 +399,7 @@ function extractResultsAndCpa(
 /**
  * دالة مساعدة لاستخراج رابط المنشور والمعاينة المباشر للإعلان وتحديد المنصة الأصلية بدقة
  */
-function extractAdUrls(cr: any = {}, campaignName: string = '') {
+function extractAdUrls(cr: any = {}, campaignName: string = '', adName: string = '') {
   let instagramUrl: string | null = null;
   let facebookUrl: string | null = null;
 
@@ -401,40 +413,44 @@ function extractAdUrls(cr: any = {}, campaignName: string = '') {
   if (fbStoryId) {
     const parts = String(fbStoryId).split('_');
     if (parts.length === 2) {
-      facebookUrl = `https://www.facebook.com/${parts[0]}/posts/${parts[1]}`;
+      facebookUrl = `https://www.facebook.com/posts/${parts[1]}`;
     } else {
       facebookUrl = `https://www.facebook.com/${fbStoryId}`;
     }
   }
 
   // 3. تحديد المنصة الأصلية الأساسية (Facebook vs Instagram)
-  // القواعد:
-  // - لو source_instagram_media_id موجود: يبقى الإعلان أُنشئ على إنستغرام وتم ترويجه منه مباشرة.
-  // - لو object_story_id موجود ومفيش source_instagram_media_id: يبقى ده منشور صفحة فيسبوك أصلي مؤكد.
-  // - لو اسم الحملة فيه "انستا": يبقى أولوية لإنستغرام لو رابط إنستا متوفر.
-  // - لو اسم الحملة فيه "فيس" أو منشور صفحة: يبقى أولوية لفيسبوك.
   const hasSourceInsta = Boolean(cr.source_instagram_media_id);
   const hasOriginalFbPost = Boolean(cr.object_story_id);
   const campNameLower = (campaignName || '').toLowerCase();
-  const isInstaNamed = campNameLower.includes('انستا') || campNameLower.includes('insta') || campNameLower.includes('instagram');
+  const adNameLower = (adName || '').toLowerCase();
+  const cta = (cr.call_to_action_type || cr.cta_type || '').toUpperCase();
+
+  const isInstaNamed =
+    campNameLower.includes('انستا') ||
+    campNameLower.includes('انستجرام') ||
+    campNameLower.includes('انستقرام') ||
+    campNameLower.includes('insta') ||
+    campNameLower.includes('instagram') ||
+    adNameLower.includes('انستا') ||
+    adNameLower.includes('انستجرام') ||
+    adNameLower.includes('انستقرام') ||
+    adNameLower.includes('insta') ||
+    adNameLower.includes('instagram');
+
+  const isInstaCta = cta === 'INSTAGRAM_MESSAGE' || cta.includes('INSTAGRAM');
   const isFbNamed = campNameLower.includes('فيس') || campNameLower.includes('فيسبوك') || campNameLower.includes('facebook') || campNameLower.includes('fb');
 
   let isInstagramPrimary = false;
 
-  if (hasSourceInsta) {
-    // منشور إنستغرام أصلي مؤكد
+  if (hasSourceInsta || isInstaCta || instagramUrl) {
     isInstagramPrimary = true;
-  } else if (hasOriginalFbPost) {
-    // منشور صفحة فيسبوك أصلي مؤكد
-    isInstagramPrimary = false;
-  } else if (isInstaNamed && instagramUrl) {
+  } else if (isInstaNamed) {
     isInstagramPrimary = true;
-  } else if (isFbNamed && facebookUrl) {
+  } else if (hasOriginalFbPost && !isFbNamed) {
     isInstagramPrimary = false;
   } else if (facebookUrl) {
     isInstagramPrimary = false;
-  } else if (instagramUrl) {
-    isInstagramPrimary = true;
   }
 
   const platform: 'INSTAGRAM' | 'FACEBOOK' = isInstagramPrimary ? 'INSTAGRAM' : 'FACEBOOK';
@@ -651,6 +667,36 @@ async function handleRequest(
       const leadAction = actions.find((a) => a.action_type === 'lead' || a.action_type === 'onsite_conversion.lead');
       const leads = parseInt(leadAction?.value || '0', 10);
 
+      const rawAdsets = camp.adsets?.data || [];
+      const primaryDest = (rawAdsets[0]?.destination_type || '').toUpperCase();
+      const campNameLower = (camp.name || '').toLowerCase();
+
+      const isInstaCamp =
+        primaryDest.includes('INSTAGRAM') ||
+        campNameLower.includes('انستا') ||
+        campNameLower.includes('انستجرام') ||
+        campNameLower.includes('انستقرام') ||
+        campNameLower.includes('instagram') ||
+        campNameLower.includes('insta') ||
+        rawAds.some((ad: any) => {
+          const cta = (ad.creative?.call_to_action_type || '').toUpperCase();
+          const cr = ad.creative || {};
+          return cta === 'INSTAGRAM_MESSAGE' || cta.includes('INSTAGRAM') || Boolean(cr.instagram_permalink_url);
+        });
+
+      const isWhatsappCamp =
+        primaryDest.includes('WHATSAPP') ||
+        campNameLower.includes('واتس') ||
+        campNameLower.includes('whatsapp') ||
+        rawAds.some((ad: any) => (ad.creative?.call_to_action_type || '').toUpperCase() === 'WHATSAPP_MESSAGE');
+
+      const isMessengerCamp =
+        primaryDest.includes('MESSENGER') ||
+        campNameLower.includes('ماسنجر') ||
+        campNameLower.includes('messenger');
+
+      const campChannelInfo = { isInstagram: isInstaCamp, isWhatsapp: isWhatsappCamp, isMessenger: isMessengerCamp };
+
       // Determine Results & CPA according to objective
       const { resultsCount, resultType, resultLabel, cpa } = extractResultsAndCpa(
         camp.objective,
@@ -658,7 +704,8 @@ async function handleRequest(
         costPerActions,
         spend,
         clicks,
-        hasMessagingCta
+        hasMessagingCta,
+        campChannelInfo
       );
 
       // Conversion Rate (Results ÷ Clicks)
@@ -684,7 +731,6 @@ async function handleRequest(
 
       // Determine Stop Time from Campaign or Adsets
       let resolvedStopTime = camp.stop_time || null;
-      const rawAdsets = camp.adsets?.data || [];
       if (!resolvedStopTime && rawAdsets.length > 0) {
         for (const aset of rawAdsets) {
           if (aset.end_time) {
@@ -710,10 +756,11 @@ async function handleRequest(
           adCostPerActions,
           adSpend,
           adClicks,
-          hasMessagingCta
+          hasMessagingCta,
+          campChannelInfo
         );
 
-        const urls = extractAdUrls(cr, camp.name);
+        const urls = extractAdUrls(cr, camp.name, ad.name);
 
         return {
           id: ad.id,
@@ -768,7 +815,8 @@ async function handleRequest(
           aCostPerActions,
           aSpend,
           aClicks,
-          hasMessagingCta
+          hasMessagingCta,
+          campChannelInfo
         );
 
         const adsetAds = ads.filter((a: any) => a.adset_id === aset.id);
@@ -797,8 +845,8 @@ async function handleRequest(
 
       // Primary / Active ad resolution
       const activeAd = ads.find((a: any) => a.effective_status === 'ACTIVE') || ads[0] || null;
-      const primaryUrls = activeAd ? extractAdUrls(rawAds.find((r: any) => r.id === activeAd.id)?.creative, camp.name) : null;
-      const isInstagram = primaryUrls?.platform === 'INSTAGRAM' || Boolean(primaryUrls?.instagram_url);
+      const primaryUrls = activeAd ? extractAdUrls(rawAds.find((r: any) => r.id === activeAd.id)?.creative, camp.name, activeAd.name) : null;
+      const isInstagram = isInstaCamp || primaryUrls?.platform === 'INSTAGRAM' || Boolean(primaryUrls?.instagram_url);
 
       let statusLabel = 'غير معروف';
       if (camp.status === 'ACTIVE' && camp.effective_status === 'ACTIVE') {
