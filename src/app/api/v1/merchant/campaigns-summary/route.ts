@@ -498,8 +498,8 @@ async function handleRequest(
     'start_time',
     'stop_time',
     insightsSubquery,
-    `adsets{id,name,status,effective_status,daily_budget,lifetime_budget,start_time,end_time,targeting,${insightsSubquery}}`,
-    `ads{id,name,status,effective_status,adset_id,creative{id,name,title,body,image_url,thumbnail_url,video_id,link_url,call_to_action_type,object_story_id,source_instagram_media_id,effective_object_story_id,instagram_permalink_url},${insightsSubquery}}`,
+    `adsets{id,name,status,effective_status,daily_budget,lifetime_budget,start_time,end_time,destination_type,optimization_goal,targeting,${insightsSubquery}}`,
+    `ads{id,name,status,effective_status,adset_id,creative{id,name,title,body,image_url,thumbnail_url,video_id,link_url,call_to_action_type,object_story_id,source_instagram_media_id,effective_object_story_id,instagram_permalink_url,asset_feed_spec},${insightsSubquery}}`,
   ].join(',');
 
   try {
@@ -778,6 +778,9 @@ async function handleRequest(
           name: aset.name,
           status: aset.status,
           effective_status: aset.effective_status,
+          destination_type: aset.destination_type || null,
+          optimization_goal: aset.optimization_goal || null,
+          targeting: aset.targeting || null,
           start_time: aset.start_time || null,
           stop_time: aset.end_time || null,
           daily_budget: aset.daily_budget ? parseFloat(aset.daily_budget) / 100 : null,
@@ -826,6 +829,9 @@ async function handleRequest(
         status_label: statusLabel,
         is_active: isActive,
         objective: camp.objective || 'OUTCOME_TRAFFIC',
+        destination_type: rawAdsets[0]?.destination_type || null,
+        optimization_goal: rawAdsets[0]?.optimization_goal || null,
+        publisher_platforms: rawAdsets[0]?.targeting?.publisher_platforms || null,
         start_time: camp.start_time || null,
         stop_time: resolvedStopTime,
         budget: dailyBudgetNum > 0 ? dailyBudgetNum : lifetimeBudgetNum,
@@ -860,6 +866,7 @@ async function handleRequest(
           instagram_permalink_url: primaryUrls?.instagram_url || null,
           preview_url: primaryUrls?.preview_url || null,
           image_url: activeAd.creative?.image_url || null,
+          cta_type: activeAd.creative?.cta_type || null,
         } : null,
         adsets: adsets,
         ads: ads,
