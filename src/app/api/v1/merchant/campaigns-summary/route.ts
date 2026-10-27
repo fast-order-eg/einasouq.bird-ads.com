@@ -61,8 +61,37 @@ function normalizeStatusFilter(filter?: string): string {
   const f = filter.trim().toUpperCase();
   if (['ACTIVE', 'نشطة', 'نشط', 'شغالة', 'شغال'].includes(f)) return 'ACTIVE';
   if (['PAUSED', 'متوقفة', 'متوقف', 'موقوفة'].includes(f)) return 'PAUSED';
-  if (['ALL', 'الكل', 'جميع', 'كافة'].includes(f)) return 'ALL';
+  if (['ALL', 'الكل', 'جميع', 'كافة', 'كل', 'المكتملة', 'المكتمله', 'المنتهية', 'المنتهيه', 'المرفوضة', 'المرفوضه', 'COMPLETED'].includes(f)) return 'ALL';
   return f;
+}
+
+/**
+ * استخراج سبب الرفض البشري من كائن ad_review_feedback
+ */
+function extractDisapprovalReason(feedback: any): string | null {
+  if (!feedback) return null;
+  if (feedback.global && typeof feedback.global === 'object') {
+    const keys = Object.keys(feedback.global);
+    if (keys.length > 0) return keys[0];
+  }
+  if (feedback.placement_specific && typeof feedback.placement_specific === 'object') {
+    for (const p of Object.values(feedback.placement_specific)) {
+      if (p && typeof p === 'object') {
+        const k = Object.keys(p);
+        if (k.length > 0) return k[0];
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * استخراج ملخص المشاكل أو الأخطاء من issues_info
+ */
+function extractIssueSummary(issues: any[]): string | null {
+  if (!Array.isArray(issues) || issues.length === 0) return null;
+  const first = issues[0];
+  return first?.error_summary || first?.error_message || null;
 }
 
 /**
@@ -157,7 +186,12 @@ async function fetchCampaignIdsForAccount(
     let url = `https://graph.facebook.com/v21.0/${formattedAccId}/campaigns?fields=id,name,status,effective_status,objective,updated_time,start_time,created_time&limit=100&access_token=${token}`;
 
     if (cleanStatus === 'ALL') {
-      // Do not filter by status
+      // لا يتم تطبيق أي فلتر لجلب جميع الحملات بما فيها المتوقفة والمكتملة
+    } else if (cleanStatus === 'ACTIVE') {
+      // جلب الحملات النشطة وقيد المراجعة وفي مرحلة التحضير والتي بها مشاكل أو تم رفضها
+      url += `&effective_status=['ACTIVE','PENDING_REVIEW','IN_PROCESS','WITH_ISSUES','DISAPPROVED']`;
+    } else if (cleanStatus === 'PAUSED') {
+      url += `&effective_status=['PAUSED','CAMPAIGN_PAUSED','ADSET_PAUSED']`;
     } else {
       url += `&effective_status=['${cleanStatus}']`;
     }
@@ -515,7 +549,7 @@ async function handleRequest(
     'stop_time',
     insightsSubquery,
     `adsets{id,name,status,effective_status,daily_budget,lifetime_budget,start_time,end_time,destination_type,optimization_goal,targeting,${insightsSubquery}}`,
-    `ads{id,name,status,effective_status,adset_id,creative{id,name,title,body,image_url,thumbnail_url,video_id,link_url,call_to_action_type,object_story_id,source_instagram_media_id,effective_object_story_id,instagram_permalink_url,asset_feed_spec},${insightsSubquery}}`,
+    `ads{id,name,status,effective_status,adset_id,ad_review_feedback,issues_info,creative{id,name,title,body,image_url,thumbnail_url,video_id,link_url,call_to_action_type,object_story_id,source_instagram_media_id,effective_object_story_id,instagram_permalink_url,asset_feed_spec},${insightsSubquery}}`,
   ].join(',');
 
   try {
@@ -761,6 +795,8 @@ async function handleRequest(
         );
 
         const urls = extractAdUrls(cr, camp.name, ad.name);
+        const adDisapproval = extractDisapprovalReason(ad.ad_review_feedback);
+        const adIssue = extractIssueSummary(ad.issues_info);
 
         return {
           id: ad.id,
@@ -768,6 +804,8 @@ async function handleRequest(
           adset_id: ad.adset_id,
           status: ad.status,
           effective_status: ad.effective_status,
+          disapproval_reason: adDisapproval || null,
+          issue_summary: adIssue || null,
           spend: Number(adSpend.toFixed(2)),
           clicks: adClicks,
           ctr: Number(adCtr.toFixed(2)),
@@ -844,26 +882,51 @@ async function handleRequest(
       });
 
       // Primary / Active ad resolution
-      const activeAd = ads.find((a: any) => a.effective_status === 'ACTIVE') || ads[0] || null;
+      const disapprovedAd = ads.find((a: any) => a.effective_status === 'DISAPPROVED' || a.status === 'DISAPPROVED');
+      const withIssuesAd = ads.find((a: any) => a.effective_status === 'WITH_ISSUES');
+      const pendingReviewAd = ads.find((a: any) => a.effective_status === 'PENDING_REVIEW');
+      const inProcessAd = ads.find((a: any) => a.effective_status === 'IN_PROCESS');
+      const activeAd = ads.find((a: any) => a.effective_status === 'ACTIVE') || disapprovedAd || withIssuesAd || pendingReviewAd || inProcessAd || ads[0] || null;
+
       const primaryUrls = activeAd ? extractAdUrls(rawAds.find((r: any) => r.id === activeAd.id)?.creative, camp.name, activeAd.name) : null;
       const isInstagram = isInstaCamp || primaryUrls?.platform === 'INSTAGRAM' || Boolean(primaryUrls?.instagram_url);
 
+      // Check if ended / completed
+      const stopMs = resolvedStopTime ? new Date(resolvedStopTime).getTime() : NaN;
+      const isCompleted = !isNaN(stopMs) && stopMs <= Date.now();
+
+      const disapprovalReason = disapprovedAd?.disapproval_reason || activeAd?.disapproval_reason || null;
+      const issueSummary = withIssuesAd?.issue_summary || activeAd?.issue_summary || null;
+
       let statusLabel = 'غير معروف';
-      if (camp.status === 'ACTIVE' && camp.effective_status === 'ACTIVE') {
-        if (activeAd && (activeAd.effective_status === 'DISAPPROVED' || activeAd.status === 'DISAPPROVED')) {
-          statusLabel = '❌ إعلان مرفوض';
-        } else if (activeAd && activeAd.effective_status === 'WITH_ISSUES') {
-          statusLabel = '⚠️ إعلان به مشاكل';
-        } else {
-          statusLabel = '🟢 نشطة';
-        }
-      } else if (camp.status === 'PAUSED' || camp.effective_status === 'PAUSED') {
-        statusLabel = '⏸️ متوقفة';
+      if (camp.status === 'DELETED' || camp.effective_status === 'DELETED') {
+        statusLabel = '🗑️ محذوفة';
       } else if (camp.status === 'ARCHIVED' || camp.effective_status === 'ARCHIVED') {
         statusLabel = '📁 مؤرشفة';
+      } else if (isCompleted) {
+        statusLabel = '🏁 مكتملة (انتهت فترتها)';
+      } else if (camp.effective_status === 'DISAPPROVED' || Boolean(disapprovedAd)) {
+        statusLabel = disapprovalReason ? `❌ إعلان مرفوض (${disapprovalReason})` : '❌ إعلان مرفوض';
+      } else if (camp.effective_status === 'WITH_ISSUES' || Boolean(withIssuesAd)) {
+        statusLabel = issueSummary ? `⚠️ به مشاكل (${issueSummary})` : '⚠️ إعلان به مشاكل';
+      } else if (camp.effective_status === 'PENDING_REVIEW' || Boolean(pendingReviewAd)) {
+        statusLabel = '⏳ قيد المراجعة';
+      } else if (camp.effective_status === 'IN_PROCESS' || Boolean(inProcessAd)) {
+        statusLabel = '⚙️ في مرحلة التحضير';
+      } else if (camp.status === 'PAUSED' || camp.effective_status === 'PAUSED' || camp.effective_status === 'CAMPAIGN_PAUSED') {
+        statusLabel = '⏸️ متوقفة';
+      } else if (camp.status === 'ACTIVE' && camp.effective_status === 'ACTIVE') {
+        statusLabel = '🟢 نشطة';
       } else {
-        statusLabel = camp.effective_status || camp.status || 'غير نشطة';
+        const eff = camp.effective_status || camp.status || '';
+        if (eff === 'CAMPAIGN_PAUSED' || eff === 'ADSET_PAUSED') statusLabel = '⏸️ متوقفة';
+        else if (eff === 'PREAPPROVED') statusLabel = '✅ تمت الموافقة المسبقة';
+        else if (eff === 'PENDING_BILLING_INFO') statusLabel = '💳 بانتظار بيانات الدفع';
+        else statusLabel = eff || 'غير نشطة';
       }
+
+      const isUnderReviewOrPrep = ['PENDING_REVIEW', 'IN_PROCESS'].includes(camp.effective_status) || Boolean(pendingReviewAd) || Boolean(inProcessAd);
+      const isActuallyActive = !isCompleted && (camp.status === 'ACTIVE' && (camp.effective_status === 'ACTIVE' || isUnderReviewOrPrep));
 
       return {
         id: camp.id,
@@ -875,7 +938,10 @@ async function handleRequest(
         status: camp.status,
         effective_status: camp.effective_status,
         status_label: statusLabel,
-        is_active: isActive,
+        is_active: isActuallyActive,
+        is_completed: isCompleted,
+        disapproval_reason: disapprovalReason || null,
+        issue_summary: issueSummary || null,
         objective: camp.objective || 'OUTCOME_TRAFFIC',
         destination_type: rawAdsets[0]?.destination_type || null,
         optimization_goal: rawAdsets[0]?.optimization_goal || null,
@@ -907,6 +973,8 @@ async function handleRequest(
           name: activeAd.name,
           status: activeAd.status,
           effective_status: activeAd.effective_status,
+          disapproval_reason: disapprovalReason || null,
+          issue_summary: issueSummary || null,
           post_url: primaryUrls?.post_url || null,
           post_url_label: primaryUrls?.post_url_label || null,
           platform: primaryUrls?.platform || null,
