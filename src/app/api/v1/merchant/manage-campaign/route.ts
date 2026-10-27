@@ -15,6 +15,65 @@ function validateApiKey(req: Request): boolean {
   return false;
 }
 
+// خريطة مفاتيح المحافظات المصرية الرسمية في Meta Graph API
+const EGYPT_GOVERNORATES_MAP: Record<string, { key: string; name: string }> = {
+  'القاهرة': { key: '1001', name: 'محافظة القاهرة' },
+  'الجيزة': { key: '998', name: 'محافظة الجيزة' },
+  'الاسكندرية': { key: '996', name: 'محافظة الإسكندرية' },
+  'الإسكندرية': { key: '996', name: 'محافظة الإسكندرية' },
+  'القليوبية': { key: '1002', name: 'محافظة القليوبية' },
+  'الشرقية': { key: '1004', name: 'محافظة الشرقية' },
+  'الدقهلية': { key: '991', name: 'محافظة الدقهلية' },
+  'الغربية': { key: '995', name: 'محافظة الغربية' },
+  'المنوفية': { key: '999', name: 'محافظة المنوفية' },
+  'البحيرة': { key: '993', name: 'محافظة البحيرة' },
+  'كفر الشيخ': { key: '1011', name: 'محافظة كفر الشيخ' },
+  'دمياط': { key: '1010', name: 'محافظة دمياط' },
+  'بورسعيد': { key: '1009', name: 'محافظة بورسعيد' },
+  'الاسماعيلية': { key: '997', name: 'محافظة الإسماعيلية' },
+  'الإسماعيلية': { key: '997', name: 'محافظة الإسماعيلية' },
+  'السويس': { key: '1005', name: 'محافظة السويس' },
+  'الفيوم': { key: '994', name: 'محافظة الفيوم' },
+  'بني سويف': { key: '1008', name: 'محافظة بني سويف' },
+  'المنيا': { key: '1000', name: 'محافظة المنيا' },
+  'اسيوط': { key: '1007', name: 'محافظة أسيوط' },
+  'أسيوط': { key: '1007', name: 'محافظة أسيوط' },
+  'سوهاج': { key: '1014', name: 'محافظة سوهاج' },
+  'قنا': { key: '1013', name: 'محافظة قنا' },
+  'الاقصر': { key: '4194', name: 'محافظة الأقصر' },
+  'الأقصر': { key: '4194', name: 'محافظة الأقصر' },
+  'اسوان': { key: '1006', name: 'محافظة أسوان' },
+  'أسوان': { key: '1006', name: 'محافظة أسوان' },
+  'البحر الاحمر': { key: '992', name: 'محافظة البحر الأحمر' },
+  'البحر الأحمر': { key: '992', name: 'محافظة البحر الأحمر' },
+  'مطروح': { key: '1012', name: 'محافظة مطروح' },
+  'الوادي الجديد': { key: '1003', name: 'محافظة الوادي الجديد' },
+  'شمال سيناء': { key: '1016', name: 'محافظة شمال سيناء' },
+  'جنوب سيناء': { key: '1015', name: 'محافظة جنوب سيناء' }
+};
+
+/**
+ * البحث عن اهتمام في Meta Graph API بالاسم وإرجاع معرفه
+ */
+async function resolveInterest(name: string, token: string): Promise<{ id: string; name: string } | null> {
+  try {
+    const url = new URL('https://graph.facebook.com/v21.0/search');
+    url.searchParams.set('type', 'adinterest');
+    url.searchParams.set('q', name.trim());
+    url.searchParams.set('limit', '1');
+    url.searchParams.set('access_token', token);
+
+    const res = await fetch(url.toString());
+    const data = await res.json();
+    if (data.data && data.data.length > 0) {
+      return { id: data.data[0].id, name: data.data[0].name };
+    }
+  } catch (err) {
+    console.error(`[resolveInterest] Error resolving "${name}":`, err);
+  }
+  return null;
+}
+
 export async function POST(req: Request) {
   if (!validateApiKey(req)) {
     return NextResponse.json({ success: false, error: 'غير مصرح: مفتاح API غير صحيح أو مفقود' }, { status: 401 });
@@ -36,7 +95,7 @@ export async function POST(req: Request) {
     const cleanId = String(target_id).trim();
 
     // 1. فحص طبيعة الكائن (حملة أم مجموعة إعلانية أم إعلان)
-    const probeUrl = `https://graph.facebook.com/v21.0/${cleanId}?fields=id,name,status,daily_budget,lifetime_budget,stop_time,adsets{id,name,daily_budget,lifetime_budget,end_time,targeting}&access_token=${token}`;
+    const probeUrl = `https://graph.facebook.com/v21.0/${cleanId}?fields=id,name,status,daily_budget,lifetime_budget,stop_time,adsets{id,name,daily_budget,lifetime_budget,end_time,targeting},ads{id,name,creative{id,name,object_story_id}}&access_token=${token}`;
     const probeRes = await fetch(probeUrl);
     const probeData = await probeRes.json();
 
@@ -50,6 +109,7 @@ export async function POST(req: Request) {
 
     const isCampaign = Boolean(probeData.adsets !== undefined || probeData.stop_time !== undefined);
     const adsets = probeData.adsets?.data || [];
+    const ads = probeData.ads?.data || [];
 
     // ----------------------------------------------------
     // Action 1: UPDATE_STATUS (إيقاف أو تشغيل)
@@ -211,12 +271,11 @@ export async function POST(req: Request) {
     }
 
     // ----------------------------------------------------
-    // Action 4: UPDATE_TARGETING (تعديل الاستهداف: سن، نوع، مناطق، اهتمامات)
+    // Action 4: UPDATE_TARGETING (تعديل الاستهداف: سن، نوع، مناطق، اهتمامات، مواضع)
     // ----------------------------------------------------
     if (action === 'UPDATE_TARGETING' || action === 'TARGETING') {
       const targetingUpdate = body.targeting || {};
 
-      // يجب استخراج AdSet لتحديث استهدافه
       let targetAdsetId = cleanId;
       let existingTargeting = probeData.targeting || {};
 
@@ -228,16 +287,14 @@ export async function POST(req: Request) {
         existingTargeting = adsets[0].targeting || {};
       }
 
-      // دمج وتحديث خيارات الاستهداف
       const updatedTargeting = { ...existingTargeting };
 
-      // 1. السن
+      // 1. الفئة العمرية (Age)
       const isAdvantageAudience = existingTargeting.targeting_automation?.advantage_audience === 1;
       let minAge = targetingUpdate.age_min ? parseInt(targetingUpdate.age_min, 10) : (updatedTargeting.age_min || 18);
       let maxAge = targetingUpdate.age_max ? parseInt(targetingUpdate.age_max, 10) : (updatedTargeting.age_max || 65);
 
       if (isAdvantageAudience) {
-        // في Advantage+ Audience ميتا تعتمد age_range كاقتراح عمر وتفرض age_max = 65 كحد أقصى للتحكم
         updatedTargeting.age_range = [minAge, maxAge];
         updatedTargeting.age_max = 65;
         if (targetingUpdate.age_min) updatedTargeting.age_min = minAge;
@@ -247,7 +304,7 @@ export async function POST(req: Request) {
         delete updatedTargeting.age_range;
       }
 
-      // 2. النوع (1 = رجال، 2 = نساء، فارغ/مدمج = الجميع)
+      // 2. الجنس (Gender)
       if (targetingUpdate.genders !== undefined) {
         if (Array.isArray(targetingUpdate.genders) && targetingUpdate.genders.length > 0) {
           updatedTargeting.genders = targetingUpdate.genders;
@@ -256,24 +313,69 @@ export async function POST(req: Request) {
         } else if (targetingUpdate.gender === 'WOMEN' || targetingUpdate.gender === 'نساء') {
           updatedTargeting.genders = [2];
         } else {
-          delete updatedTargeting.genders; // الجميع
+          delete updatedTargeting.genders;
+        }
+      } else if (targetingUpdate.gender) {
+        const g = String(targetingUpdate.gender).toUpperCase();
+        if (g === 'MEN' || g === 'رجال') {
+          updatedTargeting.genders = [1];
+        } else if (g === 'WOMEN' || g === 'نساء') {
+          updatedTargeting.genders = [2];
+        } else {
+          delete updatedTargeting.genders;
         }
       }
 
-      // 3. المناطق الجغرافية (Geo Locations)
-      if (targetingUpdate.geo_locations) {
+      // 3. المناطق الجغرافية (Geo Locations & Regions)
+      const rawRegions = targetingUpdate.regions || targetingUpdate.governorates || targetingUpdate.locations;
+      if (rawRegions) {
+        const regionList: string[] = Array.isArray(rawRegions)
+          ? rawRegions
+          : String(rawRegions).split(/[,،]/).map(s => s.trim()).filter(Boolean);
+
+        const mappedRegions: { key: string }[] = [];
+        let isEntireEgypt = false;
+
+        for (const reg of regionList) {
+          const cleanName = reg.trim();
+          if (cleanName === 'مصر' || cleanName === 'كل مصر' || cleanName === 'EG') {
+            isEntireEgypt = true;
+            break;
+          }
+          const matched = EGYPT_GOVERNORATES_MAP[cleanName];
+          if (matched) {
+            mappedRegions.push({ key: matched.key });
+          }
+        }
+
+        if (isEntireEgypt || mappedRegions.length === 0 && (targetingUpdate.country === 'EG' || targetingUpdate.country === 'مصر')) {
+          updatedTargeting.geo_locations = { countries: ['EG'] };
+        } else if (mappedRegions.length > 0) {
+          updatedTargeting.geo_locations = {
+            countries: ['EG'],
+            regions: mappedRegions
+          };
+        }
+      } else if (targetingUpdate.geo_locations) {
         updatedTargeting.geo_locations = targetingUpdate.geo_locations;
       } else if (targetingUpdate.countries) {
         updatedTargeting.geo_locations = { countries: targetingUpdate.countries };
-      } else if (targetingUpdate.country === 'EG' || targetingUpdate.country === 'مصر') {
-        updatedTargeting.geo_locations = { countries: ['EG'] };
       }
 
-      // 4. الاهتمامات (Interests / Flexible Spec)
+      // 4. الاهتمامات (Interests)
       if (Array.isArray(targetingUpdate.interests) && targetingUpdate.interests.length > 0) {
-        updatedTargeting.flexible_spec = [
-          { interests: targetingUpdate.interests }
-        ];
+        const resolvedList: { id: string; name: string }[] = [];
+        for (const item of targetingUpdate.interests) {
+          if (typeof item === 'object' && item.id) {
+            resolvedList.push(item);
+          } else if (typeof item === 'string') {
+            const found = await resolveInterest(item, token);
+            if (found) resolvedList.push(found);
+          }
+        }
+        if (resolvedList.length > 0) {
+          updatedTargeting.flexible_spec = [{ interests: resolvedList }];
+        }
       }
 
       // 5. مواضع الظهور (Placements)
@@ -287,7 +389,7 @@ export async function POST(req: Request) {
         updatedTargeting.facebook_positions = targetingUpdate.facebook_positions;
       }
 
-      // إرسال الاستهداف المحدث لميتا
+      // إرسال التحديث لـ Meta
       const updateRes = await fetch(`https://graph.facebook.com/v21.0/${targetAdsetId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -349,9 +451,100 @@ export async function POST(req: Request) {
       });
     }
 
+    // ----------------------------------------------------
+    // Action 6: DUPLICATE (تكرار / نسخ الحملة)
+    // ----------------------------------------------------
+    if (action === 'DUPLICATE' || action === 'COPY') {
+      const renamePrefix = body.rename_prefix || 'نسخة - ';
+      const statusOption = body.status_option || 'PAUSED';
+
+      const copyRes = await fetch(`https://graph.facebook.com/v21.0/${cleanId}/copies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          access_token: token,
+          deep_copy: body.deep_copy !== false,
+          status_option: statusOption,
+          rename_options: {
+            rename_strategy: 'ONLY_TOP_LEVEL_RENAME',
+            rename_prefix: renamePrefix
+          }
+        })
+      });
+      const copyData = await copyRes.json();
+
+      if (copyData.error) {
+        return NextResponse.json({
+          success: false,
+          error: copyData.error.message,
+          meta_error: copyData.error
+        }, { status: 400 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        original_id: cleanId,
+        copied_id: copyData.copied_campaign_id || copyData.id,
+        message: `تم عمل نسخة (Duplicate) من الحملة بنجاح 📋`
+      });
+    }
+
+    // ----------------------------------------------------
+    // Action 7: UPDATE_CREATIVE (تغيير بوست أو كرييتف الإعلان)
+    // ----------------------------------------------------
+    if (action === 'UPDATE_CREATIVE' || action === 'UPDATE_POST') {
+      const targetAdId = body.ad_id || (ads.length > 0 ? ads[0].id : cleanId);
+      const { creative_id, object_story_id } = body;
+
+      if (!creative_id && !object_story_id) {
+        return NextResponse.json({ success: false, error: 'يرجى تحديد creative_id أو object_story_id (معرف المنشور)' }, { status: 400 });
+      }
+
+      let creativePayload: any = {};
+      if (creative_id) {
+        creativePayload = { creative_id };
+      } else if (object_story_id) {
+        // إنشاء كرييتف جديد مرتبط بالبوست المحدد
+        const accountId = probeData.account_id || cleanId;
+        const creativeCreateRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountId}/adcreatives`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            object_story_id,
+            access_token: token
+          })
+        });
+        const createdCreative = await creativeCreateRes.json();
+        if (createdCreative.error) {
+          return NextResponse.json({ success: false, error: createdCreative.error.message, meta_error: createdCreative.error }, { status: 400 });
+        }
+        creativePayload = { creative_id: createdCreative.id };
+      }
+
+      const updateAdRes = await fetch(`https://graph.facebook.com/v21.0/${targetAdId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          creative: creativePayload,
+          access_token: token
+        })
+      });
+      const updateAdData = await updateAdRes.json();
+
+      if (updateAdData.error) {
+        return NextResponse.json({ success: false, error: updateAdData.error.message, meta_error: updateAdData.error }, { status: 400 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        ad_id: targetAdId,
+        message: `تم تغيير البوست / الكرييتف للإعلان بنجاح 🖼️`
+      });
+    }
+
     return NextResponse.json({
       success: false,
-      error: `الإجراء "${action}" غير مدعوم. الإجراءات المتاحة: UPDATE_STATUS, UPDATE_BUDGET, UPDATE_STOP_TIME, UPDATE_TARGETING, RENAME`
+      error: `الإجراء "${action}" غير مدعوم. الإجراءات المتاحة: UPDATE_STATUS, UPDATE_BUDGET, UPDATE_STOP_TIME, UPDATE_TARGETING, RENAME, DUPLICATE, UPDATE_CREATIVE`
     }, { status: 400 });
 
   } catch (err: any) {
