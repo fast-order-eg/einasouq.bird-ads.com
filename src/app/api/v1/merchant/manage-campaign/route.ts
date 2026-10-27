@@ -232,13 +232,19 @@ export async function POST(req: Request) {
       const updatedTargeting = { ...existingTargeting };
 
       // 1. السن
-      if (targetingUpdate.age_min) {
-        const min = parseInt(targetingUpdate.age_min, 10);
-        if (min >= 18 && min <= 65) updatedTargeting.age_min = min;
-      }
-      if (targetingUpdate.age_max) {
-        const max = parseInt(targetingUpdate.age_max, 10);
-        if (max >= 18 && max <= 65) updatedTargeting.age_max = max;
+      const isAdvantageAudience = existingTargeting.targeting_automation?.advantage_audience === 1;
+      let minAge = targetingUpdate.age_min ? parseInt(targetingUpdate.age_min, 10) : (updatedTargeting.age_min || 18);
+      let maxAge = targetingUpdate.age_max ? parseInt(targetingUpdate.age_max, 10) : (updatedTargeting.age_max || 65);
+
+      if (isAdvantageAudience) {
+        // في Advantage+ Audience ميتا تعتمد age_range كاقتراح عمر وتفرض age_max = 65 كحد أقصى للتحكم
+        updatedTargeting.age_range = [minAge, maxAge];
+        updatedTargeting.age_max = 65;
+        if (targetingUpdate.age_min) updatedTargeting.age_min = minAge;
+      } else {
+        if (targetingUpdate.age_min) updatedTargeting.age_min = minAge;
+        if (targetingUpdate.age_max) updatedTargeting.age_max = maxAge;
+        delete updatedTargeting.age_range;
       }
 
       // 2. النوع (1 = رجال، 2 = نساء، فارغ/مدمج = الجميع)
