@@ -352,12 +352,12 @@ function extractResultsAndCpa(
     ]);
 
     resultsCount = msgCount;
-    if (channelInfo?.isInstagram) {
-      resultType = 'instagram';
-      resultLabel = 'رسائل إنستغرام دايركت';
-    } else if (channelInfo?.isWhatsapp) {
+    if (channelInfo?.isWhatsapp) {
       resultType = 'whatsapp';
       resultLabel = 'رسائل واتساب';
+    } else if (channelInfo?.isInstagram) {
+      resultType = 'instagram';
+      resultLabel = 'رسائل إنستغرام دايركت';
     } else if (channelInfo?.isMessenger) {
       resultType = 'messenger';
       resultLabel = 'رسائل ماسنجر';
@@ -477,14 +477,12 @@ function extractAdUrls(cr: any = {}, campaignName: string = '', adName: string =
 
   let isInstagramPrimary = false;
 
-  if (hasSourceInsta || isInstaCta || instagramUrl) {
+  if (isInstaNamed || isInstaCta || (hasSourceInsta && !facebookUrl)) {
     isInstagramPrimary = true;
-  } else if (isInstaNamed) {
-    isInstagramPrimary = true;
-  } else if (hasOriginalFbPost && !isFbNamed) {
-    isInstagramPrimary = false;
   } else if (facebookUrl) {
     isInstagramPrimary = false;
+  } else if (instagramUrl) {
+    isInstagramPrimary = true;
   }
 
   const platform: 'INSTAGRAM' | 'FACEBOOK' = isInstagramPrimary ? 'INSTAGRAM' : 'FACEBOOK';
@@ -705,19 +703,6 @@ async function handleRequest(
       const primaryDest = (rawAdsets[0]?.destination_type || '').toUpperCase();
       const campNameLower = (camp.name || '').toLowerCase();
 
-      const isInstaCamp =
-        primaryDest.includes('INSTAGRAM') ||
-        campNameLower.includes('انستا') ||
-        campNameLower.includes('انستجرام') ||
-        campNameLower.includes('انستقرام') ||
-        campNameLower.includes('instagram') ||
-        campNameLower.includes('insta') ||
-        rawAds.some((ad: any) => {
-          const cta = (ad.creative?.call_to_action_type || '').toUpperCase();
-          const cr = ad.creative || {};
-          return cta === 'INSTAGRAM_MESSAGE' || cta.includes('INSTAGRAM') || Boolean(cr.instagram_permalink_url);
-        });
-
       const isWhatsappCamp =
         primaryDest.includes('WHATSAPP') ||
         campNameLower.includes('واتس') ||
@@ -727,7 +712,22 @@ async function handleRequest(
       const isMessengerCamp =
         primaryDest.includes('MESSENGER') ||
         campNameLower.includes('ماسنجر') ||
-        campNameLower.includes('messenger');
+        campNameLower.includes('messenger') ||
+        rawAds.some((ad: any) => (ad.creative?.call_to_action_type || '').toUpperCase() === 'MESSAGE_PAGE');
+
+      const isInstaCamp =
+        !isWhatsappCamp && !isMessengerCamp && (
+          primaryDest.includes('INSTAGRAM') ||
+          campNameLower.includes('انستا') ||
+          campNameLower.includes('انستجرام') ||
+          campNameLower.includes('انستقرام') ||
+          campNameLower.includes('instagram') ||
+          campNameLower.includes('insta') ||
+          rawAds.some((ad: any) => {
+            const cta = (ad.creative?.call_to_action_type || '').toUpperCase();
+            return cta === 'INSTAGRAM_MESSAGE';
+          })
+        );
 
       const campChannelInfo = { isInstagram: isInstaCamp, isWhatsapp: isWhatsappCamp, isMessenger: isMessengerCamp };
 
