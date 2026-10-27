@@ -74,6 +74,21 @@ async function resolveInterest(name: string, token: string): Promise<{ id: strin
   return null;
 }
 
+/**
+ * استخراج صياغة الخطأ الواضحة والمترجمة من رد Meta Graph API
+ */
+function formatMetaError(metaErr: any): string {
+  if (!metaErr) return 'حدث خطأ غير معروف في Meta API';
+  if (metaErr.error_user_msg) {
+    const title = metaErr.error_user_title ? `[${metaErr.error_user_title}] ` : '';
+    return `${title}${metaErr.error_user_msg}`;
+  }
+  if (metaErr.message && metaErr.message !== 'Invalid parameter') {
+    return metaErr.message;
+  }
+  return metaErr.error_user_title || metaErr.message || 'تم رفض العملية من Meta Graph API';
+}
+
 export async function POST(req: Request) {
   if (!validateApiKey(req)) {
     return NextResponse.json({ success: false, error: 'غير مصرح: مفتاح API غير صحيح أو مفقود' }, { status: 401 });
@@ -102,7 +117,7 @@ export async function POST(req: Request) {
     if (probeData.error) {
       return NextResponse.json({
         success: false,
-        error: probeData.error.message || `لم يتم العثور على الكائن بالمعرف ${cleanId}`,
+        error: formatMetaError(probeData.error),
         meta_error: probeData.error
       }, { status: 400 });
     }
@@ -129,7 +144,7 @@ export async function POST(req: Request) {
       const updateData = await updateRes.json();
 
       if (updateData.error) {
-        return NextResponse.json({ success: false, error: updateData.error.message, meta_error: updateData.error }, { status: 400 });
+        return NextResponse.json({ success: false, error: formatMetaError(updateData.error), meta_error: updateData.error }, { status: 400 });
       }
 
       const label = targetStatus === 'ACTIVE' ? 'تشغيل' : 'إيقاف مؤقت';
@@ -188,7 +203,7 @@ export async function POST(req: Request) {
       const updateData = await updateRes.json();
 
       if (updateData.error) {
-        return NextResponse.json({ success: false, error: updateData.error.message, meta_error: updateData.error }, { status: 400 });
+        return NextResponse.json({ success: false, error: formatMetaError(updateData.error), meta_error: updateData.error }, { status: 400 });
       }
 
       return NextResponse.json({
@@ -246,7 +261,7 @@ export async function POST(req: Request) {
       const updateData = await updateRes.json();
 
       if (updateData.error) {
-        return NextResponse.json({ success: false, error: updateData.error.message, meta_error: updateData.error }, { status: 400 });
+        return NextResponse.json({ success: false, error: formatMetaError(updateData.error), meta_error: updateData.error }, { status: 400 });
       }
 
       // إذا كانت هناك مجموعات إعلانية محددة بوقت، نحدث نهايتها أيضاً
@@ -409,7 +424,7 @@ export async function POST(req: Request) {
       if (updateData.error) {
         return NextResponse.json({
           success: false,
-          error: updateData.error.message,
+          error: formatMetaError(updateData.error),
           meta_error: updateData.error
         }, { status: 400 });
       }
@@ -446,7 +461,7 @@ export async function POST(req: Request) {
       const updateData = await updateRes.json();
 
       if (updateData.error) {
-        return NextResponse.json({ success: false, error: updateData.error.message, meta_error: updateData.error }, { status: 400 });
+        return NextResponse.json({ success: false, error: formatMetaError(updateData.error), meta_error: updateData.error }, { status: 400 });
       }
 
       return NextResponse.json({
@@ -480,9 +495,13 @@ export async function POST(req: Request) {
       const copyData = await copyRes.json();
 
       if (copyData.error) {
+        let errorMsg = formatMetaError(copyData.error);
+        if (copyData.error.error_subcode === 1885194) {
+          errorMsg = `طلب النسخ كبير للغاية: فيسبوك تمنع النسخ الفوري للحملات التي تحتوي على أكثر من كائنين (مجموعات وإعلانات). يرجى عمل Duplicate للحملة من داخل مدير إعلانات ميتا (Ads Manager).`;
+        }
         return NextResponse.json({
           success: false,
-          error: copyData.error.message,
+          error: errorMsg,
           meta_error: copyData.error
         }, { status: 400 });
       }
@@ -522,7 +541,7 @@ export async function POST(req: Request) {
         });
         const createdCreative = await creativeCreateRes.json();
         if (createdCreative.error) {
-          return NextResponse.json({ success: false, error: createdCreative.error.message, meta_error: createdCreative.error }, { status: 400 });
+          return NextResponse.json({ success: false, error: formatMetaError(createdCreative.error), meta_error: createdCreative.error }, { status: 400 });
         }
         creativePayload = { creative_id: createdCreative.id };
       }
@@ -538,7 +557,7 @@ export async function POST(req: Request) {
       const updateAdData = await updateAdRes.json();
 
       if (updateAdData.error) {
-        return NextResponse.json({ success: false, error: updateAdData.error.message, meta_error: updateAdData.error }, { status: 400 });
+        return NextResponse.json({ success: false, error: formatMetaError(updateAdData.error), meta_error: updateAdData.error }, { status: 400 });
       }
 
       return NextResponse.json({
