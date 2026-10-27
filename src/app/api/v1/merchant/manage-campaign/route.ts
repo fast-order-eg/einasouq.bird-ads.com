@@ -348,18 +348,24 @@ export async function POST(req: Request) {
           }
         }
 
-        if (isEntireEgypt || mappedRegions.length === 0 && (targetingUpdate.country === 'EG' || targetingUpdate.country === 'مصر')) {
-          updatedTargeting.geo_locations = { countries: ['EG'] };
-        } else if (mappedRegions.length > 0) {
+        if (isEntireEgypt || (mappedRegions.length === 0 && (targetingUpdate.country === 'EG' || targetingUpdate.country === 'مصر'))) {
           updatedTargeting.geo_locations = {
             countries: ['EG'],
-            regions: mappedRegions
+            location_types: ['home', 'recent']
+          };
+        } else if (mappedRegions.length > 0) {
+          updatedTargeting.geo_locations = {
+            regions: mappedRegions,
+            location_types: ['home', 'recent']
           };
         }
       } else if (targetingUpdate.geo_locations) {
         updatedTargeting.geo_locations = targetingUpdate.geo_locations;
       } else if (targetingUpdate.countries) {
-        updatedTargeting.geo_locations = { countries: targetingUpdate.countries };
+        updatedTargeting.geo_locations = {
+          countries: targetingUpdate.countries,
+          location_types: ['home', 'recent']
+        };
       }
 
       // 4. الاهتمامات (Interests)
