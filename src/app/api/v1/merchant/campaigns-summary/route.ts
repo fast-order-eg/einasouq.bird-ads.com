@@ -640,9 +640,10 @@ async function handleRequest(
           name: `حملة #${cId}`,
           status: 'NOT_FOUND',
           effective_status: 'NOT_FOUND',
+          status_label: '⚠️ غير مصرح بالوصول (الحساب الإعلاني يحتاج صلاحية)',
           start_time: null,
           stop_time: null,
-          error: 'الحملة غير موجودة أو انتهت صلاحية الوصول إليها',
+          error: 'الحساب الإعلاني لهذه الحملة غير متاح للتوكن الحالي (يحتاج إضافة المستخدم كمسؤول أو تحديث التوكن المالك)',
         };
       }
 
